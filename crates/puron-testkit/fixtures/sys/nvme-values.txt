@@ -1,0 +1,8 @@
+# nvme-values
+d class/nvme/nvme0
+f class/nvme/nvme0/model "V                                       \n"
+f class/nvme/nvme0/address "0000:00:00.0\n"
+f class/nvme/nvme0/hwmon1/name "nvme\n"
+f class/nvme/nvme0/hwmon1/temp1_input "37850\n"
+f class/nvme/nvme0/hwmon1/temp2_input "-5000\n"
+f class/nvme/nvme0/hwmon1/temp3_input "0\n"

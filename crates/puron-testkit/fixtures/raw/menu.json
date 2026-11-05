@@ -1,0 +1,152 @@
+{
+  "A": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "t",
+      "key": "k0",
+      "value": 40
+    }
+  ],
+  "B": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "t",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p",
+      "key": "k1",
+      "value": 10
+    }
+  ],
+  "C": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "f",
+      "key": "k0",
+      "value": 1000
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "voltage",
+      "chip": "puron-isa-0000",
+      "name": "v",
+      "key": "k1",
+      "value": 12
+    }
+  ],
+  "D": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "f1",
+      "key": "k0",
+      "value": 1000
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "f2",
+      "key": "k1",
+      "value": 1000
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "voltage",
+      "chip": "puron-isa-0000",
+      "name": "v1",
+      "key": "k2",
+      "value": 12
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "voltage",
+      "chip": "puron-isa-0000",
+      "name": "v2",
+      "key": "k3",
+      "value": 12
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p",
+      "key": "k4",
+      "value": 10
+    }
+  ],
+  "E": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p",
+      "key": "k0",
+      "value": 10
+    }
+  ],
+  "F": [],
+  "G": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "f",
+      "key": "k0",
+      "value": 1000
+    }
+  ],
+  "H": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p1",
+      "key": "k0",
+      "value": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p2",
+      "key": "k1",
+      "value": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p3",
+      "key": "k2",
+      "value": 10
+    }
+  ]
+}

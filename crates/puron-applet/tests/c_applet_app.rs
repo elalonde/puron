@@ -1,0 +1,383 @@
+//! Tests of `app` that drive the state machine without a display and
+//! read no diag datagram, so they can share one binary. 5 s each. The
+//! start record is fixture `good-p5` (every key set by hand to a
+//! non-default value, with pinned list P5) unless a test uses fixture
+//! `p5` (the `core.settings` defaults with P5).
+#![allow(non_snake_case)]
+
+mod common;
+
+use std::process::Command as Proc;
+use std::sync::mpsc;
+use std::time::Duration;
+
+use common::*;
+use puron_applet::app::{self, Command, Event, Output, Source};
+use puron_config::{StoreResult, KEYS};
+use puron_core::menu::{Entry, MessageKind};
+use puron_core::panel::{Icon, Item};
+use puron_core::settings::TemperatureUnit;
+use puron_testkit::cfg;
+use puron_testkit::eng::HandleCall;
+
+const LIMIT: u64 = 5;
+
+/// Start with the fixture `name`; the outputs of Start.
+fn started(
+    name: &str,
+) -> (
+    cfg::Cfg,
+    std::sync::Arc<puron_testkit::eng::Handle>,
+    app::App,
+    Vec<Output>,
+) {
+    let c = cfg::build(name);
+    let h = handle(0);
+    let mut a = app(&c.root, &h);
+    let out = a.handle(Event::Start);
+    (c, h, a, out)
+}
+
+/// The `p5` root with the captured readings applied as a snapshot.
+fn as_4() -> (
+    cfg::Cfg,
+    std::sync::Arc<puron_testkit::eng::Handle>,
+    app::App,
+) {
+    let (c, h, mut a, _) = started("p5");
+    let out = a.handle(Event::Snapshot(capture()));
+    assert_eq!(values(&panel_of(&out).unwrap()), ["33°C", "73°C"]);
+    (c, h, a)
+}
+
+#[test]
+fn c_applet_app_1() {
+    puron_testkit::limit("C-applet.app-1", LIMIT, || {
+        let f = puron_testkit::temp_dir("c-applet-app-1").join("keys.txt");
+        std::fs::write(
+            &f,
+            KEYS.iter().map(|k| format!("{k}\n")).collect::<String>(),
+        )
+        .unwrap();
+        let o = Proc::new("grep")
+            .args(["-ciE", "position|index"])
+            .arg(&f)
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&o.stdout), "0\n");
+        assert_eq!(o.status.code(), Some(1));
+    });
+}
+
+#[test]
+fn c_applet_app_2() {
+    puron_testkit::limit("C-applet.app-2", LIMIT, || {
+        let (c, h, _a, out) = started("p5");
+        let loaded = puron_config::Config::new(&c.root).load().settings;
+        let panel_at = out.iter().position(|o| matches!(o, Output::Panel(_)));
+        let layout_at = out.iter().position(|o| matches!(o, Output::Layout { .. }));
+        let start_at = out
+            .iter()
+            .position(|o| matches!(o, Output::Engine(Command::Start(_))));
+        let (Some(p), Some(l), Some(s)) = (panel_at, layout_at, start_at) else {
+            panic!("start outputs {out:?}");
+        };
+        assert!(p < s && l < s, "Start before the items: {out:?}");
+        let Output::Panel(panel) = &out[p] else {
+            unreachable!()
+        };
+        assert_eq!(values(panel), ["⚠", "⚠"]);
+        assert_eq!(icons(panel), [Some(Icon::EmptySlot), Some(Icon::EmptySlot)]);
+        let Output::Layout { menu, .. } = &out[l] else {
+            unreachable!()
+        };
+        assert!(
+            matches!(
+                menu.entries[0],
+                Entry::Message {
+                    kind: MessageKind::SensorsDetect,
+                    ..
+                }
+            ),
+            "{:?}",
+            menu.entries
+        );
+        assert_eq!(h.calls().first(), Some(&HandleCall::Start(loaded)));
+        let (_c, _h, _a, out) = started("nopins");
+        let panel = panel_of(&out).expect("panel at start");
+        assert_eq!(panel.items, [Item::EmptyState]);
+    });
+}
+
+#[test]
+fn c_applet_app_4() {
+    puron_testkit::limit("C-applet.app-4", LIMIT, || {
+        let (_c, _h, mut a) = as_4();
+        let out = a.handle(delivery(&a, &["show_temperature_unit"], |s| {
+            s.show_temperature_unit = false
+        }));
+        assert_eq!(commands(&out), []);
+        assert_eq!(
+            values(&panel_of(&out).expect("rebuilt at once")),
+            ["33", "73"]
+        );
+        let out = a.handle(delivery(&a, &["show_temperature_unit"], |s| {
+            s.show_temperature_unit = true
+        }));
+        assert_eq!(commands(&out), []);
+        assert_eq!(
+            values(&panel_of(&out).expect("rebuilt at once")),
+            ["33°C", "73°C"]
+        );
+    });
+}
+
+#[test]
+fn c_applet_app_5() {
+    puron_testkit::limit("C-applet.app-5", LIMIT, || {
+        let (_c, _h, mut a) = as_4();
+        let out = a.handle(delivery(&a, &["temperature_unit"], |s| {
+            s.temperature_unit = TemperatureUnit::Fahrenheit
+        }));
+        assert_eq!(commands(&out), [Command::PollNow]);
+        assert!(panel_of(&out).is_none() && !has_layout(&out), "{out:?}");
+        assert_eq!(values(a.panel()), ["33°C", "73°C"]);
+        let out = a.handle(Event::Snapshot(capture()));
+        assert_eq!(values(&panel_of(&out).unwrap()), ["91°F", "163°F"]);
+    });
+}
+
+#[test]
+fn c_applet_app_6() {
+    puron_testkit::limit("C-applet.app-6", LIMIT, || {
+        let (_c, _h, mut a) = as_4();
+        let ev = delivery(&a, &["provider_nvme"], |s| s.provider_nvme = true);
+        let Event::Delivery(d) = &ev else {
+            unreachable!()
+        };
+        let new = d.loaded.settings.clone();
+        let out = a.handle(ev);
+        assert_eq!(commands(&out), [Command::SetProviders(new)]);
+    });
+}
+
+#[test]
+fn c_applet_app_7() {
+    puron_testkit::limit("C-applet.app-7", LIMIT, || {
+        let c = cfg::build("p5");
+        cfg::write(
+            &c.id_dir().join("pinned"),
+            br#"["temperature/lm-sensors/iwlwifi_1-virtual-0/temp1", "@maximum"]"#,
+        );
+        assert_eq!(
+            puron_config::Config::new(&c.root).load().settings.pinned,
+            pins("P3")
+        );
+        let h = handle(0);
+        let mut a = app(&c.root, &h);
+        a.handle(Event::Start);
+        a.handle(Event::Snapshot(capture()));
+        let before = a.panel().items.clone();
+        let out = a.handle(delivery(&a, &["show_temperature"], |s| {
+            s.show_temperature = false
+        }));
+        assert_eq!(commands(&out), [Command::PollNow]);
+        assert!(!has_layout(&out) && panel_of(&out).is_none(), "{out:?}");
+        assert_eq!(a.panel().items, before);
+        let out = a.handle(Event::Snapshot(capture()));
+        let Some(Output::Layout { menu, forced }) =
+            out.iter().find(|o| matches!(o, Output::Layout { .. }))
+        else {
+            panic!("no layout: {out:?}");
+        };
+        assert!(*forced, "Forced no");
+        assert!(
+            !menu
+                .identities
+                .iter()
+                .any(|i| i.starts_with("temperature/")),
+            "{:?}",
+            menu.identities
+        );
+        assert_eq!(panel_of(&out).unwrap().items, [Item::EmptyState]);
+        let out = a.handle(Event::Snapshot(capture()));
+        assert!(
+            out.iter()
+                .any(|o| matches!(o, Output::Layout { forced: false, .. })),
+            "{out:?}"
+        );
+        // One delivery with a unit switch and Show Sensors together.
+        let out = a.handle(delivery(
+            &a,
+            &["show_temperature", "show_temperature_unit"],
+            |s| {
+                s.show_temperature = true;
+                s.show_temperature_unit = false;
+            },
+        ));
+        assert_eq!(commands(&out), [Command::PollNow], "combined delivery");
+        let Some(Output::Layout { menu, forced }) =
+            out.iter().find(|o| matches!(o, Output::Layout { .. }))
+        else {
+            panic!("no layout at the combined delivery: {out:?}");
+        };
+        assert!(!*forced, "Forced yes at the combined delivery");
+        assert!(
+            menu.identities
+                .iter()
+                .any(|i| i.starts_with("temperature/")),
+            "{:?}",
+            menu.identities
+        );
+        let p = panel_of(&out).expect("panel at the combined delivery");
+        assert_eq!(values(&p), ["33", "73"], "pins without the unit");
+        let out = a.handle(Event::Snapshot(capture()));
+        assert!(
+            out.iter()
+                .any(|o| matches!(o, Output::Layout { forced: true, .. })),
+            "Forced not kept: {out:?}"
+        );
+    });
+}
+
+#[test]
+fn c_applet_app_8() {
+    puron_testkit::limit("C-applet.app-8", LIMIT, || {
+        let (_c, _h, mut a, _) = started("good-p5");
+        assert_eq!(a.settings().poll_interval_secs, 7);
+        let out = a.handle(delivery(&a, &["poll_interval_secs"], |s| {
+            s.poll_interval_secs = 10
+        }));
+        assert_eq!(commands(&out), [Command::SetInterval(10)]);
+    });
+}
+
+#[test]
+fn c_applet_app_9() {
+    puron_testkit::limit("C-applet.app-9", LIMIT, || {
+        let (_c, _h, mut a) = as_4();
+        let out = a.handle(delivery(&a, &["show_panel_icons"], |s| {
+            s.show_panel_icons = false
+        }));
+        assert_eq!(commands(&out), []);
+        let p = panel_of(&out).expect("panel rebuilt at once");
+        assert_eq!(icons(&p), [Some(Icon::None), Some(Icon::None)]);
+        assert_eq!(values(&p), ["33°C", "73°C"]);
+    });
+}
+
+#[test]
+fn c_applet_app_10() {
+    puron_testkit::limit("C-applet.app-10", LIMIT, || {
+        let (_c, _h, mut a, _) = started("good-p5");
+        let ev = delivery(
+            &a,
+            &["poll_interval_secs", "provider_nvme", "show_power"],
+            |s| {
+                s.poll_interval_secs = 10;
+                s.provider_nvme = !s.provider_nvme;
+                s.show_power = !s.show_power;
+            },
+        );
+        let Event::Delivery(d) = &ev else {
+            unreachable!()
+        };
+        let new = d.loaded.settings.clone();
+        let out = a.handle(ev);
+        assert_eq!(
+            commands(&out),
+            [Command::SetInterval(10), Command::SetProviders(new)]
+        );
+        let out = a.handle(delivery(&a, &["show_power"], |_| {}));
+        assert_eq!(out, []);
+    });
+}
+
+#[test]
+fn c_applet_app_11() {
+    puron_testkit::limit("C-applet.app-11", LIMIT, || {
+        let (_c, _h, mut a, _) = started("good-p5");
+        let items = a.panel().items.clone();
+        let out = a.handle(delivery(&a, &["pinned"], |s| s.pinned = pins("P1")));
+        assert_eq!(a.pinned(), pins("P5"));
+        assert_eq!(a.panel().items, items);
+        assert!(panel_of(&out).is_none(), "{out:?}");
+        assert!(
+            !out.iter().any(|o| matches!(o, Output::Store(..))),
+            "{out:?}"
+        );
+        assert_eq!(commands(&out), [Command::PollNow]);
+    });
+}
+
+#[test]
+fn c_applet_app_12() {
+    puron_testkit::limit("C-applet.app-12", LIMIT, || {
+        let (c, _h, mut a) = as_4();
+        let fan = a
+            .menu()
+            .unwrap()
+            .identities
+            .iter()
+            .find(|i| i.starts_with("fan/") && i.contains("fan1"))
+            .cloned()
+            .expect("CPU fan in the menu");
+        let out = a.handle(Event::PinClick(fan.clone()));
+        let mut want = pins("P5");
+        want.push(fan);
+        let stores: Vec<_> = out
+            .iter()
+            .filter(|o| matches!(o, Output::Store(..)))
+            .collect();
+        assert_eq!(stores, [&Output::Store(want.clone(), StoreResult::Stored)]);
+        assert_eq!(
+            puron_config::Config::new(&c.root).load().settings.pinned,
+            want
+        );
+        assert_eq!(commands(&out), [Command::PollNow]);
+        let p = panel_of(&out).expect("panel in the click's event");
+        assert_eq!(values(&p), ["33°C", "73°C", "0 rpm"]);
+        assert_eq!(
+            icons(&p)[2],
+            Some(Icon::Kind(puron_core::menu::IconKind::Fan))
+        );
+        let ev = Event::Delivery(puron_config::Delivery {
+            keys: vec!["pinned"],
+            loaded: puron_config::Config::new(&c.root).load(),
+        });
+        let out = a.handle(ev);
+        assert_eq!(commands(&out), []);
+    });
+}
+
+#[test]
+fn c_applet_app_18() {
+    puron_testkit::limit("C-applet.app-18", LIMIT, || {
+        let c = cfg::build("p5");
+        let h = handle(0);
+        let a = app(&c.root, &h);
+        let (tx, rx) = mpsc::channel();
+        let (vtx, vrx) = mpsc::channel::<(Source, Vec<Output>)>();
+        std::thread::spawn(move || {
+            app::run(a, tx, rx, move |s, _, out| {
+                let _ = vtx.send((s, out.to_vec()));
+            })
+        });
+        let (s, _) = vrx.recv().unwrap();
+        assert_eq!(s, Source::Start);
+        let waiting = |c: &[HandleCall]| {
+            c.iter().rposition(|x| *x == HandleCall::WaitBegin)
+                > c.iter().rposition(|x| *x == HandleCall::WaitEnd)
+        };
+        assert!(
+            h.wait_for(Duration::from_secs(2), waiting),
+            "no subscription wait begun: {:?}",
+            h.calls()
+        );
+        h.deliver(capture());
+        let (s, out) = vrx.recv().unwrap();
+        assert_eq!(s, Source::Subscription, "{out:?}");
+        assert_eq!(values(&panel_of(&out).expect("panel")), ["33°C", "73°C"]);
+        std::mem::forget(c);
+    });
+}

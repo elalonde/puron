@@ -1,0 +1,107 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Puron
+Source: https://github.com/elalonde/puron
+Comment: The complete corresponding source of the binaries is the release
+ asset puron-1.0.0-source.tar.xz of the tag v1.0.0, see SOURCE-OFFER in
+ this folder. Every crate the binaries are built from is listed with its
+ license and notices in THIRD-PARTY-NOTICES.txt in this folder.
+
+Files: *
+Copyright: 2026 elalonde
+License: MIT
+
+Files: usr/bin/puron-applet
+Copyright: 2026 elalonde, and the authors of the Rust crates the binary is
+ built from (see THIRD-PARTY-NOTICES.txt)
+License: GPL-3.0-only and MPL-2.0 and LGPL-2.1 and NVIDIA-NVML-notice
+Comment: Puron's source files are under MIT terms. This binary links
+ cosmic-panel-config and xdg-shell-wrapper-config (GPL-3.0-only) and is
+ therefore distributed as a GPL-3.0 combined work. It also links the
+ libcosmic crates and option-ext (MPL-2.0), udisks2 (LGPL-2.1), crates
+ under MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, BSL-1.0, CC0-1.0, ISC,
+ MIT-0, Unicode-3.0, Unlicense or Zlib terms, and bindings generated from
+ NVIDIA's NVML header.
+
+Files: usr/bin/puron-settings
+Copyright: 2026 elalonde, and the authors of the Rust crates the binary is
+ built from (see THIRD-PARTY-NOTICES.txt)
+License: MIT and MPL-2.0
+Comment: This binary links the libcosmic crates and option-ext (MPL-2.0)
+ and crates under MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, BSL-1.0,
+ CC0-1.0, ISC, MIT-0, Unicode-3.0, Unlicense or Zlib terms. It links no
+ GPL-3.0 crate and neither udisks2 nor the NVML bindings.
+
+License: MIT
+ Copyright (c) 2026 elalonde
+ .
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+
+License: GPL-3.0-only
+ This binary is a combined work distributed under the terms of version 3
+ of the GNU General Public License.
+ .
+ The full text is in /usr/share/doc/puron/GPL-3.0.txt, and on Debian
+ systems in /usr/share/common-licenses/GPL-3.
+
+License: MPL-2.0
+ The covered crates are under the terms of the Mozilla Public License,
+ version 2.0. Their source is part of the source offer above.
+ .
+ On Debian systems the full text is in /usr/share/common-licenses/MPL-2.0.
+
+License: LGPL-2.1
+ The udisks2 crate is under the terms of the GNU Lesser General Public
+ License, version 2.1. The source offer above holds what is needed to
+ relink the binary against a changed copy of it.
+ .
+ On Debian systems the full text is in /usr/share/common-licenses/LGPL-2.1.
+
+License: NVIDIA-NVML-notice
+ Copyright 1993-2025 NVIDIA Corporation.  All rights reserved.
+ .
+ NOTICE TO USER:
+ .
+ This source code is subject to NVIDIA ownership rights under U.S. and
+ international Copyright laws.  Users and possessors of this source code
+ are hereby granted a nonexclusive, royalty-free license to use this code
+ in individual and commercial software.
+ .
+ NVIDIA MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE
+ CODE FOR ANY PURPOSE.  IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR
+ IMPLIED WARRANTY OF ANY KIND.  NVIDIA DISCLAIMS ALL WARRANTIES WITH
+ REGARD TO THIS SOURCE CODE, INCLUDING ALL IMPLIED WARRANTIES OF
+ MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE.
+ IN NO EVENT SHALL NVIDIA BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL,
+ OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+ OF USE, DATA OR PROFITS,  WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ OR OTHER TORTIOUS ACTION,  ARISING OUT OF OR IN CONNECTION WITH THE USE
+ OR PERFORMANCE OF THIS SOURCE CODE.
+ .
+ U.S. Government End Users.   This source code is a "commercial item" as
+ that term is defined at  48 C.F.R. 2.101 (OCT 1995), consisting  of
+ "commercial computer  software"  and "commercial computer software
+ documentation" as such terms are  used in 48 C.F.R. 12.212 (SEPT 1995)
+ and is provided to the U.S. Government only as a commercial end item.
+ Consistent with 48 C.F.R.12.212 and 48 C.F.R. 227.7202-1 through
+ 227.7202-4 (JUNE 1995), all U.S. Government End Users acquire the
+ source code with only those rights set forth herein.
+ .
+ Any use of this source code in individual and commercial software must
+ include, in the user documentation and internal comments to the code,
+ the above Disclaimer and U.S. Government End Users Notice.

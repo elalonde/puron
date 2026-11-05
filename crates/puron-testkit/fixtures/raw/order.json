@@ -1,0 +1,119 @@
+{
+  "families": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "a",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "z",
+      "key": "k1",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "m",
+      "key": "k2",
+      "value": 40
+    }
+  ],
+  "gpu": [
+    {
+      "provider": "NVIDIA",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Beta",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "alpha",
+      "key": "k1",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "zeta",
+      "key": "k2",
+      "value": 40
+    }
+  ],
+  "power": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "b",
+      "key": "k0",
+      "value": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "a",
+      "key": "k1",
+      "value": 10
+    }
+  ],
+  "fans": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "b",
+      "key": "k0",
+      "value": 1000
+    },
+    {
+      "device": "A",
+      "item": "Fan speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "A/Fan speed"
+    }
+  ],
+  "voltages": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "voltage",
+      "chip": "puron-isa-0000",
+      "name": "b",
+      "key": "k0",
+      "value": 12
+    },
+    {
+      "device": "A",
+      "item": "Pump voltage",
+      "unit": "V",
+      "value": 12,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "A/Pump voltage"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+P: /devices/platform/puron_set/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_set\n
+A: temp1_input=40000\n
+A: temp1_max=84000\n
+L: device=../../../puron_set
+
+P: /devices/platform/puron_set
+E: SUBSYSTEM=platform

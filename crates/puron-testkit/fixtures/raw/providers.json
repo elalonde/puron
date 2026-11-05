@@ -1,0 +1,35 @@
+[
+  {
+    "provider": "NVIDIA",
+    "position": 0,
+    "kind": "temperature",
+    "name": "GPU A ",
+    "key": "k0",
+    "value": 40
+  },
+  {
+    "provider": "udisks2",
+    "position": 0,
+    "kind": "temperature",
+    "name": "Disk  B",
+    "key": "k1",
+    "value": 40
+  },
+  {
+    "provider": "nvme-cli",
+    "position": 0,
+    "kind": "temperature",
+    "name": "Model-C",
+    "key": "k2",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 0,
+    "kind": "temperature",
+    "chip": "puron-isa-0000",
+    "name": "Core 0",
+    "key": "k3",
+    "value": 40
+  }
+]

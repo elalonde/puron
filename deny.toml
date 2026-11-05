@@ -1,0 +1,90 @@
+# cargo deny license policy for the workspace. tools/c_tests_2.sh runs
+# `cargo deny check licenses` with it.
+# Change the allowed list and the exceptions only by a decision of the maintainer.
+
+[licenses]
+# Allowed in any crate.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "MIT-0",
+    "Unlicense",
+    "Unicode-3.0",
+    "Zlib",
+    "ISC",
+    "BSD-2-Clause",
+    "BSL-1.0",
+]
+
+# Allowed only for the named crates. Every other license is denied.
+exceptions = [
+    # MPL-2.0: the libcosmic crates, the pop-os fork crates and option-ext.
+    { crate = "libcosmic", allow = ["MPL-2.0"] },
+    { crate = "cosmic-config", allow = ["MPL-2.0"] },
+    { crate = "cosmic-config-derive", allow = ["MPL-2.0"] },
+    { crate = "cosmic-theme", allow = ["MPL-2.0"] },
+    { crate = "cosmic-settings-daemon", allow = ["MPL-2.0"] },
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+    # LGPL-2.1: udisks2 only.
+    { crate = "udisks2", allow = ["LGPL-2.1"] },
+    # GPL-3.0-only: cosmic-panel-config and xdg-shell-wrapper-config only.
+    { crate = "cosmic-panel-config", allow = ["GPL-3.0-only"] },
+    { crate = "xdg-shell-wrapper-config", allow = ["GPL-3.0-only"] },
+]
+
+# Clarify entries: the license of a repository's license file and its
+# hash (xxHash32, line ends normalised). A new commit of these
+# repositories changes a hash: rewrite the entry.
+
+# libcosmic 430f3d48, file LICENSE.
+[[licenses.clarify]]
+crate = "cosmic-config"
+expression = "MPL-2.0"
+license-files = [{ path = "../LICENSE", hash = 0x3b6981e6 }]
+
+[[licenses.clarify]]
+crate = "cosmic-config-derive"
+expression = "MPL-2.0"
+license-files = [{ path = "../LICENSE", hash = 0x3b6981e6 }]
+
+[[licenses.clarify]]
+crate = "cosmic-theme"
+expression = "MPL-2.0"
+license-files = [{ path = "../LICENSE", hash = 0x3b6981e6 }]
+
+# dbus-settings-bindings, file LICENSE.md.
+[[licenses.clarify]]
+crate = "cosmic-settings-daemon"
+expression = "MPL-2.0"
+license-files = [{ path = "../LICENSE.md", hash = 0x0d4a6b51 }]
+
+# iced fork (libcosmic/iced), file LICENSE.
+[[licenses.clarify]]
+crate = "iced_accessibility"
+expression = "MIT"
+license-files = [{ path = "../LICENSE", hash = 0xa244f17c }]
+
+# window_clipboard, file LICENSE.
+[[licenses.clarify]]
+crate = "dnd"
+expression = "MIT"
+license-files = [{ path = "../LICENSE", hash = 0xfd9601dd }]
+
+[[licenses.clarify]]
+crate = "mime@0.1.0"
+expression = "MIT"
+license-files = [{ path = "../LICENSE", hash = 0xfd9601dd }]
+
+# cosmic-panel, file LICENSE.md (read by the tool as GPL-3.0-or-later;
+# the workspace states GPL-3.0-only).
+[[licenses.clarify]]
+crate = "cosmic-panel-config"
+expression = "GPL-3.0-only"
+license-files = [{ path = "../LICENSE.md", hash = 0x03092a70 }]
+
+[[licenses.clarify]]
+crate = "xdg-shell-wrapper-config"
+expression = "GPL-3.0-only"
+license-files = [{ path = "../LICENSE.md", hash = 0x03092a70 }]

@@ -1,0 +1,20 @@
+Display Options	Poll Sensors Every (sec)	number	poll_interval_secs	none
+Display Options	Show Icon on Panel	switch	show_panel_icons	none
+Display Options	Temperature Unit	list	temperature_unit	none
+Display Options	Show Temperature Unit	switch	show_temperature_unit	none
+Display Options	Show Rotation Rate Unit	switch	show_rotation_rate_unit	none
+Display Options	Show Voltage Unit	switch	show_voltage_unit	none
+Display Options	Show Power Unit	switch	show_power_unit	none
+Display Options	Show Decimal Values	switch	show_decimals	tip-decimals
+Generic Sensor Providers	lm-sensors	switch	provider_lm_sensors	tip-lm-sensors
+Generic Sensor Providers	liquidctl	switch	provider_liquidctl	tip-liquidctl
+GPU Sensor Providers	Nvidia	switch	provider_nvidia	none
+Drive Sensor Providers	Udisks2	switch	provider_udisks2	none
+Drive Sensor Providers	nvme-cli	switch	provider_nvme	none
+Show Sensors	Temperature	switch	show_temperature	none
+Show Sensors	Rotation Rate	switch	show_rotation_rate	none
+Show Sensors	Voltage	switch	show_voltage	none
+Show Sensors	Power	switch	show_power	none
+Group Items	Temperature	switch	group_temperature	tip-group-temp
+Group Items	Rotation Rate	switch	group_rotation_rate	tip-group-fan
+Group Items	Voltage	switch	group_voltage	tip-group-volt

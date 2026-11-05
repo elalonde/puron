@@ -1,0 +1,33 @@
+#!/bin/sh
+# Rejects a commit message that holds a pattern of tools/lint-patterns
+# or a trailer other than "Co-Authored-By: Claude <model>
+# <noreply@anthropic.com>". Enabled by make setup (core.hooksPath).
+# Usage (git runs it): .githooks/commit-msg <message file>
+top=$(git rev-parse --show-toplevel) || exit 2
+msg=$1
+tmp=$(mktemp -d) || exit 2
+trap 'rm -rf "$tmp"' EXIT
+# The part above git's scissors line (commit -v); comment lines that git
+# strips count too, so a stray ID in them is still caught.
+sed '/^# -\{24\} >8 -\{24\}$/,$d' "$msg" > "$tmp/m"
+grep -vE '^(#|$)' "$top/tools/lint-patterns" | sed "s/<SECTION-SIGN>/$(printf '\302\247')/g" > "$tmp/pat" || exit 2
+bad=0
+while IFS="$(printf '\t')" read -r class re; do
+    if grep -nE -- "$re" "$tmp/m" > "$tmp/h"; then
+        sed "s/^/commit-msg: $class: line /" "$tmp/h"; bad=1
+    fi
+done < "$tmp/pat"
+allowed='^Co-Authored-By: Claude [A-Za-z0-9][A-Za-z0-9. ]* <noreply@anthropic\.com>$'
+git interpret-trailers --parse < "$tmp/m" > "$tmp/t"
+while IFS= read -r t; do
+    if ! printf '%s\n' "$t" | grep -qE "$allowed"; then
+        echo "commit-msg: trailer not allowed: $t"; bad=1
+    fi
+done < "$tmp/t"
+# A trailer-like line git would not parse as a trailer still counts.
+if grep -nE '^(Co-Authored-By|Claude-[A-Za-z-]*|Signed-off-by|[A-Za-z]+-[A-Za-z-]*): ' "$tmp/m" \
+    | grep -vE ":$(printf '%s' "$allowed" | sed 's/^\^//')" > "$tmp/x"; then
+    sed 's/^/commit-msg: trailer-like line not allowed: line /' "$tmp/x"; bad=1
+fi
+[ "$bad" = 0 ] || echo "commit-msg: message rejected"
+exit $bad

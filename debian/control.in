@@ -1,0 +1,12 @@
+Package: puron
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: elalonde <eric@lalonde.com>
+Installed-Size: @SIZE@
+Depends: @DEPENDS@
+Section: utils
+Priority: optional
+Description: sensor readings in the COSMIC panel
+ Puron is a COSMIC panel applet that shows temperatures, fan speeds and
+ voltages from lm-sensors, NVMe and SATA drive temperatures, NVIDIA GPU
+ temperatures and liquidctl devices, with a separate settings window.

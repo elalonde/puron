@@ -1,0 +1,3 @@
+# p5 with debug_logging true.
+@base p5
+debug_logging true

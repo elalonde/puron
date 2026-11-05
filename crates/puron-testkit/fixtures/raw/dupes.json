@@ -1,0 +1,91 @@
+{
+  "A": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "a",
+      "key": "c-isa-0000/temp1",
+      "value": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "a",
+      "key": "c-isa-0000/temp2",
+      "value": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "a",
+      "key": "c-isa-0000/temp3",
+      "value": 3
+    }
+  ],
+  "B": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "x",
+      "key": "c-isa-0000/temp1",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "fan",
+      "chip": "c-isa-0000",
+      "name": "x",
+      "key": "c-isa-0000/fan1",
+      "value": 1000
+    }
+  ],
+  "C": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "t0",
+      "key": "k",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "fan",
+      "chip": "c-isa-0000",
+      "name": "f1",
+      "key": "k",
+      "value": 1000
+    }
+  ],
+  "D": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "a",
+      "key": "k",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "c-isa-0000",
+      "name": "b",
+      "key": "k",
+      "value": 40
+    }
+  ]
+}

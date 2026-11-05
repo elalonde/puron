@@ -1,0 +1,12 @@
+# Sensor labels for the test fixtures. Written by hand for this project's
+# tests: it gives a readable name to the first temperature input of three
+# chips in the matching umockdev testbed and leaves every other input alone.
+
+chip "iwlwifi_1-virtual-*"
+    label temp1 "WiFi"
+
+chip "coretemp-isa-*"
+    label temp1 "CPU"
+
+chip "nvme-pci-*"
+    label temp1 "SSD"

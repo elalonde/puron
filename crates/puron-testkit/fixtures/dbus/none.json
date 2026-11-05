@@ -1,0 +1,3 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/Samsung_SSD", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "Samsung SSD 980 PRO 1TB"}}}}
+]}

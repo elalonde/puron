@@ -1,0 +1,4 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/a", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "A"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 310.15}}}}
+],
+ "hang_list": true}

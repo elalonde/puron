@@ -1,0 +1,11 @@
+# nvme-capture
+d class/nvme/nvme0
+f class/nvme/nvme0/model "Samsung SSD 980 PRO 1TB                 \n"
+f class/nvme/nvme0/address "0000:01:00.0\n"
+f class/nvme/nvme0/hwmon2/name "nvme\n"
+f class/nvme/nvme0/hwmon2/temp1_input "37850\n"
+f class/nvme/nvme0/hwmon2/temp1_label "Composite\n"
+f class/nvme/nvme0/hwmon2/temp2_input "37850\n"
+f class/nvme/nvme0/hwmon2/temp2_label "Sensor 1\n"
+f class/nvme/nvme0/hwmon2/temp3_input "43850\n"
+f class/nvme/nvme0/hwmon2/temp3_label "Sensor 2\n"

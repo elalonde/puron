@@ -1,0 +1,4 @@
+# readonly: good, then chmod a-w on the ID directory, the
+# v1 directory and each entry.
+@base good
+@readonly

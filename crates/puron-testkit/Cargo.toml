@@ -1,0 +1,43 @@
+[package]
+name = "puron-testkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+puron-core.workspace = true
+puron-engine.workspace = true
+puron-config = { workspace = true, optional = true }
+libc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+udisks2.workspace = true
+
+[dev-dependencies]
+lm-sensors.workspace = true
+
+# The puron-cfg-writer binary and its function need puron-config, which
+# puron-engine's dev-dependency on this crate must not pull in: it would
+# enter the license check of puron-engine's dependency graph.
+[features]
+cfg-writer = ["dep:puron-config"]
+# The dump mode of puron-soak, which prints the rows Puron would show
+# as text. It loads the settings with puron-config, so puron-soak needs
+# it too.
+dump = ["dep:puron-config"]
+
+[[bin]]
+name = "puron-cfg-writer"
+required-features = ["cfg-writer"]
+
+[[bin]]
+name = "puron-soak"
+required-features = ["dump"]
+
+# The test of the dump mode: built when `dump` is on, which
+# puron-applet's dev-dependency turns on in the workspace build (a self
+# dev-dependency would put puron-config into puron-engine's graph).
+[[test]]
+name = "d5"
+required-features = ["dump"]

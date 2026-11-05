@@ -1,0 +1,17 @@
+[package]
+name = "puron-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+puron-core.workspace = true
+lm-sensors.workspace = true
+nvml-wrapper.workspace = true
+nvml-wrapper-sys.workspace = true
+udisks2.workspace = true
+serde_json.workspace = true
+libc.workspace = true
+
+[dev-dependencies]
+puron-testkit.workspace = true

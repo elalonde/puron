@@ -1,0 +1,11 @@
+P: /devices/platform/puron_compute/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_compute\n
+A: temp1_input=1000\n
+A: temp2_input=3000\n
+A: temp3_input=1000\n
+A: temp4_input=-1000\n
+L: device=../../../puron_compute
+
+P: /devices/platform/puron_compute
+E: SUBSYSTEM=platform

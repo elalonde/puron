@@ -1,0 +1,36 @@
+{
+  "M1": [
+    "temperature/lm-sensors/coretemp-isa-0000/temp2",
+    "temperature/lm-sensors/coretemp-isa-0000/temp3",
+    "temperature/lm-sensors/coretemp-isa-0000/temp4",
+    "temperature/lm-sensors/coretemp-isa-0000/temp5",
+    "temperature/lm-sensors/coretemp-isa-0000/temp1",
+    "temperature/lm-sensors/system76_acpi-isa-0000/temp1",
+    "temperature/lm-sensors/iwlwifi_1-virtual-0/temp1",
+    "temperature/lm-sensors/nvme-pci-0100/temp2",
+    "temperature/lm-sensors/nvme-pci-0100/temp3",
+    "temperature/lm-sensors/nvme-pci-0100/temp1",
+    "@maximum",
+    "fan/lm-sensors/system76_acpi-isa-0000/fan1",
+    "voltage/lm-sensors/BAT0-acpi-0/in0"
+  ],
+  "M2": [
+    "fan/lm-sensors/system76_acpi-isa-0000/fan1",
+    "voltage/lm-sensors/BAT0-acpi-0/in0"
+  ],
+  "M3": [],
+  "M4": [
+    "temperature/lm-sensors/coretemp-isa-0000/temp2",
+    "temperature/lm-sensors/coretemp-isa-0000/temp3",
+    "temperature/lm-sensors/coretemp-isa-0000/temp4",
+    "temperature/lm-sensors/coretemp-isa-0000/temp5",
+    "temperature/lm-sensors/coretemp-isa-0000/temp1",
+    "temperature/lm-sensors/system76_acpi-isa-0000/temp1",
+    "temperature/lm-sensors/iwlwifi_1-virtual-0/temp1",
+    "temperature/lm-sensors/nvme-pci-0100/temp2",
+    "temperature/lm-sensors/nvme-pci-0100/temp3",
+    "temperature/lm-sensors/nvme-pci-0100/temp1",
+    "@maximum",
+    "voltage/lm-sensors/BAT0-acpi-0/in0"
+  ]
+}

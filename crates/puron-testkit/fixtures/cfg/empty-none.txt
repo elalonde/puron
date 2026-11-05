@@ -1,0 +1,2 @@
+# An empty settings tree in the first root: the ID directory and no entry in it.
+@mkdir cosmic/io.github.elalonde.Puron/v1

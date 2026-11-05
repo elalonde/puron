@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Puron icon (MIT): a graphics card (bracket, board with a fan,
+       contacts) with a small thermometer. -->
+  <path fill="#000000" fill-rule="evenodd" d="M0 2h1.5v12h-1.5zM2 4h9v7h-9zM4.5 7.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0zM3 11h6v1.5h-6zM13 2.5a1.25 1.25 0 0 1 2.5 0v7a2 2 0 1 1-2.5 0z"/>
+</svg>

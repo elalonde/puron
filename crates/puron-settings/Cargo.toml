@@ -1,0 +1,31 @@
+[package]
+name = "puron-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+puron-core.workspace = true
+puron-config.workspace = true
+i18n-embed.workspace = true
+i18n-embed-fl.workspace = true
+rust-embed.workspace = true
+
+# The default feature set, named in full, plus single-instance.
+[dependencies.libcosmic]
+workspace = true
+features = ["winit", "tokio", "a11y", "dbus-config", "x11", "wayland", "multi-window", "single-instance"]
+
+# Builds in the test catalog; for test builds only (the i18n source is
+# shared with puron-applet, whose tests use it).
+[features]
+test-catalog = []
+
+[dev-dependencies]
+libc.workspace = true
+puron-testkit = { workspace = true, features = ["cfg-writer"] }
+iced_test.workspace = true
+# A settings window test compares snapshot pixels.
+png.workspace = true
+# Turns the test catalog on for this crate's tests.
+puron-settings = { path = ".", features = ["test-catalog"] }

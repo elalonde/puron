@@ -1,0 +1,33 @@
+raw	temperature/lm-sensors/iwlwifi_1-virtual-0/temp1	33
+raw	temperature/lm-sensors/nvme-pci-0100/temp1	37.85
+raw	temperature/lm-sensors/nvme-pci-0100/temp2	37.85
+raw	temperature/lm-sensors/nvme-pci-0100/temp3	44.85
+raw	temperature/lm-sensors/coretemp-isa-0000/temp1	73
+raw	temperature/lm-sensors/coretemp-isa-0000/temp2	65
+raw	temperature/lm-sensors/coretemp-isa-0000/temp3	71
+raw	temperature/lm-sensors/coretemp-isa-0000/temp4	64
+raw	temperature/lm-sensors/coretemp-isa-0000/temp5	72
+raw	fan/lm-sensors/system76_acpi-isa-0000/fan1	0
+raw	temperature/lm-sensors/system76_acpi-isa-0000/temp1	67
+raw	voltage/lm-sensors/BAT0-acpi-0/in0	8.494
+menu	0	group	temperature	temperature	73°C	-
+menu	1	row	general	Core 0	65°C	0
+menu	1	row	general	Core 1	71°C	0
+menu	1	row	general	Core 2	64°C	0
+menu	1	row	general	Core 3	72°C	0
+menu	1	row	general	CPU	73°C	0
+menu	1	row	general	CPU temp	67°C	0
+menu	1	row	general	WiFi	33°C	0
+menu	1	row	drive	Sensor 1	38°C	0
+menu	1	row	drive	Sensor 2	45°C	0
+menu	1	row	drive	SSD	38°C	0
+menu	0	separator	-	-	-	-
+menu	0	maximum	maximum	Maximum	73°C	1
+menu	0	separator	-	-	-	-
+menu	0	row	fan	CPU fan	0 rpm	0
+menu	0	separator	-	-	-	-
+menu	0	row	voltage	in0	+8.49V	0
+menu	0	separator	-	-	-	-
+menu	0	homepage	-	-	-	-
+menu	0	settings	-	-	-	-
+panel	maximum	73°C

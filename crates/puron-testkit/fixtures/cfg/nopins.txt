@@ -1,0 +1,3 @@
+# nopins: good with pinned = [].
+@base good
+pinned []

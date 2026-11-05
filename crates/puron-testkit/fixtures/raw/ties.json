@@ -1,0 +1,238 @@
+{
+  "SSD": [
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "SSD",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "SSD",
+      "key": "k1",
+      "value": 40
+    },
+    {
+      "provider": "udisks2",
+      "position": 0,
+      "kind": "temperature",
+      "name": "SSD",
+      "key": "k2",
+      "value": 40
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "SSD",
+      "key": "k3",
+      "value": 40
+    }
+  ],
+  "CPU1": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "CPU",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "cpu",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "CPU2": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "cpu",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "CPU",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "Ab": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "Ab",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "aB",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "AB": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "AB",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "Ab",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "K1": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "K2": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "KA": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "KA",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "Ka",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "Kk1": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "k",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "Kk2": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "k",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "K",
+      "key": "k1",
+      "value": 40
+    }
+  ],
+  "A Fan": [
+    {
+      "device": "A",
+      "item": "Fan speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "A/Fan speed"
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "A Fan",
+      "key": "k0",
+      "value": 1000
+    }
+  ]
+}
