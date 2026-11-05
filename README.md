@@ -1,14 +1,14 @@
 # Puron
 
-Puron is a panel applet for the COSMIC desktop that shows sensor
-readings: temperatures, fan speeds and voltages from lm-sensors, NVMe
-and SATA drive temperatures, NVIDIA GPU temperatures and liquidctl
-devices. The panel shows the readings you pin; the popup lists all of
-them. A separate settings window chooses the providers, the units and
-the layout.
+Puron is a panel applet for the COSMIC desktop that displays hardware
+sensor readings in the COSMIC Panel and Dock.
 
-Puron's behavior follows the GNOME Shell extension Freon. It was written
-from a behavior specification, without Freon's code.
+The goal of Puron is to read and display any sensor that the system
+hardware makes available. This includes:
+- individual hardware component temperatures (CPU, SATA, GPU, etc.)
+- fan speeds
+- hardware voltages
+- liquid cooling statistics
 
 ## Build
 
@@ -66,8 +66,7 @@ links the libcosmic crates and `option-ext` (MPL-2.0), `udisks2`
 (LGPL-2.1) and crates under permissive licenses.
 
 The `puron-settings` binary is MIT and links the libcosmic crates and
-`option-ext` (MPL-2.0) and crates under permissive licenses. It links
-no GPL-3.0 crate and not `udisks2`.
+`option-ext` (MPL-2.0) and crates under permissive licenses.
 
 The package ships the GPL-3.0 text, `SOURCE-OFFER` and
 `THIRD-PARTY-NOTICES.txt` in `/usr/share/doc/puron/`. The notices file
@@ -80,3 +79,9 @@ offline build.
 
     make source-archive
     sh tools/check-source-archive.sh
+
+## History
+Puron started as a clean-room re-implementation of the GNOME Shell extension Freon, 
+to avoid license issues. (Puron is the refrigerant which replaced Freon after Freon
+was banned due to its contribution to ozone depletion). The direction of the project
+has since moved on from its original intent in order to support more modern environments.
