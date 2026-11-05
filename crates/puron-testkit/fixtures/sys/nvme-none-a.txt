@@ -1,0 +1,2 @@
+# nvme-none, first tree: no class/nvme/
+d class/hwmon

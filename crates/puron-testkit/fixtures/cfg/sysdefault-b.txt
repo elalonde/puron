@@ -1,0 +1,4 @@
+# sysdefault, case B: case A with a per-user show_power of the
+# wrong type.
+@base sysdefault-a
+show_power 7

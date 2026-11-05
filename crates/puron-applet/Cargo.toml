@@ -1,0 +1,31 @@
+[package]
+name = "puron-applet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+puron-core.workspace = true
+puron-engine.workspace = true
+puron-config.workspace = true
+i18n-embed.workspace = true
+i18n-embed-fl.workspace = true
+rust-embed.workspace = true
+libc.workspace = true
+
+# The default feature set, named in full, plus applet.
+[dependencies.libcosmic]
+workspace = true
+features = ["winit", "tokio", "a11y", "dbus-config", "x11", "wayland", "multi-window", "applet"]
+
+# Builds in the test catalog; for test builds only.
+[features]
+test-catalog = []
+
+[dev-dependencies]
+puron-applet = { path = ".", features = ["test-catalog"] }
+serde_json.workspace = true
+# `dump` builds the test of puron-soak's dump mode in puron-testkit.
+puron-testkit = { workspace = true, features = ["dump"] }
+iced_test.workspace = true
+png.workspace = true

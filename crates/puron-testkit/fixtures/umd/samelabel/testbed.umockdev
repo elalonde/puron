@@ -1,0 +1,11 @@
+P: /devices/platform/puron_same/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_same\n
+A: temp1_input=50000\n
+A: temp2_input=60000\n
+A: temp1_label=Core 0\n
+A: temp2_label=Core 0\n
+L: device=../../../puron_same
+
+P: /devices/platform/puron_same
+E: SUBSYSTEM=platform

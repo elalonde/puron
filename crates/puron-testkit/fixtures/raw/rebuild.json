@@ -1,0 +1,583 @@
+{
+  "S1": [
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "name": "WiFi",
+      "value": 33.0,
+      "position": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp1",
+      "name": "SSD",
+      "value": 37.85,
+      "position": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp2",
+      "name": "Sensor 1",
+      "value": 37.85,
+      "position": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp3",
+      "name": "Sensor 2",
+      "value": 44.85,
+      "position": 3
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp1",
+      "name": "CPU",
+      "value": 73.0,
+      "position": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp2",
+      "name": "Core 0",
+      "value": 65.0,
+      "position": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp3",
+      "name": "Core 1",
+      "value": 71.0,
+      "position": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp4",
+      "name": "Core 2",
+      "value": 64.0,
+      "position": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp5",
+      "name": "Core 3",
+      "value": 72.0,
+      "position": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/fan1",
+      "name": "CPU fan",
+      "value": 0.0,
+      "position": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/temp1",
+      "name": "CPU temp",
+      "value": 67.0,
+      "position": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "key": "BAT0-acpi-0/in0",
+      "name": "in0",
+      "value": 8.494,
+      "position": 11
+    }
+  ],
+  "S2": [
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "name": "WiFi",
+      "value": 34.0,
+      "position": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp1",
+      "name": "SSD",
+      "value": 38.85,
+      "position": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp2",
+      "name": "Sensor 1",
+      "value": 38.85,
+      "position": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp3",
+      "name": "Sensor 2",
+      "value": 45.85,
+      "position": 3
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp1",
+      "name": "CPU",
+      "value": 74.0,
+      "position": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp2",
+      "name": "Core 0",
+      "value": 66.0,
+      "position": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp3",
+      "name": "Core 1",
+      "value": 72.0,
+      "position": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp4",
+      "name": "Core 2",
+      "value": 65.0,
+      "position": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp5",
+      "name": "Core 3",
+      "value": 73.0,
+      "position": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/fan1",
+      "name": "CPU fan",
+      "value": 1.0,
+      "position": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/temp1",
+      "name": "CPU temp",
+      "value": 68.0,
+      "position": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "key": "BAT0-acpi-0/in0",
+      "name": "in0",
+      "value": 9.494,
+      "position": 11
+    }
+  ],
+  "S3": [
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp1",
+      "name": "SSD",
+      "value": 37.85,
+      "position": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp2",
+      "name": "Sensor 1",
+      "value": 37.85,
+      "position": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp3",
+      "name": "Sensor 2",
+      "value": 44.85,
+      "position": 3
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp1",
+      "name": "CPU",
+      "value": 73.0,
+      "position": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp2",
+      "name": "Core 0",
+      "value": 65.0,
+      "position": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp3",
+      "name": "Core 1",
+      "value": 71.0,
+      "position": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp4",
+      "name": "Core 2",
+      "value": 64.0,
+      "position": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp5",
+      "name": "Core 3",
+      "value": 72.0,
+      "position": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/fan1",
+      "name": "CPU fan",
+      "value": 0.0,
+      "position": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/temp1",
+      "name": "CPU temp",
+      "value": 67.0,
+      "position": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "key": "BAT0-acpi-0/in0",
+      "name": "in0",
+      "value": 8.494,
+      "position": 11
+    }
+  ],
+  "S4": [
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "key": "iwlwifi_1-virtual-0/temp9",
+      "name": "WLAN",
+      "value": 33.0,
+      "position": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp1",
+      "name": "SSD",
+      "value": 37.85,
+      "position": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp2",
+      "name": "Sensor 1",
+      "value": 37.85,
+      "position": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp3",
+      "name": "Sensor 2",
+      "value": 44.85,
+      "position": 3
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp1",
+      "name": "CPU",
+      "value": 73.0,
+      "position": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp2",
+      "name": "Core 0",
+      "value": 65.0,
+      "position": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp3",
+      "name": "Core 1",
+      "value": 71.0,
+      "position": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp4",
+      "name": "Core 2",
+      "value": 64.0,
+      "position": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp5",
+      "name": "Core 3",
+      "value": 72.0,
+      "position": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/fan1",
+      "name": "CPU fan",
+      "value": 0.0,
+      "position": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/temp1",
+      "name": "CPU temp",
+      "value": 67.0,
+      "position": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "key": "BAT0-acpi-0/in0",
+      "name": "in0",
+      "value": 8.494,
+      "position": 11
+    }
+  ],
+  "S5": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "edge",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "junction",
+      "key": "k1",
+      "value": 90
+    }
+  ],
+  "S6": [
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "edge",
+      "key": "k0",
+      "value": 41
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "junction",
+      "key": "k1",
+      "value": 91
+    }
+  ],
+  "S7": [
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "name": "WLAN",
+      "value": 33.0,
+      "position": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp1",
+      "name": "SSD",
+      "value": 37.85,
+      "position": 1
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp2",
+      "name": "Sensor 1",
+      "value": 37.85,
+      "position": 2
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "key": "nvme-pci-0100/temp3",
+      "name": "Sensor 2",
+      "value": 44.85,
+      "position": 3
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp1",
+      "name": "CPU",
+      "value": 73.0,
+      "position": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp2",
+      "name": "Core 0",
+      "value": 65.0,
+      "position": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp3",
+      "name": "Core 1",
+      "value": 71.0,
+      "position": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp4",
+      "name": "Core 2",
+      "value": 64.0,
+      "position": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "key": "coretemp-isa-0000/temp5",
+      "name": "Core 3",
+      "value": 72.0,
+      "position": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/fan1",
+      "name": "CPU fan",
+      "value": 0.0,
+      "position": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "key": "example_acpi-isa-0000/temp1",
+      "name": "CPU temp",
+      "value": 67.0,
+      "position": 10
+    },
+    {
+      "provider": "lm-sensors",
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "key": "BAT0-acpi-0/in0",
+      "name": "in0",
+      "value": 8.494,
+      "position": 11
+    }
+  ]
+}

@@ -1,0 +1,326 @@
+[
+  {
+    "provider": "lm-sensors",
+    "position": 0,
+    "kind": "temperature",
+    "chip": "radeon-pci-0100",
+    "name": "g0",
+    "key": "k0",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 1,
+    "kind": "fan",
+    "chip": "radeon-pci-0100",
+    "name": "f1",
+    "key": "k1",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 2,
+    "kind": "voltage",
+    "chip": "radeon-pci-0100",
+    "name": "v2",
+    "key": "k2",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 3,
+    "kind": "power",
+    "chip": "radeon-pci-0100",
+    "name": "p3",
+    "key": "k3",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 4,
+    "kind": "temperature",
+    "chip": "amdgpu-pci-0300",
+    "name": "g4",
+    "key": "k4",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 5,
+    "kind": "fan",
+    "chip": "amdgpu-pci-0300",
+    "name": "f5",
+    "key": "k5",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 6,
+    "kind": "voltage",
+    "chip": "amdgpu-pci-0300",
+    "name": "v6",
+    "key": "k6",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 7,
+    "kind": "power",
+    "chip": "amdgpu-pci-0300",
+    "name": "p7",
+    "key": "k7",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 8,
+    "kind": "temperature",
+    "chip": "nouveau-pci-0100",
+    "name": "g8",
+    "key": "k8",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 9,
+    "kind": "fan",
+    "chip": "nouveau-pci-0100",
+    "name": "f9",
+    "key": "k9",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 10,
+    "kind": "voltage",
+    "chip": "nouveau-pci-0100",
+    "name": "v10",
+    "key": "k10",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 11,
+    "kind": "power",
+    "chip": "nouveau-pci-0100",
+    "name": "p11",
+    "key": "k11",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 12,
+    "kind": "temperature",
+    "chip": "drivetemp-scsi-0-0",
+    "name": "d12",
+    "key": "k12",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 13,
+    "kind": "fan",
+    "chip": "drivetemp-scsi-0-0",
+    "name": "f13",
+    "key": "k13",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 14,
+    "kind": "voltage",
+    "chip": "drivetemp-scsi-0-0",
+    "name": "v14",
+    "key": "k14",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 15,
+    "kind": "power",
+    "chip": "drivetemp-scsi-0-0",
+    "name": "p15",
+    "key": "k15",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 16,
+    "kind": "temperature",
+    "chip": "nvme-pci-0100",
+    "name": "d16",
+    "key": "k16",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 17,
+    "kind": "fan",
+    "chip": "nvme-pci-0100",
+    "name": "f17",
+    "key": "k17",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 18,
+    "kind": "voltage",
+    "chip": "nvme-pci-0100",
+    "name": "v18",
+    "key": "k18",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 19,
+    "kind": "power",
+    "chip": "nvme-pci-0100",
+    "name": "p19",
+    "key": "k19",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 20,
+    "kind": "temperature",
+    "chip": "coretemp-isa-0000",
+    "name": "t20",
+    "key": "k20",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 21,
+    "kind": "fan",
+    "chip": "coretemp-isa-0000",
+    "name": "f21",
+    "key": "k21",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 22,
+    "kind": "voltage",
+    "chip": "coretemp-isa-0000",
+    "name": "v22",
+    "key": "k22",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 23,
+    "kind": "power",
+    "chip": "coretemp-isa-0000",
+    "name": "p23",
+    "key": "k23",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 24,
+    "kind": "temperature",
+    "chip": "AMDGPU-pci-0300",
+    "name": "t24",
+    "key": "k24",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 25,
+    "kind": "fan",
+    "chip": "AMDGPU-pci-0300",
+    "name": "f25",
+    "key": "k25",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 26,
+    "kind": "voltage",
+    "chip": "AMDGPU-pci-0300",
+    "name": "v26",
+    "key": "k26",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 27,
+    "kind": "power",
+    "chip": "AMDGPU-pci-0300",
+    "name": "p27",
+    "key": "k27",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 28,
+    "kind": "temperature",
+    "chip": "xnvmex-0",
+    "name": "d28",
+    "key": "k28",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 29,
+    "kind": "fan",
+    "chip": "xnvmex-0",
+    "name": "f29",
+    "key": "k29",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 30,
+    "kind": "voltage",
+    "chip": "xnvmex-0",
+    "name": "v30",
+    "key": "k30",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 31,
+    "kind": "power",
+    "chip": "xnvmex-0",
+    "name": "p31",
+    "key": "k31",
+    "value": 10
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 32,
+    "kind": "temperature",
+    "chip": "amdgpu-nvme-0",
+    "name": "g32",
+    "key": "k32",
+    "value": 40
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 33,
+    "kind": "fan",
+    "chip": "amdgpu-nvme-0",
+    "name": "f33",
+    "key": "k33",
+    "value": 1000
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 34,
+    "kind": "voltage",
+    "chip": "amdgpu-nvme-0",
+    "name": "v34",
+    "key": "k34",
+    "value": 12
+  },
+  {
+    "provider": "lm-sensors",
+    "position": 35,
+    "kind": "power",
+    "chip": "amdgpu-nvme-0",
+    "name": "p35",
+    "key": "k35",
+    "value": 10
+  }
+]

@@ -1,0 +1,7 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/e", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": ""}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 300.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/d", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"i": 5}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 300.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/c", "interfaces": {"org.freedesktop.UDisks2.Drive": {}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 300.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/b", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "Disque ÉTÉ"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 300.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/a", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": " Spaced  Model "}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 300.15}}}}
+]}

@@ -1,0 +1,3 @@
+# p5 made read-only as the readonly fixture is.
+@base p5
+@readonly

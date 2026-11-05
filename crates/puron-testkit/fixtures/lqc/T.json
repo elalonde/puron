@@ -1,0 +1,38 @@
+[
+  {
+    "bus": "hid",
+    "address": "/dev/hidraw1",
+    "description": "Corsair Commander Pro",
+    "status": [
+      {"key": "Fan 1 speed", "value": 800, "unit": "rpm"}
+    ]
+  },
+  {
+    "bus": "hid",
+    "address": "/dev/hidraw2",
+    "description": "Corsair Commander Pro",
+    "status": [
+      {"key": "Fan 1 speed", "value": 900, "unit": "rpm"}
+    ]
+  },
+  {
+    "bus": "hid",
+    "address": "/dev/hidraw3",
+    "description": "Kraken",
+    "status": [
+      {"key": "Pump speed", "value": 2000, "unit": "rpm"}
+    ]
+  },
+  {
+    "description": "Dev",
+    "status": [
+      {"key": "Fan speed", "value": 1000, "unit": "rpm"}
+    ]
+  },
+  {
+    "description": "Dev",
+    "status": [
+      {"key": "Fan speed", "value": 1000, "unit": "rpm"}
+    ]
+  }
+]

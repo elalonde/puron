@@ -1,0 +1,19 @@
+[
+  {
+    "description": "NZXT Kraken X (X42, X52, X62 or X72)",
+    "status": [
+      {"key": "Liquid temperature", "value": 30.1, "unit": "°C"},
+      {"key": "Fan speed", "value": 1000, "unit": "rpm"},
+      {"key": "Pump speed", "value": 2000, "unit": "rpm"},
+      {"key": "Firmware version", "value": "6.0.2", "unit": ""}
+    ]
+  },
+  {
+    "description": "Corsair Commander Pro",
+    "status": [
+      {"key": "Fan 1 speed", "value": 800, "unit": "rpm"},
+      {"key": "Fan 1 duty", "value": 40, "unit": "%"},
+      {"key": "+12V rail", "value": 12.07, "unit": "V"}
+    ]
+  }
+]

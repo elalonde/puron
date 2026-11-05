@@ -1,0 +1,4 @@
+# sysdefault, case A: an empty root plus system entries in the
+# data directory <tmp>/data.
+@data show_power false
+@data poll_interval_secs 9

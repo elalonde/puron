@@ -1,0 +1,206 @@
+MESSAGE=engine: caught a panic; provider provider-1; phase phase-1; text text-1
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=engine
+PURON_EVENT=panic
+PURON_PROVIDER=provider-1
+PURON_PHASE=phase-1
+PURON_TEXT=text-1
+
+MESSAGE=engine: read deadline passed; provider provider-2
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=engine
+PURON_EVENT=read-deadline
+PURON_PROVIDER=provider-2
+
+MESSAGE=engine: start found nothing to read; provider provider-3
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=engine
+PURON_EVENT=start-unavailable
+PURON_PROVIDER=provider-3
+
+MESSAGE=engine: provider has new readings; provider provider-4
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=engine
+PURON_EVENT=provider-updated
+PURON_PROVIDER=provider-4
+
+MESSAGE=src.lmsensors: initialization failed; text text-5
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.lmsensors
+PURON_EVENT=init-failed
+PURON_TEXT=text-5
+
+MESSAGE=src.lmsensors: configuration error; file file-6; line line-6; text text-6
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.lmsensors
+PURON_EVENT=config-error
+PURON_FILE=file-6
+PURON_LINE=line-6
+PURON_TEXT=text-6
+
+MESSAGE=src.lmsensors: value read failed; chip chip-7; subfeature subfeature-7; text text-7
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.lmsensors
+PURON_EVENT=value-failed
+PURON_CHIP=chip-7
+PURON_SUBFEATURE=subfeature-7
+PURON_TEXT=text-7
+
+MESSAGE=src.lmsensors: chip name not available
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.lmsensors
+PURON_EVENT=chip-name
+
+MESSAGE=src.nvidia: NVML library missing
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.nvidia
+PURON_EVENT=library-missing
+
+MESSAGE=src.nvidia: NVML init failed; text text-10
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.nvidia
+PURON_EVENT=init-failed
+PURON_TEXT=text-10
+
+MESSAGE=src.nvidia: GPU call failed; pci pci-11; call call-11; text text-11
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.nvidia
+PURON_EVENT=call-failed
+PURON_PCI=pci-11
+PURON_CALL=call-11
+PURON_TEXT=text-11
+
+MESSAGE=src.nvidia: NVML close failed
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.nvidia
+PURON_EVENT=close-failed
+
+MESSAGE=src.nvidia: PCI device list not readable
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.nvidia
+PURON_EVENT=pci-list
+
+MESSAGE=src.udisks2: connection failed; text text-14
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=connect-failed
+PURON_TEXT=text-14
+
+MESSAGE=src.udisks2: listing failed
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=list-failed
+
+MESSAGE=src.udisks2: no ATA drive
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=no-ata-drive
+
+MESSAGE=src.udisks2: drive left out at start; object object-17; reason reason-17
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=drive-left-out
+PURON_OBJECT=object-17
+PURON_REASON=reason-17
+
+MESSAGE=src.udisks2: temperature read failed; object object-18; text text-18
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=read-failed
+PURON_OBJECT=object-18
+PURON_TEXT=text-18
+
+MESSAGE=src.udisks2: connection lost
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=connection-lost
+
+MESSAGE=src.udisks2: connecting again failed
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.udisks2
+PURON_EVENT=reconnect-failed
+
+MESSAGE=src.liquidctl: program not found; search_path search_path-21
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.liquidctl
+PURON_EVENT=not-found
+PURON_SEARCH_PATH=search_path-21
+
+MESSAGE=src.liquidctl: run not started; text text-22
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.liquidctl
+PURON_EVENT=not-started
+PURON_TEXT=text-22
+
+MESSAGE=src.liquidctl: run failed; reason reason-23; text text-23; position position-23
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.liquidctl
+PURON_EVENT=run-failed
+PURON_REASON=reason-23
+PURON_TEXT=text-23
+PURON_POSITION=position-23
+
+MESSAGE=src.liquidctl: exit status not 0; status status-24
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=src.liquidctl
+PURON_EVENT=exit-status
+PURON_STATUS=status-24
+
+MESSAGE=applet.app: stored setting not usable; key key-25; kind kind-25
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=applet.app
+PURON_EVENT=config-problem
+PURON_KEY=key-25
+PURON_KIND=kind-25
+
+MESSAGE=applet.app: pinned list not stored
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=applet.app
+PURON_EVENT=pinned-store-failed
+
+MESSAGE=applet.app: launch failed; program program-27; errno errno-27
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=applet.app
+PURON_EVENT=launch-failed
+PURON_PROGRAM=program-27
+PURON_ERRNO=errno-27
+
+MESSAGE=applet.app: display updated
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=applet.app
+PURON_EVENT=display-updated
+
+MESSAGE=applet.app: menu rebuilt
+PRIORITY=7
+SYSLOG_IDENTIFIER=puron-applet
+PURON_SOURCE=applet.app
+PURON_EVENT=menu-rebuilt
+

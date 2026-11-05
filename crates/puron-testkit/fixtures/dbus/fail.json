@@ -1,0 +1,6 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/a", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "A"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 310.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/b", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "B"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 310.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/c", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "C"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 310.15}}}}
+],
+ "faults": {"/org/freedesktop/UDisks2/drives/a": ["error"], "/org/freedesktop/UDisks2/drives/b": ["string", "hang"]}}

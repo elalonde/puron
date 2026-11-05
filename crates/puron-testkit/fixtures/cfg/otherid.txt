@@ -1,0 +1,5 @@
+# otherid: good under version v2 and under the lower-case
+# ID, nothing under the real ID and version.
+@dir cosmic/io.github.elalonde.Puron/v2
+@dir cosmic/io.github.elalonde.puron/v1
+@base good

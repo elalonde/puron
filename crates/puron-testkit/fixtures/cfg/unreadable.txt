@@ -1,0 +1,4 @@
+# unreadable: show_voltage mode 000, group_voltage not UTF-8.
+@base good
+@hex group_voltage fffe
+@mode show_voltage 000

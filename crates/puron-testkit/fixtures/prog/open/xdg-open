@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake xdg-open: records its arguments.
+printf '%s\n' "$@" > "$PURON_TEST_ARGFILE"; exit 0

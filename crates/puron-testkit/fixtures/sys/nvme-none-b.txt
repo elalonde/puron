@@ -1,0 +1,5 @@
+# nvme-none, second tree
+d class/nvme/nvme-fabrics
+d class/nvme/nvme3
+f class/nvme/nvme3/model "M3                                      \n"
+f class/nvme/nvme3/address "0000:03:00.0\n"

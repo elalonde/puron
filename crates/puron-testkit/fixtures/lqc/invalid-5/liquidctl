@@ -1,0 +1,8 @@
+#!/bin/sh
+# Fake liquidctl.
+printf 'args=%s pid=%s pgid=%s stdin_eof=%s fd2=%s\n' "$*" $$ \
+  "$(ps -o pgid= -p $$ | tr -d ' ')" \
+  "$( [ "$(dd bs=1 count=1 2>/dev/null | wc -c)" -eq 0 ] && echo yes || echo no)" \
+  "$(readlink /proc/$$/fd/2)" >> "$PURON_TEST_LQC_LOG"
+dir=$(dirname "$(readlink -f "$0")")/..
+printf '[{"description": 5, "status": []}]'; exit 0

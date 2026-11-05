@@ -1,0 +1,12 @@
+Complete corresponding source of Puron @VERSION@
+
+The complete corresponding source of the programs in this package is
+Puron's full source with its locked Rust dependencies. It is the release
+asset puron-@VERSION@-source.tar.xz of the tag v@VERSION@:
+
+  https://github.com/elalonde/puron/releases/tag/v@VERSION@
+
+The archive builds offline with cargo build --offline --locked --release.
+This offer serves the GPL-3.0 terms of puron-applet, the relinking terms
+of the LGPL-2.1 udisks2 crate and the MPL-2.0 terms of the libcosmic
+crates.

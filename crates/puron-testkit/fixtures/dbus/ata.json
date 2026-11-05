@@ -1,0 +1,6 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/WDC_2", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "WDC WD10EZEX-08WN4A0"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 310.15}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/ST_1", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "ST2000DM008-2FR102"}}, "org.freedesktop.UDisks2.Drive.Ata": {"SmartTemperature": {"d": 305.0}}}},
+ {"path": "/org/freedesktop/UDisks2/drives/Example_SSD", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "Example SSD 1TB"}}}},
+ {"path": "/org/freedesktop/UDisks2/block_devices/sda", "interfaces": {"org.freedesktop.UDisks2.Block": {}}}
+]}

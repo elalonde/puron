@@ -1,0 +1,12 @@
+# nvme-single
+d class/nvme/nvme0
+f class/nvme/nvme0/model "Model One                               \n"
+f class/nvme/nvme0/address "0000:00:00.0\n"
+f class/nvme/nvme0/hwmon1/name "nvme\n"
+f class/nvme/nvme0/hwmon1/temp1_input "40850\n"
+d class/nvme/nvme1
+f class/nvme/nvme1/model "Model Two                               \n"
+f class/nvme/nvme1/address "0000:01:00.0\n"
+f class/nvme/nvme1/hwmon1/name "nvme\n"
+f class/nvme/nvme1/hwmon1/temp1_input "41000\n"
+f class/nvme/nvme1/hwmon1/temp2_input "39000\n"

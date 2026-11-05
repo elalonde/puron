@@ -1,0 +1,32 @@
+# cargo deny license policy for puron-core and puron-engine
+# (tools/c_tests_3.sh): deny.toml without the GPL-3.0-only exception and
+# without the clarify entries, so that no GPL code gets into these crates.
+
+[licenses]
+# Allowed in any crate.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "MIT-0",
+    "Unlicense",
+    "Unicode-3.0",
+    "Zlib",
+    "ISC",
+    "BSD-2-Clause",
+    "BSL-1.0",
+]
+
+# Allowed only for the named crates. Every other license is denied.
+exceptions = [
+    # MPL-2.0: the libcosmic crates, the pop-os fork crates and option-ext.
+    { crate = "libcosmic", allow = ["MPL-2.0"] },
+    { crate = "cosmic-config", allow = ["MPL-2.0"] },
+    { crate = "cosmic-config-derive", allow = ["MPL-2.0"] },
+    { crate = "cosmic-theme", allow = ["MPL-2.0"] },
+    { crate = "cosmic-settings-daemon", allow = ["MPL-2.0"] },
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+    # LGPL-2.1: udisks2 only.
+    { crate = "udisks2", allow = ["LGPL-2.1"] },
+]

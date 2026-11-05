@@ -1,0 +1,67 @@
+{
+  "R": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "g0",
+      "key": "k0",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "t1",
+      "key": "k1",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "d2",
+      "key": "k2",
+      "value": 40
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "fan",
+      "chip": "puron-isa-0000",
+      "name": "f3",
+      "key": "k3",
+      "value": 1000
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "voltage",
+      "chip": "puron-isa-0000",
+      "name": "v4",
+      "key": "k4",
+      "value": 12
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "p5",
+      "key": "k5",
+      "value": 10
+    }
+  ],
+  "P": [
+    "temperature/lm-sensors/k0",
+    "temperature/lm-sensors/k1",
+    "temperature/lm-sensors/k2",
+    "fan/lm-sensors/k3",
+    "voltage/lm-sensors/k4",
+    "power/lm-sensors/k5",
+    "@maximum"
+  ]
+}

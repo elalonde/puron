@@ -1,0 +1,13 @@
+[package]
+name = "puron-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+libc.workspace = true
+puron-testkit.workspace = true
+serde_json.workspace = true

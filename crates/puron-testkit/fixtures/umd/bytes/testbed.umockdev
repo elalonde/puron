@@ -1,0 +1,8 @@
+P: /devices/platform/puron_bytes/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_bytes\n
+A: temp1_input=45000\n
+L: device=../../../puron_bytes
+
+P: /devices/platform/puron_bytes
+E: SUBSYSTEM=platform

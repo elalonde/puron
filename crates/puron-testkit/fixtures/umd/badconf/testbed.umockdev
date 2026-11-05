@@ -1,0 +1,78 @@
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0003:00/power_supply/AC/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=AC\n
+L: device=../../AC
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0003:00/power_supply/AC
+E: SUBSYSTEM=power_supply
+L: device=../../../ACPI0003:00
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0003:00
+E: SUBSYSTEM=acpi
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00/power_supply/BAT0/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=BAT0\n
+A: in0_input=8494\n
+A: curr1_input=0\n
+L: device=../../BAT0
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00/power_supply/BAT0
+E: SUBSYSTEM=power_supply
+L: device=../../../PNP0C0A:00
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00
+E: SUBSYSTEM=acpi
+
+P: /devices/pci0000:00/0000:00:1d.0/0000:01:00.0/nvme/nvme0/hwmon2
+E: SUBSYSTEM=hwmon
+A: name=nvme\n
+A: temp1_input=37850\n
+A: temp2_input=37850\n
+A: temp3_input=43850\n
+A: temp1_label=Composite\n
+A: temp2_label=Sensor 1\n
+A: temp3_label=Sensor 2\n
+L: device=../../nvme0
+
+P: /devices/pci0000:00/0000:00:1d.0/0000:01:00.0/nvme/nvme0
+E: SUBSYSTEM=nvme
+L: device=../../../0000:01:00.0
+
+P: /devices/pci0000:00/0000:00:1d.0/0000:01:00.0
+E: SUBSYSTEM=pci
+
+P: /devices/platform/sample_acpi/hwmon/hwmon3
+E: SUBSYSTEM=hwmon
+A: name=example_acpi\n
+A: temp1_input=67000\n
+A: temp1_label=CPU temp\n
+A: fan1_input=0\n
+A: fan1_label=CPU fan\n
+L: device=../../../sample_acpi
+
+P: /devices/platform/sample_acpi
+E: SUBSYSTEM=platform
+
+P: /devices/virtual/hwmon/hwmon4
+E: SUBSYSTEM=hwmon
+A: name=iwlwifi_1\n
+A: temp1_input=33000\n
+
+P: /devices/platform/coretemp.0/hwmon/hwmon5
+E: SUBSYSTEM=hwmon
+A: name=coretemp\n
+A: temp1_input=73000\n
+A: temp2_input=65000\n
+A: temp3_input=71000\n
+A: temp4_input=64000\n
+A: temp5_input=72000\n
+A: temp1_label=Package id 0\n
+A: temp2_label=Core 0\n
+A: temp3_label=Core 1\n
+A: temp4_label=Core 2\n
+A: temp5_label=Core 3\n
+L: device=../../../coretemp.0
+
+P: /devices/platform/coretemp.0
+E: SUBSYSTEM=platform

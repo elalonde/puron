@@ -1,0 +1,6 @@
+# wrong: good with four entries of the wrong type.
+@base good
+show_power 7
+temperature_unit Kelvin
+poll_interval_secs -1
+pinned "a"

@@ -1,0 +1,75 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/puron-core",
+    "crates/puron-engine",
+    "crates/puron-config",
+    "crates/puron-applet",
+    "crates/puron-settings",
+    "crates/puron-testkit",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+
+# Shared dependency versions, most of them pinned exactly.
+[workspace.dependencies]
+puron-core = { path = "crates/puron-core" }
+puron-engine = { path = "crates/puron-engine" }
+puron-config = { path = "crates/puron-config" }
+puron-testkit = { path = "crates/puron-testkit" }
+lm-sensors = "=0.5.1"
+nvml-wrapper = "=0.13.0"
+nvml-wrapper-sys = "=0.10.0"
+udisks2 = "=0.3.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+libc = "0.2.191"
+libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae", default-features = false }
+cosmic-config = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae" }
+iced_test = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae" }
+# Decodes the PNG snapshots in the GUI tests; the version iced_test
+# brings.
+png = "=0.17.16"
+# The versions libcosmic declares.
+i18n-embed = { version = "=0.16.0", features = ["fluent-system"] }
+i18n-embed-fl = "=0.10.1"
+rust-embed = "=8.13.0"
+
+# The engine survives a provider that panics, which needs unwinding;
+# tools/c_engine_15.sh checks this with a release build.
+[profile.release]
+panic = "unwind"
+
+# A settings window test encodes and decodes four snapshots as PNG
+# within its 5 s limit; unoptimised, the codec alone took about 2.4 s of
+# 4.5 s. Only these dependencies are optimised: Puron's own code stays
+# at the dev opt-level.
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.zlib-rs]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.adler2]
+opt-level = 3
+[profile.dev.package.simd-adler32]
+opt-level = 3
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.tiny-skia-path]
+opt-level = 3
+
+# Dependencies only: Puron's workspace crates keep their debug
+# information. No debug information for dependencies cuts link time
+# and disk use (linking is the slow part of a build).
+[profile.dev.package."*"]
+debug = false

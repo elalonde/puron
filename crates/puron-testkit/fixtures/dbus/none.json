@@ -1,0 +1,3 @@
+{"objects": [
+ {"path": "/org/freedesktop/UDisks2/drives/Example_SSD", "interfaces": {"org.freedesktop.UDisks2.Drive": {"Model": {"s": "Example SSD 1TB"}}}}
+]}

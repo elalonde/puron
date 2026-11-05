@@ -1,0 +1,2 @@
+# empty, second root: cosmic/ and no ID directory.
+@mkdir cosmic

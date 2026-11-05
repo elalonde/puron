@@ -1,0 +1,3 @@
+# range, first root.
+@base good
+poll_interval_secs 0

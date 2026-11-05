@@ -1,0 +1,163 @@
+{
+  "F5": [
+    {
+      "device": "NZXT Kraken X (X42, X52, X62 or X72)",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 30.1,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "NZXT Kraken X (X42, X52, X62 or X72)/Liquid temperature"
+    }
+  ],
+  "units": [
+    {
+      "device": "Dev",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "Dev/Liquid temperature"
+    },
+    {
+      "device": "Dev",
+      "item": "Pump speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 1,
+      "key": "Dev/Pump speed"
+    },
+    {
+      "device": "Dev",
+      "item": "Pump voltage",
+      "unit": "V",
+      "value": 12,
+      "provider": "liquidctl",
+      "position": 2,
+      "key": "Dev/Pump voltage"
+    },
+    {
+      "device": "Dev",
+      "item": "Pump duty",
+      "unit": "%",
+      "value": 50,
+      "provider": "liquidctl",
+      "position": 3,
+      "key": "Dev/Pump duty"
+    },
+    {
+      "device": "Dev",
+      "item": "Pump power",
+      "unit": "W",
+      "value": 10,
+      "provider": "liquidctl",
+      "position": 4,
+      "key": "Dev/Pump power"
+    },
+    {
+      "device": "Dev",
+      "item": "Fan speed",
+      "unit": "RPM",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 5,
+      "key": "Dev/Fan speed"
+    }
+  ],
+  "devices": [
+    {
+      "device": "NZXT Kraken X (X42, X52, X62 or X72)",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "NZXT Kraken X (X42, X52, X62 or X72)/Liquid temperature"
+    },
+    {
+      "device": "Kraken",
+      "item": "Pump speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 1,
+      "key": "Kraken/Pump speed"
+    },
+    {
+      "device": "NZXT (X)",
+      "item": "Fan 1 speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 2,
+      "key": "NZXT (X)/Fan 1 speed"
+    },
+    {
+      "device": "NZXT A (",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 3,
+      "key": "NZXT A (/Liquid temperature"
+    },
+    {
+      "device": " NZXT X",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 4,
+      "key": " NZXT X/Liquid temperature"
+    }
+  ],
+  "items": [
+    {
+      "device": "Dev",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 0,
+      "key": "Dev/Liquid temperature"
+    },
+    {
+      "device": "Dev",
+      "item": "Water temperature sensor",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 1,
+      "key": "Dev/Water temperature sensor"
+    },
+    {
+      "device": "Dev",
+      "item": "Fan speed temperature",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 2,
+      "key": "Dev/Fan speed temperature"
+    },
+    {
+      "device": "Dev",
+      "item": "Pump speed speed",
+      "unit": "rpm",
+      "value": 1000,
+      "provider": "liquidctl",
+      "position": 3,
+      "key": "Dev/Pump speed speed"
+    },
+    {
+      "device": "Dev",
+      "item": "Duty",
+      "unit": "°C",
+      "value": 40,
+      "provider": "liquidctl",
+      "position": 4,
+      "key": "Dev/Duty"
+    }
+  ]
+}
