@@ -2,7 +2,7 @@
 # Lint A: no rule IDs, spec or process references, home paths, IP
 # addresses or citations of another project's files in comments and
 # docs. The patterns are in tools/lint-patterns. Comments are taken from
-# Rust files (// and block comments) and from shell, Makefile, TOML,
+# Rust files (// and block comments) and from shell, Makefile, TOML, YAML,
 # Fluent and desktop files (#); docs are README.md, LICENSE and debian/.
 # Usage: tools/lint-a.sh [file...]; with no file, every file git knows
 # (tracked or not ignored). Exits 1 and prints file:line for each hit.
@@ -54,7 +54,7 @@ while IFS= read -r f; do
     crates/*/fixtures/*) continue ;;
     tools/lint-patterns) continue ;;
     *.rs) k=rust ;;
-    *.sh|Makefile|*.toml|*.ftl|*.desktop.in|.gitattributes|.gitignore|.githooks/*) k=hash ;;
+    *.sh|Makefile|*.toml|*.yml|*.ftl|*.desktop.in|.gitattributes|.gitignore|.githooks/*) k=hash ;;
     README.md|LICENSE|debian/*) k=doc ;;
     *) continue ;;
     esac

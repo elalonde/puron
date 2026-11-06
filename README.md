@@ -1,5 +1,7 @@
 # Puron
 
+[![CI](https://github.com/elalonde/puron/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/elalonde/puron/actions/workflows/ci.yml)
+
 Puron is a panel applet for the COSMIC desktop that displays hardware
 sensor readings in the COSMIC Panel and Dock.
 
