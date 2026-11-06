@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # The package links glibc 2.39 at the oldest, which is what Ubuntu 24.04
+    # has. The job runs directly on the runner, not in a container, so the
+    # tests reach a real journald.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            clang dbus jq libsensors-dev libsensors5 libwayland-dev \
+            libxkbcommon-dev lm-sensors locales pkg-config umockdev
+          sudo locale-gen tr_TR.UTF-8 de_DE.UTF-8
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install --no-self-update
+          rustup component add rustfmt
+          rustc --version
+
+      - name: Install cargo-deny
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cargo-deny.tar.gz" \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          echo "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f  $RUNNER_TEMP/cargo-deny.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/cargo-deny.tar.gz" -C "$HOME/.cargo/bin" \
+            --strip-components=1 --wildcards '*/cargo-deny'
+
+      # The icon check looks names up in the installed COSMIC theme, which
+      # Ubuntu does not package. This is the commit that our libcosmic pins.
+      - name: Install the COSMIC icon theme
+        run: |
+          git init -q "$RUNNER_TEMP/icons"
+          cd "$RUNNER_TEMP/icons"
+          git fetch -q --depth 1 https://github.com/pop-os/cosmic-icons 343c007f37cd71716e68f01c43ecf2764b7f7c47
+          git checkout -q FETCH_HEAD
+          sudo mkdir -p /usr/share/icons/Cosmic
+          sudo cp -r freedesktop/scalable extra/scalable index.theme /usr/share/icons/Cosmic/
+
+      # Fails here, naming each need, before anything is built.
+      - name: Check the host
+        run: sh tools/check-test-host.sh
+
+      # The key covers the toolchain, the system headers the build binds to and
+      # the lock file, so a restored target directory holds no stale dependency;
+      # cargo still rebuilds the workspace crates from the checkout.
+      - name: Compute the cache key
+        id: host
+        run: |
+          id=$({ rustc -vV; dpkg-query -W clang libsensors-dev libwayland-dev libxkbcommon-dev; } | sha256sum | cut -d' ' -f1)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: cargo-${{ steps.host.outputs.id }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      # make check needs no sensor hardware: the tests run on umockdev
+      # testbeds and fixtures, and a test whose host need is missing fails.
+      # The package checks (make check-deb, tools/check-source-archive.sh) are
+      # not part of it and do not run here.
+      - name: make check
+        run: make check
