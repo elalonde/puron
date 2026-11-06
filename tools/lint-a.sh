@@ -3,7 +3,7 @@
 # addresses or citations of another project's files in comments and
 # docs. The patterns are in tools/lint-patterns. Comments are taken from
 # Rust files (// and block comments) and from shell, Makefile, TOML, YAML,
-# Fluent and desktop files (#); docs are README.md, LICENSE and debian/.
+# Fluent and desktop files (#); docs are README.md, CHANGELOG.md, LICENSE and debian/.
 # Usage: tools/lint-a.sh [file...]; with no file, every file git knows
 # (tracked or not ignored). Exits 1 and prints file:line for each hit.
 cd "$(dirname "$0")/.." || exit 2
@@ -55,7 +55,7 @@ while IFS= read -r f; do
     tools/lint-patterns) continue ;;
     *.rs) k=rust ;;
     *.sh|Makefile|*.toml|*.yml|*.ftl|*.desktop.in|.gitattributes|.gitignore|.githooks/*) k=hash ;;
-    README.md|LICENSE|debian/*) k=doc ;;
+    README.md|CHANGELOG.md|LICENSE|debian/*) k=doc ;;
     *) continue ;;
     esac
     comments "$k" "$f" > "$tmp/c"
