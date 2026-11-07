@@ -83,7 +83,7 @@ fn body() {
     e.shutdown();
 
     // src.lmsensors: the configuration file that libsensors rejects.
-    let mut s = LmAdapter::new(Some(umd::conf()));
+    let mut s = LmAdapter::new(Some(umd::conf()), "/proc/cpuinfo");
     s.start();
     assert_eq!(read(&mut s), ReadOutcome::Unavailable, "lm-sensors");
     s.stop();

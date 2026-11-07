@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 
 use puron_config::Config;
 use puron_core::format::{Text, Unit};
-use puron_core::menu::{self, Entry, GroupKind, IconKind, Item, MessageKind, Report};
+use puron_core::menu::{
+    self, Entry, Heading, IconKind, Item, LineWord, MessageKind, Report, Section, Shown,
+};
 use puron_core::panel::{self, Icon, State};
 use puron_core::pins;
 use puron_core::rows::{self, Class, Kind, Provider, RawReading};
@@ -131,10 +133,10 @@ pub fn lines(snapshot: Option<&Snapshot>, settings: &Settings) -> String {
     }
     // As the applet does: the start (no rows, no report yet), then the
     // snapshot with the start's Key and Panel state passed back in.
-    let pinned = pins::start(&settings.pinned);
     let none = menu::shown(&[], settings);
     let m0 = menu::menu(&none, settings, Report::NoneYet, None, false);
-    let p0 = panel::panel(&none, &pinned, settings, &State::default());
+    let start = pins::start(settings.pinned.as_deref().unwrap_or_default());
+    let p0 = panel::panel(&none, &start, settings, &State::default());
     let shown = menu::shown(raw, settings);
     let report = match snapshot.map(|s| s.lm_sensors) {
         None | Some(LmReport::NoneYet) => Report::NoneYet,
@@ -142,25 +144,30 @@ pub fn lines(snapshot: Option<&Snapshot>, settings: &Settings) -> String {
         Some(LmReport::Answered) => Report::Answered,
     };
     let m = menu::menu(&shown, settings, report, Some(&m0.key), false);
+    let pinned = match &settings.pinned {
+        None => shown.new_install_pins(),
+        Some(_) => pins::moved(&start, &shown, settings.old_cpu_source.as_deref(), true),
+    };
     let p = panel::panel(&shown, &pinned, settings, &p0.state);
     for e in &m.entries {
         match e {
-            Entry::Sensor(i) => item(&mut out, 0, "row", &i.name, i, &pinned),
-            Entry::Maximum(i) => item(&mut out, 0, "maximum", "Maximum", i, &pinned),
-            Entry::Group {
-                kind,
-                header,
-                members,
-            } => {
-                let k = group_word(*kind);
-                let v = header
-                    .as_ref()
-                    .map_or("-".to_string(), |h| text(h.as_ref()));
-                menu_line(&mut out, 0, "group", k, k, &v, "-");
-                for i in members {
-                    item(&mut out, 1, "row", &i.name, i, &pinned);
-                }
+            Entry::Section(section) => menu_line(
+                &mut out,
+                0,
+                "section",
+                section_word(*section),
+                "-",
+                "-",
+                "-",
+            ),
+            Entry::Device(heading) => {
+                let name = match heading {
+                    Heading::Cpu => menu::CPU_HEADING,
+                    Heading::Name(name) => name,
+                };
+                menu_line(&mut out, 1, "device", "-", name, "-", "-");
             }
+            Entry::Line(i) => item(&mut out, i, &shown, &pinned),
             Entry::Separator => menu_line(&mut out, 0, "separator", "-", "-", "-", "-"),
             Entry::Message { kind, .. } => {
                 menu_line(&mut out, 0, "message", "-", message_word(*kind), "-", "-")
@@ -239,14 +246,37 @@ fn liquidctl_word(unit: Option<&str>) -> &'static str {
     }
 }
 
-fn item(out: &mut String, depth: u8, kind: &str, label: &str, i: &Item, pinned: &[String]) {
+/// A line's name in the dump, with its word and its default mark.
+fn label(i: &Item) -> String {
+    let word = match i.word {
+        None => "",
+        Some(LineWord::Composite) => "composite",
+        Some(LineWord::Package) => "package",
+        Some(LineWord::Temperature) => "temperature",
+        Some(LineWord::Maximum) => "Maximum",
+    };
+    let parts = [
+        i.name.as_str(),
+        word,
+        if i.default { "(default)" } else { "" },
+    ];
+    let parts: Vec<&str> = parts.into_iter().filter(|p| !p.is_empty()).collect();
+    parts.join(" ")
+}
+
+fn item(out: &mut String, i: &Item, shown: &Shown, pinned: &[String]) {
     let mark = if pins::is_pinned(pinned, &i.identity) {
         "1"
     } else {
         "0"
     };
+    let (kind, icon) = match shown.line(&i.identity) {
+        Some(line) if line.is_maximum() => ("maximum", icon_word(menu::icon_kind(line))),
+        Some(line) => ("row", icon_word(menu::icon_kind(line))),
+        None => ("row", "-"),
+    };
     let v = text(i.value.as_ref());
-    menu_line(out, depth, kind, icon_word(i.icon), label, &v, mark);
+    menu_line(out, 2, kind, icon, &label(i), &v, mark);
 }
 
 fn menu_line(
@@ -288,15 +318,15 @@ fn icon_word(k: IconKind) -> &'static str {
         IconKind::Fan => "fan",
         IconKind::Voltage => "voltage",
         IconKind::Power => "power",
-        IconKind::Maximum => "maximum",
     }
 }
 
-fn group_word(k: GroupKind) -> &'static str {
-    match k {
-        GroupKind::Temperature => "temperature",
-        GroupKind::Fan => "fan",
-        GroupKind::Voltage => "voltage",
+fn section_word(section: Section) -> &'static str {
+    match section {
+        Section::Temperature => "temperature",
+        Section::Fan => "fan",
+        Section::Voltage => "voltage",
+        Section::Power => "power",
     }
 }
 

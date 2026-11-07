@@ -58,7 +58,7 @@ fn text(number: &str, unit: Option<Unit>) -> Text {
 /// The entry IDs with their English texts (fixtures/loc/en.tsv).
 fn english() -> Vec<(String, String)> {
     let e = loc::english();
-    assert_eq!(e.len(), 36, "36 entries in en.tsv");
+    assert_eq!(e.len(), 38, "38 entries in en.tsv");
     e
 }
 

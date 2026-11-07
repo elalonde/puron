@@ -99,6 +99,9 @@ fn lm(chip: &str, kind: Kind, name: &str, key: &str, value: f64) -> RawReading {
         unit: None,
         key: format!("{chip}/{key}"),
         value: Some(value),
+        kernel_label: None,
+        platform: false,
+        device_chars: 0,
     }
 }
 
@@ -114,6 +117,9 @@ fn lqc(item: &str, unit: &str, value: Option<f64>) -> RawReading {
         unit: Some(unit.into()),
         key: format!("kraken/{item}"),
         value,
+        kernel_label: None,
+        platform: false,
+        device_chars: 0,
     }
 }
 
@@ -126,10 +132,10 @@ fn d5_norow() {
         let mut s = loaded("X-p5-empty");
         s.provider_liquidctl = true;
         s.show_voltage = false;
-        s.pinned = vec![
+        s.pinned = Some(vec![
             "temperature/lm-sensors/coretemp-isa-0000/temp9".into(),
             "@maximum".into(),
-        ];
+        ]);
         let c = "coretemp-isa-0000";
         let lm = vec![
             lm(c, Kind::Temperature, "CPU", "temp1", 50.0),
@@ -192,7 +198,7 @@ fn d5_liquidctl_units() {
 fn d5_unavailable() {
     puron_testkit::limit("D5", 5, || {
         let mut s = d5::settings(&root().join("crates/puron-testkit/fixtures/d5/X-p5-empty"));
-        s.pinned.clear();
+        s.pinned = Some(Vec::new());
         let clock = SystemClock::new();
         let fake = Fake::new(clock.clone(), Provider::LmSensors).starts([StartStep::Unavailable]);
         let t = std::time::Instant::now();
@@ -219,6 +225,6 @@ fn d5_unavailable() {
 fn d5_settings() {
     puron_testkit::limit("D5", 5, || {
         let s = d5::settings(&root().join("crates/puron-testkit/fixtures/d5/X-p5-capture"));
-        assert_eq!(s.pinned.len(), 4);
+        assert_eq!(s.pinned.map(|p| p.len()), Some(4));
     });
 }

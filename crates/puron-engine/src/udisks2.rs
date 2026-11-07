@@ -349,6 +349,9 @@ impl Source for Udisks2 {
                 unit: None,
                 key: d.path.clone(),
                 value,
+                kernel_label: None,
+                platform: false,
+                device_chars: 0,
             });
         }
         if lost {

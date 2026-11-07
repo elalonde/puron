@@ -1,7 +1,6 @@
 //! Tests of the setting defaults and ranges, 2 s each. Stored values are
 //! given inline.
 
-use puron_core::rows::MAXIMUM_IDENTITY;
 use puron_core::settings::{self, Settings, Stored, TemperatureUnit};
 
 const LIMIT: u64 = 2;
@@ -27,11 +26,9 @@ fn defaults() -> Settings {
         show_rotation_rate: true,
         show_voltage: true,
         show_power: true,
-        group_temperature: true,
-        group_rotation_rate: true,
-        group_voltage: true,
         debug_logging: false,
-        pinned: vec!["@maximum".to_string()],
+        pinned: None,
+        old_cpu_source: None,
     }
 }
 
@@ -39,9 +36,14 @@ fn defaults() -> Settings {
 fn c_core_settings_1() {
     puron_testkit::limit("C-core.settings-1", LIMIT, || {
         let s = settings::settings(&Stored::default());
-        assert_eq!(s.pinned, ["@maximum"]);
-        assert_eq!(s.pinned, [MAXIMUM_IDENTITY]);
-        assert_eq!(settings::default_pinned(), ["@maximum"]);
+        // Never stored: a new install.
+        assert_eq!(s.pinned, None);
+        // Stored empty stays empty.
+        let empty = settings::settings(&Stored {
+            pinned: Some(Vec::new()),
+            ..Stored::default()
+        });
+        assert_eq!(empty.pinned, Some(Vec::new()));
     });
 }
 
@@ -98,11 +100,9 @@ fn c_core_settings_5() {
             show_rotation_rate: Some(false),
             show_voltage: Some(false),
             show_power: Some(false),
-            group_temperature: Some(false),
-            group_rotation_rate: Some(false),
-            group_voltage: Some(false),
             debug_logging: Some(true),
             pinned: Some(vec!["a".to_string(), "a".to_string()]),
+            old_cpu_source: Some("k".to_string()),
         };
         let want = Settings {
             poll_interval_secs: 7,
@@ -122,11 +122,9 @@ fn c_core_settings_5() {
             show_rotation_rate: false,
             show_voltage: false,
             show_power: false,
-            group_temperature: false,
-            group_rotation_rate: false,
-            group_voltage: false,
             debug_logging: true,
-            pinned: vec!["a".to_string(), "a".to_string()],
+            pinned: Some(vec!["a".to_string(), "a".to_string()]),
+            old_cpu_source: Some("k".to_string()),
         };
         // Every value differs from its default, so a stored value ignored
         // for any one key shows.

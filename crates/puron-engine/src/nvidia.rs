@@ -288,6 +288,9 @@ impl Source for Nvidia {
                 unit: None,
                 key: pci.clone(),
                 value,
+                kernel_label: None,
+                platform: false,
+                device_chars: 0,
             });
         }
         ReadOutcome::Readings(out)

@@ -1,7 +1,5 @@
 //! Setting types, defaults and ranges.
 
-use crate::rows::MAXIMUM_IDENTITY;
-
 /// Default of `poll_interval_secs`.
 pub const POLL_INTERVAL_DEFAULT: u32 = 5;
 /// Range of `poll_interval_secs`; a value outside is clamped.
@@ -35,11 +33,13 @@ pub struct Settings {
     pub show_rotation_rate: bool,
     pub show_voltage: bool,
     pub show_power: bool,
-    pub group_temperature: bool,
-    pub group_rotation_rate: bool,
-    pub group_voltage: bool,
     pub debug_logging: bool,
-    pub pinned: Vec<String>,
+    /// The stored pins; `None` when none were ever stored, as on a new
+    /// install, which checks the default lines.
+    pub pinned: Option<Vec<String>>,
+    /// What a development build's CPU row read, the last one chosen; only a
+    /// stored CPU pin that has yet to move needs it.
+    pub old_cpu_source: Option<String>,
 }
 
 /// The stored values: `None` is "not usable" (not stored,
@@ -63,16 +63,9 @@ pub struct Stored {
     pub show_rotation_rate: Option<bool>,
     pub show_voltage: Option<bool>,
     pub show_power: Option<bool>,
-    pub group_temperature: Option<bool>,
-    pub group_rotation_rate: Option<bool>,
-    pub group_voltage: Option<bool>,
     pub debug_logging: Option<bool>,
     pub pinned: Option<Vec<String>>,
-}
-
-/// The default pinned list: `@maximum` alone.
-pub fn default_pinned() -> Vec<String> {
-    vec![MAXIMUM_IDENTITY.to_string()]
+    pub old_cpu_source: Option<String>,
 }
 
 /// The settings record of the stored values. Each key is taken on
@@ -99,11 +92,9 @@ pub fn settings(stored: &Stored) -> Settings {
         show_rotation_rate: s.show_rotation_rate.unwrap_or(true),
         show_voltage: s.show_voltage.unwrap_or(true),
         show_power: s.show_power.unwrap_or(true),
-        group_temperature: s.group_temperature.unwrap_or(true),
-        group_rotation_rate: s.group_rotation_rate.unwrap_or(true),
-        group_voltage: s.group_voltage.unwrap_or(true),
         debug_logging: s.debug_logging.unwrap_or(false),
-        pinned: s.pinned.clone().unwrap_or_else(default_pinned),
+        pinned: s.pinned.clone(),
+        old_cpu_source: s.old_cpu_source.clone(),
     }
 }
 

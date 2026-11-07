@@ -58,11 +58,9 @@ fn other_keys_changed(s: &Settings) -> Settings {
         show_rotation_rate: !d.show_rotation_rate,
         show_voltage: !d.show_voltage,
         show_power: !d.show_power,
-        group_temperature: !d.group_temperature,
-        group_rotation_rate: !d.group_rotation_rate,
-        group_voltage: !d.group_voltage,
         debug_logging: !d.debug_logging,
-        pinned: vec!["x".to_string()],
+        pinned: Some(vec!["x".to_string()]),
+        old_cpu_source: Some("x".to_string()),
         ..s.clone()
     }
 }

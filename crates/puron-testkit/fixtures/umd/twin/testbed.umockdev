@@ -1,0 +1,19 @@
+P: /devices/LNXSYSTM:00/PUR0001:00/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_twin\n
+A: temp1_input=61000\n
+L: device=../../../PUR0001:00
+
+P: /devices/LNXSYSTM:00/PUR0001:00
+E: SUBSYSTEM=acpi
+A: model=Drive A\n
+
+P: /devices/LNXSYSTM:00/PUR0002:00/hwmon/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=puron_twin\n
+A: temp1_input=62000\n
+L: device=../../../PUR0002:00
+
+P: /devices/LNXSYSTM:00/PUR0002:00
+E: SUBSYSTEM=acpi
+A: model=Drive B\n

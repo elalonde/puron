@@ -1,0 +1,38 @@
+P: /devices/pci0000:00/0000:00:18.3/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=k10temp\n
+A: temp1_input=50000\n
+A: temp1_label=Tctl\n
+L: device=../../../0000:00:18.3
+
+P: /devices/pci0000:00/0000:00:18.3
+E: SUBSYSTEM=pci
+
+P: /devices/pci0000:00/0000:00:19.3/hwmon/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=zenpower\n
+A: temp1_input=51000\n
+A: temp1_label=Tdie\n
+L: device=../../../0000:00:19.3
+
+P: /devices/pci0000:00/0000:00:19.3
+E: SUBSYSTEM=pci
+
+P: /devices/platform/coretemp.0/hwmon/hwmon2
+E: SUBSYSTEM=hwmon
+A: name=coretemp\n
+A: temp2_input=52000\n
+A: temp2_label=Core 0\n
+L: device=../../../coretemp.0
+
+P: /devices/platform/coretemp.0
+E: SUBSYSTEM=platform
+
+P: /devices/platform/puron_other/hwmon/hwmon3
+E: SUBSYSTEM=hwmon
+A: name=puron_other\n
+A: temp1_input=53000\n
+L: device=../../../puron_other
+
+P: /devices/platform/puron_other
+E: SUBSYSTEM=platform

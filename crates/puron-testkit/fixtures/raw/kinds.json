@@ -61,7 +61,6 @@
     "temperature/lm-sensors/k2",
     "fan/lm-sensors/k3",
     "voltage/lm-sensors/k4",
-    "power/lm-sensors/k5",
-    "@maximum"
+    "power/lm-sensors/k5"
   ]
 }

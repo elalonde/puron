@@ -35,14 +35,17 @@ pub const SHOW_TEMPERATURE: &str = "show_temperature";
 pub const SHOW_ROTATION_RATE: &str = "show_rotation_rate";
 pub const SHOW_VOLTAGE: &str = "show_voltage";
 pub const SHOW_POWER: &str = "show_power";
-pub const GROUP_TEMPERATURE: &str = "group_temperature";
-pub const GROUP_ROTATION_RATE: &str = "group_rotation_rate";
-pub const GROUP_VOLTAGE: &str = "group_voltage";
 pub const DEBUG_LOGGING: &str = "debug_logging";
 pub const PINNED: &str = "pinned";
+/// A development build's choices of what a row reads, as pairs of a row and a
+/// sensor key. No key of its own: read once, for a stored CPU pin that has yet
+/// to move, and never written.
+const OLD_ROW_SOURCES: &str = "row_sources";
+/// The row in those pairs whose choice still matters.
+const OLD_CPU_ROW: &str = "@cpu";
 
-/// The 22 keys, in the field order of `Settings`.
-pub const KEYS: [&str; 22] = [
+/// The 19 keys, in the field order of `Settings`.
+pub const KEYS: [&str; 19] = [
     POLL_INTERVAL_SECS,
     SHOW_PANEL_ICONS,
     TEMPERATURE_UNIT,
@@ -60,9 +63,6 @@ pub const KEYS: [&str; 22] = [
     SHOW_ROTATION_RATE,
     SHOW_VOLTAGE,
     SHOW_POWER,
-    GROUP_TEMPERATURE,
-    GROUP_ROTATION_RATE,
-    GROUP_VOLTAGE,
     DEBUG_LOGGING,
     PINNED,
 ];
@@ -176,11 +176,9 @@ impl Config {
             show_rotation_rate: r.bool(SHOW_ROTATION_RATE),
             show_voltage: r.bool(SHOW_VOLTAGE),
             show_power: r.bool(SHOW_POWER),
-            group_temperature: r.bool(GROUP_TEMPERATURE),
-            group_rotation_rate: r.bool(GROUP_ROTATION_RATE),
-            group_voltage: r.bool(GROUP_VOLTAGE),
             debug_logging: r.bool(DEBUG_LOGGING),
             pinned: r.list(PINNED),
+            old_cpu_source: r.old_cpu_source(),
         };
         Loaded {
             settings: settings::settings(&stored),
@@ -309,6 +307,17 @@ impl Reader {
     fn list(&mut self, key: &'static str) -> Option<Vec<String>> {
         let read = self.config.get_local::<Vec<String>>(key);
         self.usable(key, read)
+    }
+
+    /// What a development build stored for its CPU row, the last one chosen.
+    /// An entry that cannot be read is no problem: it counts as absent.
+    fn old_cpu_source(&self) -> Option<String> {
+        let read = self
+            .config
+            .get_local::<Vec<(String, String)>>(OLD_ROW_SOURCES);
+        let pairs = read.unwrap_or_default();
+        let last = pairs.into_iter().rfind(|(row, _)| row == OLD_CPU_ROW);
+        last.map(|(_, source)| source)
     }
 
     fn usable<T>(&mut self, key: &'static str, read: Result<T, cosmic_config::Error>) -> Option<T> {

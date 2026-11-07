@@ -6,6 +6,23 @@ The notable changes of each Puron release. Versions follow
 
 ## [Unreleased]
 
+### Changed
+
+- The popup shows everything at once, in the sections Temperature, Fan, Voltage and Power. Nothing opens or closes
+  any more, so the arrows and the "Group Items" settings are gone.
+- Temperatures are listed by device: the CPU first, with every CPU reading under it, then GPUs, drives and other chips,
+  each under its name, or the label you set in lm-sensors on a drive's "Composite" sensor.
+- A device with several readings also has a "Maximum" line, the highest of them at each poll, and marks one line
+  "(default)": the CPU's package reading, a drive's composite reading, otherwise the first.
+- A click on a line checks it, and a checked line shows on the panel; several can be checked, and the panel shows them
+  in popup order. A new install checks each "(default)" line. The Maximum that version 1.0.0 pinned moves to the CPU's
+  default line, once.
+- With lm-sensors and the "nvme-cli" switch both on, a drive no longer shows the same reading twice: the lm-sensors
+  line stays, and a pin on the other one moves to it.
+- The check mark is a small fixed size with a gap before the text, and section headings are drawn stronger.
+- Every line stays on one line. The popup grows to fit, and text over 44 characters is shortened with "…". A popup
+  taller than its limit scrolls.
+
 Changes to the repository only, not to the shipped program:
 
 - The checks run on GitHub Actions, and the README shows their status.

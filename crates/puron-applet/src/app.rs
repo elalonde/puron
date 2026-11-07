@@ -106,6 +106,8 @@ pub enum Launched {
 pub enum Output {
     Engine(Command),
     Store(Vec<String>, StoreResult),
+    /// The chosen sources of the rows were stored.
+    StoreRowSources(Vec<(String, String)>, StoreResult),
     /// `diag` Switch.
     Switch(bool),
     /// A `diag` event, by its ID.
@@ -161,6 +163,9 @@ pub struct App {
     /// built with.
     layout_classes: ShownClasses,
     pinned: Vec<String>,
+    /// No pins were ever stored: the default lines of the latest readings are
+    /// checked, and nothing is stored until a click.
+    new_install: bool,
     store_pending: bool,
     stopped: bool,
 }
@@ -202,6 +207,7 @@ impl App {
             },
             menu: None,
             pinned: Vec::new(),
+            new_install: false,
             store_pending: false,
             stopped: false,
         }
@@ -234,6 +240,7 @@ impl App {
             Event::Snapshot(s) => {
                 self.last = Some(s);
                 self.shown = self.compute_shown();
+                self.move_pins(&mut out);
                 let forced = self.forced;
                 self.forced = false;
                 self.layout(forced, &mut out);
@@ -302,7 +309,8 @@ impl App {
         diag::switch(self.settings.debug_logging);
         out.push(Output::Switch(self.settings.debug_logging));
         self.problems(&loaded.problems, out);
-        self.pinned = pins::start(&self.settings.pinned);
+        self.new_install = self.settings.pinned.is_none();
+        self.pinned = pins::start(self.settings.pinned.as_deref().unwrap_or_default());
         self.shown = self.compute_shown();
         let m = menu::menu(&self.shown, &self.settings, Report::NoneYet, None, false);
         self.set_menu(m, false, out);
@@ -367,14 +375,11 @@ impl App {
             || o.show_rotation_rate_unit != n.show_rotation_rate_unit
             || o.show_voltage_unit != n.show_voltage_unit
             || o.show_power_unit != n.show_power_unit;
-        let shown_groups = o.show_temperature != n.show_temperature
+        let shown_classes = o.show_temperature != n.show_temperature
             || o.show_rotation_rate != n.show_rotation_rate
             || o.show_voltage != n.show_voltage
-            || o.show_power != n.show_power
-            || o.group_temperature != n.group_temperature
-            || o.group_rotation_rate != n.group_rotation_rate
-            || o.group_voltage != n.group_voltage;
-        let poll = shown_groups
+            || o.show_power != n.show_power;
+        let poll = shown_classes
             || o.temperature_unit != n.temperature_unit
             || o.show_decimals != n.show_decimals
             || o.pinned != n.pinned;
@@ -396,7 +401,7 @@ impl App {
             self.handle.poll_now();
             out.push(Output::Engine(Command::PollNow));
         }
-        if shown_groups {
+        if shown_classes {
             self.forced = true;
         }
         if units {
@@ -416,12 +421,20 @@ impl App {
             .as_ref()
             .map(|m| m.identities.clone())
             .unwrap_or_default();
+        self.new_install = false;
         self.pinned = pins::click(&self.pinned, id, &ids, &self.layout_classes);
+        self.store_pinned(out);
+        self.set_panel(self.panel.state.clone(), out);
+        self.handle.poll_now();
+        out.push(Output::Engine(Command::PollNow));
+    }
+
+    fn store_pinned(&mut self, out: &mut Vec<Output>) {
         let r = self.config.store(PINNED, &Value::List(self.pinned.clone()));
         out.push(Output::Store(self.pinned.clone(), r));
         match r {
             StoreResult::Stored => {
-                self.settings.pinned = self.pinned.clone();
+                self.settings.pinned = Some(self.pinned.clone());
                 self.store_pending = false;
             }
             StoreResult::Failed => {
@@ -429,9 +442,28 @@ impl App {
                 self.diag(diag::applet::pinned_store_failed(), out);
             }
         }
-        self.set_panel(self.panel.state.clone(), out);
-        self.handle.poll_now();
-        out.push(Output::Engine(Command::PollNow));
+    }
+
+    /// A new install checks the default lines of the readings it has. Stored
+    /// pins move to the lines of today, and the list is written back once. Only
+    /// a reading tells which line a pin moves to, so this waits for readings;
+    /// a pin on the whole machine also waits for lm-sensors, so that the CPU's
+    /// line is there to move to.
+    fn move_pins(&mut self, out: &mut Vec<Output>) {
+        if self.new_install {
+            let defaults = self.shown.new_install_pins();
+            if !defaults.is_empty() {
+                self.pinned = defaults;
+            }
+            return;
+        }
+        let ready = !self.settings.provider_lm_sensors || self.report() != Report::NoneYet;
+        let cpu_source = self.settings.old_cpu_source.as_deref();
+        let list = pins::moved(&self.pinned, &self.shown, cpu_source, ready);
+        if list != self.pinned {
+            self.pinned = list;
+            self.store_pinned(out);
+        }
     }
 
     fn launched(&self, path: PathBuf, r: Launched, out: &mut Vec<Output>) {

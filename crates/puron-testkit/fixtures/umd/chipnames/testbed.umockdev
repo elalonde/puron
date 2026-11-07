@@ -1,0 +1,45 @@
+P: /devices/platform/puron_x_12/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=puron_x_12\n
+A: temp1_input=40000\n
+L: device=../../../puron_x_12
+
+P: /devices/platform/puron_x_12
+E: SUBSYSTEM=platform
+
+P: /devices/platform/puron_2_34/hwmon/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=puron_2_34\n
+A: temp1_input=40000\n
+L: device=../../../puron_2_34
+
+P: /devices/platform/puron_2_34
+E: SUBSYSTEM=platform
+
+P: /devices/platform/puron_y_/hwmon/hwmon2
+E: SUBSYSTEM=hwmon
+A: name=puron_y_\n
+A: temp1_input=40000\n
+L: device=../../../puron_y_
+
+P: /devices/platform/puron_y_
+E: SUBSYSTEM=platform
+
+P: /devices/platform/puron0/hwmon/hwmon3
+E: SUBSYSTEM=hwmon
+A: name=puron0\n
+A: temp1_input=40000\n
+L: device=../../../puron0
+
+P: /devices/platform/puron0
+E: SUBSYSTEM=platform
+
+P: /devices/platform/puron_z9/hwmon/hwmon4
+E: SUBSYSTEM=hwmon
+A: name=puron_z9\n
+A: temp1_input=40000\n
+L: device=../../../puron_z9
+
+P: /devices/platform/puron_z9
+E: SUBSYSTEM=platform
+

@@ -1,0 +1,42 @@
+P: /devices/pci0000:00/0000:01:1f.7/nvme/nvme0/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=nvme\n
+A: temp1_input=40000\n
+A: temp1_label=Composite\n
+L: device=../../nvme0
+
+P: /devices/pci0000:00/0000:01:1f.7/nvme/nvme0
+E: SUBSYSTEM=nvme
+L: device=../../../0000:01:1f.7
+
+P: /devices/pci0000:00/0000:01:1f.7
+E: SUBSYSTEM=pci
+
+P: /devices/pci0001:02/0001:02:03.4/nvme/nvme1/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=nvme\n
+A: temp1_input=40000\n
+A: temp1_label=Composite\n
+L: device=../../nvme1
+
+P: /devices/pci0001:02/0001:02:03.4/nvme/nvme1
+E: SUBSYSTEM=nvme
+L: device=../../../0001:02:03.4
+
+P: /devices/pci0001:02/0001:02:03.4
+E: SUBSYSTEM=pci
+
+P: /devices/pci0000:e0/0000:e1:00.0/nvme/nvme2/hwmon2
+E: SUBSYSTEM=hwmon
+A: name=nvme\n
+A: temp1_input=40000\n
+A: temp1_label=Composite\n
+L: device=../../nvme2
+
+P: /devices/pci0000:e0/0000:e1:00.0/nvme/nvme2
+E: SUBSYSTEM=nvme
+L: device=../../../0000:e1:00.0
+
+P: /devices/pci0000:e0/0000:e1:00.0
+E: SUBSYSTEM=pci
+

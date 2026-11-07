@@ -154,6 +154,13 @@ impl Source for Nvme {
                     unit: None,
                     key: format!("{}/{sensor}", c.address),
                     value: value(&c.hwmon.join(format!("{sensor}_input"))),
+                    kernel_label: None,
+                    platform: false,
+                    device_chars: if suffix.is_empty() {
+                        0
+                    } else {
+                        c.model.chars().count()
+                    },
                 });
             }
         }

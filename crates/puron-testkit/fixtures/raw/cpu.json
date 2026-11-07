@@ -1,0 +1,865 @@
+{
+  "system76": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "fan",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU fan",
+      "key": "system76_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "device_chars": 4
+    }
+  ],
+  "system76-configured": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "CPU",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "fan",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU fan",
+      "key": "system76_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "device_chars": 4
+    }
+  ],
+  "monolith": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 35.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 16
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 38.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 16
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 36.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 16
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 34.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 16
+    }
+  ],
+  "two-packages": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 70.0,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 69.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0001",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 1",
+      "key": "coretemp-isa-0001/temp1",
+      "value": 80.0,
+      "kernel_label": "Package id 1",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 90.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    }
+  ],
+  "two-packages-one-silent": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 70.0,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0001",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 1",
+      "key": "coretemp-isa-0001/temp1",
+      "value": null,
+      "kernel_label": "Package id 1",
+      "platform": true,
+      "device_chars": 29
+    }
+  ],
+  "two-packages-silent": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": null,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0001",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 1",
+      "key": "coretemp-isa-0001/temp1",
+      "value": -1.0,
+      "kernel_label": "Package id 1",
+      "platform": true,
+      "device_chars": 29
+    }
+  ],
+  "package-silent": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": null,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    }
+  ],
+  "board": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nct6775-isa-0290",
+      "name": "nct6775 CPUTIN",
+      "key": "nct6775-isa-0290/temp1",
+      "value": 99.0,
+      "kernel_label": "CPUTIN",
+      "platform": true,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "acpitz-acpi-0",
+      "name": "acpitz temp1",
+      "key": "acpitz-acpi-0/temp1",
+      "value": 41.0,
+      "device_chars": 6
+    }
+  ],
+  "board-label-not-platform": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "thing-pci-0100",
+      "name": "Thing CPU temp",
+      "key": "thing-pci-0100/temp1",
+      "value": 50.0,
+      "kernel_label": "CPU temp",
+      "device_chars": 5
+    }
+  ],
+  "k10temp-tdie": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "k10temp-pci-00c3",
+      "name": "AMD Ryzen 7 Tctl",
+      "key": "k10temp-pci-00c3/temp1",
+      "value": 60.0,
+      "kernel_label": "Tctl",
+      "device_chars": 11
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "k10temp-pci-00c3",
+      "name": "AMD Ryzen 7 Tdie",
+      "key": "k10temp-pci-00c3/temp2",
+      "value": 50.0,
+      "kernel_label": "Tdie",
+      "device_chars": 11
+    }
+  ],
+  "k10temp-tctl": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "k10temp-pci-00c3",
+      "name": "AMD Ryzen 7 Tctl",
+      "key": "k10temp-pci-00c3/temp1",
+      "value": 60.0,
+      "kernel_label": "Tctl",
+      "device_chars": 11
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "k10temp-pci-00c3",
+      "name": "AMD Ryzen 7 Tccd1",
+      "key": "k10temp-pci-00c3/temp3",
+      "value": 55.0,
+      "kernel_label": "Tccd1",
+      "device_chars": 11
+    }
+  ],
+  "zenpower-tdie": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "zenpower-pci-00c3",
+      "name": "AMD Ryzen 9 Tdie",
+      "key": "zenpower-pci-00c3/temp1",
+      "value": 52.0,
+      "kernel_label": "Tdie",
+      "device_chars": 11
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "zenpower-pci-00c3",
+      "name": "AMD Ryzen 9 Tctl",
+      "key": "zenpower-pci-00c3/temp2",
+      "value": 62.0,
+      "kernel_label": "Tctl",
+      "device_chars": 11
+    }
+  ],
+  "cores-silent": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": null,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 16
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Xeon X3440 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": -5.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 16
+    }
+  ],
+  "no-cpu": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 7
+    }
+  ],
+  "one-source": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 29
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "11th Gen Intel Core i7-1165G7 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 29
+    }
+  ],
+  "long-names": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Samsung SSD 980 PRO With Heatsink 2TB Very Long Sensor 2",
+      "key": "nvme-pci-0100/temp2",
+      "value": 40.0,
+      "kernel_label": "Sensor 2",
+      "device_chars": 47
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "A configured label that goes on for a very long way past the limit",
+      "key": "nvme-pci-0200/temp1",
+      "value": 41.0
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0300",
+      "name": "A device with a very long name indeed this one A label too long for any device to stay",
+      "key": "nvme-pci-0300/temp1",
+      "value": 42.0,
+      "kernel_label": "A label too long for any device to stay",
+      "device_chars": 46
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "nvme-pci-0400",
+      "name": "Exactly forty-four characters, not a one cut",
+      "key": "nvme-pci-0400/temp1",
+      "value": 43.0
+    }
+  ],
+  "sections": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Zeta SSD Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 30.0,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Zeta SSD Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 31.0,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 8
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Alpha SSD Composite",
+      "key": "nvme-pci-0200/temp1",
+      "value": 32.0,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 33.0,
+      "platform": false,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "acpitz-acpi-0",
+      "name": "acpitz temp1",
+      "key": "acpitz-acpi-0/temp1",
+      "value": 34.0,
+      "platform": false,
+      "device_chars": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "acpitz-acpi-0",
+      "name": "acpitz temp2",
+      "key": "acpitz-acpi-0/temp2",
+      "value": 35.0,
+      "platform": false,
+      "device_chars": 6
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "Radeon RX 6600 edge",
+      "key": "amdgpu-pci-0300/temp1",
+      "value": 36.0,
+      "kernel_label": "edge",
+      "platform": false,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "amdgpu-pci-0300",
+      "name": "Radeon RX 6600 junction",
+      "key": "amdgpu-pci-0300/temp2",
+      "value": 37.0,
+      "kernel_label": "junction",
+      "platform": false,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "temperature",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU temp",
+      "key": "system76_acpi-isa-0000/temp1",
+      "value": 38.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 9,
+      "kind": "fan",
+      "chip": "system76_acpi-isa-0000",
+      "name": "Lemur Pro CPU fan",
+      "key": "system76_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 9
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 10,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Core 7 Package id 1",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 39.0,
+      "kernel_label": "Package id 1",
+      "platform": true,
+      "device_chars": 12
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 11,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Core 7 Package id 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 40.0,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 12
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 12,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Intel Core 7 Core 0",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 41.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 12
+    },
+    {
+      "provider": "NVIDIA",
+      "position": 0,
+      "kind": "temperature",
+      "name": "GeForce RTX 4070",
+      "key": "0000:01:00.0",
+      "value": 42.0
+    },
+    {
+      "provider": "udisks2",
+      "position": 0,
+      "kind": "temperature",
+      "name": "WD Blue",
+      "key": "/org/freedesktop/UDisks2/drives/WD_Blue",
+      "value": 43.0
+    },
+    {
+      "provider": "udisks2",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Barracuda",
+      "key": "/org/freedesktop/UDisks2/drives/Barracuda",
+      "value": 44.0
+    },
+    {
+      "provider": "liquidctl",
+      "position": 0,
+      "device": "NZXT Kraken X (X42, X52, X62 or X72)",
+      "item": "Liquid temperature",
+      "unit": "°C",
+      "key": "NZXT Kraken X (X42, X52, X62 or X72)/Liquid temperature",
+      "value": 45.0
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 13,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "platform": false,
+      "device_chars": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 14,
+      "kind": "power",
+      "chip": "amdgpu-pci-0300",
+      "name": "Radeon RX 6600 PPT",
+      "key": "amdgpu-pci-0300/power1",
+      "value": 15.0,
+      "kernel_label": "PPT",
+      "platform": false,
+      "device_chars": 14
+    }
+  ]
+}

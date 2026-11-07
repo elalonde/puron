@@ -113,9 +113,9 @@ pub fn actions(previous: Option<&Settings>, new: &Settings) -> Vec<Action> {
 }
 
 /// The lm-sensors adapter with its production values: the library's
-/// default configuration files.
+/// default configuration files and the kernel's CPU list.
 pub fn lm_sensors() -> crate::lmsensors::LmSensors {
-    crate::lmsensors::LmSensors::new(None)
+    crate::lmsensors::LmSensors::new(None, "/proc/cpuinfo")
 }
 
 /// The nvme-cli adapter with its production values: the sysfs root

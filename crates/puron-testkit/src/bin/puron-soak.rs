@@ -173,7 +173,8 @@ fn main() {
             LmReport::Answered => Report::Answered,
         };
         let m = menu::menu(&shown, &settings, report, last_key.as_ref(), false);
-        let p = panel::panel(&shown, &settings.pinned, &settings, &State::default());
+        let pinned = settings.pinned.as_deref().unwrap_or_default();
+        let p = panel::panel(&shown, pinned, &settings, &State::default());
         last_key = Some(m.key.clone());
         drop((shown, m, p));
     }

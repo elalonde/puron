@@ -32,8 +32,6 @@ struct View {
     menu: Option<Menu>,
     panel: Panel,
     pinned: Vec<String>,
-    /// The event gave a layout output (a rebuild closes the groups).
-    layout: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -59,7 +57,6 @@ struct Applet {
     core: Core,
     tx: Sender<(Source, Event)>,
     view: View,
-    popup: popup::Popup,
     popup_id: Option<Id>,
 }
 
@@ -67,7 +64,7 @@ impl Applet {
     fn popup_plan(&self) -> Option<popup::Plan> {
         let menu = self.view.menu.as_ref()?;
         let size = panel::icon_size(&self.core.applet);
-        Some(self.popup.plan(menu, &self.view.pinned, size))
+        Some(popup::plan(menu, &self.view.pinned, size))
     }
 
     fn send(&self, e: popup::Event) {
@@ -116,9 +113,7 @@ impl cosmic::Application for Applet {
                     state: Default::default(),
                 },
                 pinned: Vec::new(),
-                layout: false,
             },
-            popup: popup::Popup::default(),
             popup_id: None,
         };
         (applet, Task::none())
@@ -135,11 +130,6 @@ impl cosmic::Application for Applet {
     fn update(&mut self, message: Msg) -> Task<Msg> {
         match message {
             Msg::View(v) => {
-                if v.layout {
-                    if let Some(menu) = &v.menu {
-                        self.popup.layout(menu);
-                    }
-                }
                 self.view = *v;
             }
             Msg::Toggle => {
@@ -151,18 +141,19 @@ impl cosmic::Application for Applet {
                 };
                 let id = Id::unique();
                 self.popup_id = Some(id);
-                self.popup.opened();
-                let settings = self
+                let mut settings = self
                     .core
                     .applet
                     .get_popup_settings(main, id, None, None, None);
+                settings.positioner.size_limits =
+                    popup::limits(popup::MAX_WIDTH).min_width(popup::WIDTH);
                 return get_popup(settings);
             }
-            Msg::Clicked(popup::Clicked(i)) => {
-                let Some(entry) = self.popup_plan().and_then(|p| p.entries.get(i).cloned()) else {
+            Msg::Clicked(clicked) => {
+                let Some(plan) = self.popup_plan() else {
                     return Task::none();
                 };
-                let reply = self.popup.click(&entry);
+                let reply = popup::clicked(&plan, clicked);
                 if let Some(e) = reply.event {
                     self.send(e);
                 }
@@ -203,7 +194,16 @@ impl cosmic::Application for Applet {
         match (self.popup_id == Some(id), self.popup_plan()) {
             (true, Some(plan)) => {
                 let content = popup::view(&plan).map(Msg::Clicked);
-                self.core.applet.popup_container(content).into()
+                let width = self
+                    .view
+                    .menu
+                    .as_ref()
+                    .map_or(popup::WIDTH, |m| popup::width(m, plan.icon_size));
+                self.core
+                    .applet
+                    .popup_container(content)
+                    .limits(popup::limits(width))
+                    .into()
             }
             _ => cosmic::widget::Space::new().into(),
         }
@@ -226,13 +226,11 @@ fn main() {
     let state = App::new(engine, config, Programs::production());
     let loop_tx = tx.clone();
     let event_loop = std::thread::spawn(move || {
-        app::run(state, loop_tx, rx, move |_, a: &App, out: &[Output]| {
-            let layout = out.iter().any(|o| matches!(o, Output::Layout { .. }));
+        app::run(state, loop_tx, rx, move |_, a: &App, _: &[Output]| {
             let _ = vtx.unbounded_send(View {
                 menu: a.menu().cloned(),
                 panel: a.panel().clone(),
                 pinned: a.pinned().to_vec(),
-                layout,
             });
         })
     });

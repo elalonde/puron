@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::format::{format, Text};
 use crate::menu::{icon_kind, IconKind, Shown};
-use crate::rows::{class_of_identity, Class, MAXIMUM_IDENTITY};
+use crate::rows::{class_of_identity, Class};
 use crate::settings::Settings;
 
 /// Label padding with and without icons.
@@ -68,10 +68,12 @@ pub fn panel(shown: &Shown, pinned: &[String], settings: &Settings, state: &Stat
     }
     // Step 2: forget the icons of entries that are no longer pinned.
     icons.retain(|id, _| pinned.contains(id));
-    // Step 3: one item per entry that is not hidden.
-    let mut items: Vec<Item> = pinned
-        .iter()
-        .filter(|id| !hidden(id, s))
+    // Step 3: one item per entry that is not hidden, in popup order; entries
+    // not in the popup follow, in their own order.
+    let mut visible: Vec<&String> = pinned.iter().filter(|id| !hidden(id, s)).collect();
+    visible.sort_by_key(|id| shown.place(id).unwrap_or(usize::MAX));
+    let mut items: Vec<Item> = visible
+        .into_iter()
         .map(|id| {
             let icon = if !icons_on {
                 Icon::None
@@ -99,19 +101,11 @@ pub fn panel(shown: &Shown, pinned: &[String], settings: &Settings, state: &Stat
     }
 }
 
-/// The icon kind and value text of a found identity: its first row
-/// in the shown rows, or Maximum for `@maximum` when present.
+/// The icon kind and value text of a found identity.
 fn found(shown: &Shown, id: &str, settings: &Settings) -> Option<(IconKind, Option<Text>)> {
-    if id == MAXIMUM_IDENTITY {
-        let maximum = shown.maximum?;
-        return Some((
-            IconKind::Maximum,
-            format(Class::Temperature, maximum, settings),
-        ));
-    }
-    let row = shown.rows.iter().find(|r| r.identity == id)?;
-    // The row's value goes through `format`, as in the menu.
-    Some((icon_kind(row), format(row.class, row.value, settings)))
+    let line = shown.line(id)?;
+    // The line's value goes through `format`, as in the menu.
+    Some((icon_kind(line), format(line.class, line.value, settings)))
 }
 
 /// A pinned entry whose class's Show Sensors key is off; an
