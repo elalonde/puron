@@ -7,8 +7,10 @@
 use std::collections::BTreeMap;
 
 use puron_core::format::{Text, Unit};
-use puron_core::menu::{self, Entry, GroupKind, Item, Key, Menu, MessageKind, Report, Update};
-use puron_core::rows::RawReading;
+use puron_core::menu::{
+    self, Entry, Heading, Item, Key, LineWord, Menu, MessageKind, Report, Section, Update,
+};
+use puron_core::rows::{Class, Provider, RawReading};
 use puron_core::settings::{Settings, TemperatureUnit};
 
 const LIMIT: u64 = 2;
@@ -96,35 +98,38 @@ fn text(value: &Option<Text>) -> String {
     }
 }
 
-fn item(i: &Item) -> String {
-    format!("{} {}", i.name, text(&i.value))
+/// A line as the popup would show it: name, word, default mark, value.
+fn line(i: &Item) -> String {
+    let word = match i.word {
+        None => "",
+        Some(LineWord::Composite) => "composite",
+        Some(LineWord::Package) => "package",
+        Some(LineWord::Temperature) => "temperature",
+        Some(LineWord::Maximum) => "Maximum",
+    };
+    let parts = [
+        i.name.as_str(),
+        word,
+        if i.default { "(default)" } else { "" },
+        &text(&i.value),
+    ];
+    let parts: Vec<&str> = parts.into_iter().filter(|p| !p.is_empty()).collect();
+    parts.join(" ")
 }
 
-/// The entries in a short text notation; the two links are `homepage`
-/// and `settings`.
+/// The entries in a short text notation: `# section`, `## device`, a line,
+/// `—`; the two links are `homepage` and `settings`.
 fn render(m: &Menu) -> Vec<String> {
     m.entries
         .iter()
         .map(|e| match e {
-            Entry::Sensor(i) => item(i),
-            Entry::Maximum(i) => format!("Max {}", text(&i.value)),
-            Entry::Group {
-                kind,
-                header,
-                members,
-            } => {
-                let kind = match kind {
-                    GroupKind::Temperature => "temperature",
-                    GroupKind::Fan => "fan",
-                    GroupKind::Voltage => "voltage",
-                };
-                let header = header
-                    .as_ref()
-                    .map(|h| format!(", header {}", text(h)))
-                    .unwrap_or_default();
-                let members: Vec<String> = members.iter().map(item).collect();
-                format!("[G {kind}{header}: {}]", members.join(", "))
-            }
+            Entry::Section(Section::Temperature) => "# temperature".to_string(),
+            Entry::Section(Section::Fan) => "# fan".to_string(),
+            Entry::Section(Section::Voltage) => "# voltage".to_string(),
+            Entry::Section(Section::Power) => "# power".to_string(),
+            Entry::Device(Heading::Cpu) => "## CPU".to_string(),
+            Entry::Device(Heading::Name(name)) => format!("## {name}"),
+            Entry::Line(i) => line(i),
             Entry::Separator => "—".to_string(),
             Entry::Message {
                 kind: MessageKind::SensorsDetect,
@@ -154,25 +159,54 @@ fn id(raw: &[RawReading], class: &str, name: &str) -> String {
     format!("{class}/lm-sensors/{}", r.key)
 }
 
-/// The group of c_core_menu_1: the 10 temperatures of capture.json in
-/// display order, at the default settings.
-const CAPTURE_GROUP: &str =
-    "[G temperature, header 73°C: Core 0 65°C, Core 1 71°C, Core 2 64°C, Core 3 72°C, \
-     CPU 73°C, CPU temp 67°C, WiFi 33°C, Sensor 1 38°C, Sensor 2 45°C, SSD 38°C]";
-const CAPTURE_TEMPERATURES: [&str; 10] = [
-    "Core 0", "Core 1", "Core 2", "Core 3", "CPU", "CPU temp", "WiFi", "Sensor 1", "Sensor 2",
-    "SSD",
+/// What the capture shows at the default settings. It has no kernel labels.
+const CAPTURE: [&str; 26] = [
+    "# temperature",
+    "## CPU",
+    "coretemp: Core 0 65°C",
+    "coretemp: Core 1 71°C",
+    "coretemp: Core 2 64°C",
+    "coretemp: Core 3 72°C",
+    "coretemp: CPU 73°C",
+    "Maximum (default) 73°C",
+    "## nvme",
+    "Sensor 1 (default) 38°C",
+    "Sensor 2 45°C",
+    "SSD 38°C",
+    "Maximum 45°C",
+    "## CPU temp",
+    "example_acpi: CPU temp 67°C",
+    "## WiFi",
+    "iwlwifi: WiFi 33°C",
+    "—",
+    "# fan",
+    "CPU fan 0rpm",
+    "—",
+    "# voltage",
+    "in0 +8.49V",
+    "—",
+    "homepage",
+    "settings",
 ];
 
 fn capture_identities(raw: &[RawReading]) -> Vec<String> {
-    let mut ids: Vec<String> = CAPTURE_TEMPERATURES
-        .iter()
-        .map(|n| id(raw, "temperature", n))
-        .collect();
-    ids.push("@maximum".to_string());
-    ids.push(id(raw, "fan", "CPU fan"));
-    ids.push(id(raw, "voltage", "in0"));
-    ids
+    let t = |n: &str| id(raw, "temperature", n);
+    vec![
+        t("Core 0"),
+        t("Core 1"),
+        t("Core 2"),
+        t("Core 3"),
+        t("CPU"),
+        "@maximum/cpu".to_string(),
+        t("Sensor 1"),
+        t("Sensor 2"),
+        t("SSD"),
+        "@maximum/lm-sensors/nvme-pci-0100".to_string(),
+        t("CPU temp"),
+        t("WiFi"),
+        id(raw, "fan", "CPU fan"),
+        id(raw, "voltage", "in0"),
+    ]
 }
 
 #[test]
@@ -180,41 +214,9 @@ fn c_core_menu_1() {
     puron_testkit::limit("C-core.menu-1", LIMIT, || {
         let raw = capture();
         let m = lay(&raw);
-        assert_entries(
-            &m,
-            &[
-                CAPTURE_GROUP,
-                "—",
-                "Max 73°C",
-                "—",
-                "CPU fan 0rpm",
-                "—",
-                "in0 +8.49V",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
+        assert_entries(&m, &CAPTURE);
         assert_eq!(m.identities, capture_identities(&raw));
         assert_eq!(m.key, Key::Identities(capture_identities(&raw)));
-    });
-}
-
-#[test]
-fn c_core_menu_2() {
-    puron_testkit::limit("C-core.menu-2", LIMIT, || {
-        let m = lay(&menu_set("A"));
-        assert_entries(
-            &m,
-            &[
-                "[G temperature, header 40°C: t 40°C]",
-                "—",
-                "Max 40°C",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
     });
 }
 
@@ -223,116 +225,29 @@ fn c_core_menu_3() {
     puron_testkit::limit("C-core.menu-3", LIMIT, || {
         assert_entries(
             &lay(&menu_set("C")),
-            &["f 1000rpm", "—", "v +12.00V", "—", "homepage", "settings"],
+            &[
+                "# fan",
+                "f 1000rpm",
+                "—",
+                "# voltage",
+                "v +12.00V",
+                "—",
+                "homepage",
+                "settings",
+            ],
         );
         assert_entries(
             &lay(&menu_set("D")),
             &[
-                "[G fan: f1 1000rpm, f2 1000rpm]",
-                "—",
-                "[G voltage: v1 +12.00V, v2 +12.00V]",
-                "p +10.00W",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
-    });
-}
-
-#[test]
-fn c_core_menu_4() {
-    puron_testkit::limit("C-core.menu-4", LIMIT, || {
-        let d = lay(&menu_set("D"));
-        let groups: Vec<_> = d
-            .entries
-            .iter()
-            .filter_map(|e| match e {
-                Entry::Group { kind, header, .. } => Some((*kind, header.clone())),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(groups, [(GroupKind::Fan, None), (GroupKind::Voltage, None)]);
-        let c = lay(&capture());
-        let header = c.entries.iter().find_map(|e| match e {
-            Entry::Group {
-                kind: GroupKind::Temperature,
-                header,
-                ..
-            } => Some(header.clone()),
-            _ => None,
-        });
-        let max = c.entries.iter().find_map(|e| match e {
-            Entry::Maximum(i) => Some(i.value.clone()),
-            _ => None,
-        });
-        assert_eq!(
-            header,
-            Some(Some(Some(Text {
-                number: "73".to_string(),
-                unit: Some(Unit::Celsius)
-            })))
-        );
-        assert_eq!(header.flatten(), max);
-    });
-}
-
-#[test]
-fn c_core_menu_5() {
-    puron_testkit::limit("C-core.menu-5", LIMIT, || {
-        let m = lay_with(&capture(), &settings_with(|s| s.group_temperature = false));
-        let rows = [
-            "Core 0 65°C",
-            "Core 1 71°C",
-            "Core 2 64°C",
-            "Core 3 72°C",
-            "CPU 73°C",
-            "CPU temp 67°C",
-            "WiFi 33°C",
-            "Sensor 1 38°C",
-            "Sensor 2 45°C",
-            "SSD 38°C",
-        ];
-        let mut want: Vec<&str> = rows.to_vec();
-        want.extend([
-            "—",
-            "Max 73°C",
-            "—",
-            "CPU fan 0rpm",
-            "—",
-            "in0 +8.49V",
-            "—",
-            "homepage",
-            "settings",
-        ]);
-        assert_entries(&m, &want);
-    });
-}
-
-#[test]
-fn c_core_menu_6() {
-    puron_testkit::limit("C-core.menu-6", LIMIT, || {
-        let d = menu_set("D");
-        assert_entries(
-            &lay_with(&d, &settings_with(|s| s.group_rotation_rate = false)),
-            &[
+                "# fan",
                 "f1 1000rpm",
                 "f2 1000rpm",
                 "—",
-                "[G voltage: v1 +12.00V, v2 +12.00V]",
-                "p +10.00W",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
-        assert_entries(
-            &lay_with(&d, &settings_with(|s| s.group_voltage = false)),
-            &[
-                "[G fan: f1 1000rpm, f2 1000rpm]",
-                "—",
+                "# voltage",
                 "v1 +12.00V",
                 "v2 +12.00V",
+                "—",
+                "# power",
                 "p +10.00W",
                 "—",
                 "homepage",
@@ -348,9 +263,11 @@ fn c_core_menu_7() {
         assert_entries(
             &lay(&menu_set("B")),
             &[
-                "[G temperature, header 40°C: t 40°C]",
+                "# temperature",
+                "## t",
+                "k0: t 40°C",
                 "—",
-                "Max 40°C",
+                "# power",
                 "p +10.00W",
                 "—",
                 "homepage",
@@ -364,14 +281,10 @@ fn c_core_menu_7() {
 fn c_core_menu_8() {
     puron_testkit::limit("C-core.menu-8", LIMIT, || {
         let c = lay(&menu_set("C"));
-        assert_entries(
-            &c,
-            &["f 1000rpm", "—", "v +12.00V", "—", "homepage", "settings"],
-        );
-        assert!(!c.identities.contains(&"@maximum".to_string()));
+        assert!(!render(&c).contains(&"# temperature".to_string()));
         assert_entries(
             &lay(&menu_set("G")),
-            &["f 1000rpm", "—", "homepage", "settings"],
+            &["# fan", "f 1000rpm", "—", "homepage", "settings"],
         );
     });
 }
@@ -379,14 +292,10 @@ fn c_core_menu_8() {
 #[test]
 fn c_core_menu_9() {
     puron_testkit::limit("C-core.menu-9", LIMIT, || {
-        let all_on = settings_with(|s| {
-            s.group_temperature = true;
-            s.group_rotation_rate = true;
-            s.group_voltage = true;
-        });
         assert_entries(
-            &lay_with(&menu_set("H"), &all_on),
+            &lay(&menu_set("H")),
             &[
+                "# power",
                 "p1 +10.00W",
                 "p2 +10.00W",
                 "p3 +10.00W",
@@ -402,7 +311,7 @@ fn c_core_menu_9() {
 fn c_core_menu_10() {
     puron_testkit::limit("C-core.menu-10", LIMIT, || {
         let m = lay(&menu_set("E"));
-        assert_entries(&m, &["p +10.00W", "—", "homepage", "settings"]);
+        assert_entries(&m, &["# power", "p +10.00W", "—", "homepage", "settings"]);
         assert!(matches!(m.key, Key::Identities(_)));
     });
 }
@@ -448,15 +357,24 @@ fn c_core_menu_12() {
         assert_entries(
             &m,
             &[
+                "# fan",
                 "CPU fan 0rpm",
                 "—",
+                "# voltage",
                 "in0 +8.49V",
                 "—",
                 "homepage",
                 "settings",
             ],
         );
-        assert!(!m.identities.contains(&"@maximum".to_string()));
+        assert!(!m.identities.iter().any(|i| i.starts_with("@maximum")));
+        // Each other class hides its whole section, and its separator.
+        let no_fans = lay_with(&raw, &settings_with(|s| s.show_rotation_rate = false));
+        assert!(!render(&no_fans).contains(&"# fan".to_string()));
+        assert_eq!(render(&no_fans).len(), CAPTURE.len() - 3);
+        let no_volts = lay_with(&raw, &settings_with(|s| s.show_voltage = false));
+        assert!(!render(&no_volts).contains(&"# voltage".to_string()));
+        assert_eq!(render(&no_volts).len(), CAPTURE.len() - 3);
     });
 }
 
@@ -488,24 +406,18 @@ fn c_core_menu_14() {
         assert_eq!(second.update, Update::InPlace);
         assert_eq!(second.identities, first.identities);
         assert_eq!(second.key, first.key);
-        let groups =
-            "[G temperature, header 74°C: Core 0 66°C, Core 1 72°C, Core 2 65°C, Core 3 73°C, \
-             CPU 74°C, CPU temp 68°C, WiFi 34°C, Sensor 1 39°C, Sensor 2 46°C, SSD 39°C]";
-        assert_entries(
-            &second,
-            &[
-                groups,
-                "—",
-                "Max 74°C",
-                "—",
-                "CPU fan 1rpm",
-                "—",
-                "in0 +9.49V",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
+        let rendered = render(&second);
+        for want in [
+            "coretemp: Core 0 66°C",
+            "coretemp: CPU 74°C",
+            "Maximum (default) 74°C",
+            "iwlwifi: WiFi 34°C",
+            "Maximum 46°C",
+            "CPU fan 1rpm",
+            "in0 +9.49V",
+        ] {
+            assert!(rendered.contains(&want.to_string()), "{want}: {rendered:?}");
+        }
     });
 }
 
@@ -529,7 +441,7 @@ fn c_core_menu_16() {
     puron_testkit::limit("C-core.menu-16", LIMIT, || {
         let k1 = lay(&snapshot("S1")).key;
         let m4 = after(&snapshot("S4"), &k1);
-        assert_eq!(m4.identities.len(), 13);
+        assert_eq!(m4.identities.len(), 14);
         assert_eq!(m4.update, Update::Rebuild);
     });
 }
@@ -557,7 +469,7 @@ fn c_core_menu_18() {
         let m = run(&s1, &f, Report::Answered, Some(&k1), false);
         assert_eq!(m.update, Update::InPlace);
         assert!(
-            render(&m).contains(&"Max 163.4°F".to_string()),
+            render(&m).contains(&"Maximum (default) 163.4°F".to_string()),
             "{:?}",
             render(&m)
         );
@@ -602,34 +514,19 @@ fn c_core_menu_21() {
         let raw = sets("summary.json").remove("B").expect("X-raw-summary B");
         let d = Settings::default();
         let shown = menu::shown(&raw, &d);
-        let rows: Vec<(&str, Option<f64>)> = shown
-            .rows
-            .iter()
-            .map(|r| (r.name.as_str(), r.value))
+        let lines: Vec<(&str, Option<f64>)> = shown
+            .lines()
+            .filter(|l| !l.is_maximum())
+            .map(|l| (l.name.as_str(), l.value))
             .collect();
         assert_eq!(
-            rows,
+            lines,
             [
                 ("t0", Some(10.0)),
                 ("t1", None),
                 ("v2", Some(-1.5)),
                 ("p3", Some(-2.0))
             ]
-        );
-        let m = menu::menu(&shown, &d, Report::Answered, None, false);
-        assert_entries(
-            &m,
-            &[
-                "[G temperature, header 10°C: t0 10°C, t1 N/A]",
-                "—",
-                "Max 10°C",
-                "—",
-                "v2 -1.50V",
-                "p3 -2.00W",
-                "—",
-                "homepage",
-                "settings",
-            ],
         );
     });
 }
@@ -648,10 +545,9 @@ fn c_core_menu_22() {
 fn c_core_menu_23() {
     puron_testkit::limit("C-core.menu-23", LIMIT, || {
         let shown = menu::shown(&capture(), &settings_with(|s| s.show_rotation_rate = false));
-        let names: Vec<&str> = shown.rows.iter().map(|r| r.name.as_str()).collect();
-        let mut want = CAPTURE_TEMPERATURES.to_vec();
-        want.push("in0");
-        assert_eq!(names, want);
+        let names: Vec<&str> = shown.others.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, ["in0"]);
+        assert_eq!(shown.lines().count(), 13);
     });
 }
 
@@ -659,20 +555,23 @@ fn c_core_menu_23() {
 fn c_core_menu_25() {
     puron_testkit::limit("C-core.menu-25", LIMIT, || {
         let (s5, s6) = (snapshot("S5"), snapshot("S6"));
+        let maximum = "@maximum/lm-sensors/amdgpu-pci-0300".to_string();
         let k5 = lay(&s5).key;
         assert_eq!(
             k5,
             Key::Identities(vec![
                 id(&s5, "temperature", "edge"),
                 id(&s5, "temperature", "junction"),
-                "@maximum".to_string()
+                maximum.clone()
             ])
         );
         let m = after(&s6, &k5);
         let want = [
-            "[G temperature, header 91°C: junction 91°C, edge 41°C]",
-            "—",
-            "Max 91°C",
+            "# temperature",
+            "## amdgpu",
+            "junction (default) 91°C",
+            "edge 41°C",
+            "Maximum 91°C",
             "—",
             "homepage",
             "settings",
@@ -680,7 +579,7 @@ fn c_core_menu_25() {
         let ids = vec![
             id(&s6, "temperature", "junction"),
             id(&s6, "temperature", "edge"),
-            "@maximum".to_string(),
+            maximum,
         ];
         assert_eq!(m.update, Update::Rebuild);
         assert_entries(&m, &want);
@@ -703,17 +602,300 @@ fn c_core_menu_26() {
         assert_eq!(m.identities, first.identities);
         let wifi = id(&s1, "temperature", "WiFi");
         let place = |menu: &Menu| -> Option<(usize, Item)> {
-            menu.entries.iter().find_map(|e| match e {
-                Entry::Group { members, .. } => members
-                    .iter()
-                    .position(|i| i.identity == wifi)
-                    .map(|p| (p, members[p].clone())),
+            let lines = menu.entries.iter().filter_map(|e| match e {
+                Entry::Line(i) => Some(i),
                 _ => None,
-            })
+            });
+            let mut lines = lines.enumerate();
+            lines
+                .find(|(_, i)| i.identity == wifi)
+                .map(|(p, i)| (p, i.clone()))
         };
         let (p1, _) = place(&first).expect("WiFi in S1");
         let (p7, it) = place(&m).expect("WiFi's identity in S7");
         assert_eq!(p7, p1);
-        assert_eq!(item(&it), "WLAN 33°C");
+        assert_eq!(line(&it), "iwlwifi: WLAN 33°C");
+    });
+}
+
+/// Set `name` of the CPU fixture.
+fn cpu_set(name: &str) -> Vec<RawReading> {
+    sets("cpu.json").remove(name).expect("X-raw-cpu set")
+}
+
+fn drive_set(name: &str) -> Vec<RawReading> {
+    sets("drives.json").remove(name).expect("X-raw-drives set")
+}
+
+/// The lines under the heading `heading`.
+fn under(m: &Menu, heading: &str) -> Vec<String> {
+    let rendered = render(m);
+    let start = rendered
+        .iter()
+        .position(|e| e == heading)
+        .unwrap_or_else(|| panic!("{heading}: {rendered:?}"));
+    let end = |e: &String| e.starts_with('#') || e == "—";
+    let rest = rendered[start + 1..].iter().take_while(|e| !end(e));
+    rest.cloned().collect()
+}
+
+/// Sections and device headings, the groups in order, CPU first.
+#[test]
+fn c_core_menu_32() {
+    puron_testkit::limit("C-core.menu-32", LIMIT, || {
+        let raw = cpu_set("sections");
+        let m = lay(&raw);
+        assert_entries(
+            &m,
+            &[
+                "# temperature",
+                "## CPU",
+                "coretemp: Package id 0 (default) 40°C",
+                "coretemp: Package id 1 39°C",
+                "example_acpi: CPU temp 38°C",
+                "coretemp: Core 0 41°C",
+                "Maximum 41°C",
+                "## GeForce RTX 4070",
+                "temperature 42°C",
+                "## Radeon RX 6600",
+                "edge (default) 36°C",
+                "junction 37°C",
+                "Maximum 37°C",
+                "## Alpha SSD",
+                "composite 32°C",
+                "## Barracuda",
+                "temperature 44°C",
+                "## WD Blue",
+                "temperature 43°C",
+                "## Zeta SSD",
+                "composite (default) 30°C",
+                "Sensor 1 31°C",
+                "Maximum 31°C",
+                "## acpitz",
+                "temp1 (default) 34°C",
+                "temp2 35°C",
+                "Maximum 35°C",
+                "## iwlwifi",
+                "temp1 33°C",
+                "## Kraken X",
+                "Liquid 45°C",
+                "—",
+                "# fan",
+                "Example Laptop CPU fan 0rpm",
+                "—",
+                "# voltage",
+                "BAT0 in0 +8.68V",
+                "—",
+                "# power",
+                "Radeon RX 6600 PPT +15.00W",
+                "—",
+                "homepage",
+                "settings",
+            ],
+        );
+        // A section heading and a device heading are labels: no identity.
+        assert!(!m.identities.iter().any(|i| i.is_empty()));
+        let shown = menu::shown(&raw, &Settings::default());
+        assert_eq!(shown.lines().count(), m.identities.len());
+    });
+}
+
+/// The default lines, and what a new install checks.
+#[test]
+fn c_core_menu_33() {
+    puron_testkit::limit("C-core.menu-33", LIMIT, || {
+        let defaults = |raw: &[RawReading]| -> Vec<String> {
+            let m = lay(raw);
+            let lines = m.entries.iter().filter_map(|e| match e {
+                Entry::Line(i) if i.default => Some(line(i)),
+                _ => None,
+            });
+            lines.collect()
+        };
+        let cases = [
+            ("two-packages", "coretemp: Package id 0 (default) 70°C"),
+            ("package-silent", "coretemp: Package id 0 (default) N/A"),
+            ("k10temp-tdie", "k10temp: Tdie (default) 50°C"),
+            ("k10temp-tctl", "k10temp: Tctl (default) 60°C"),
+            ("zenpower-tdie", "zenpower: Tdie (default) 52°C"),
+            ("monolith", "Maximum (default) 38°C"),
+        ];
+        for (set, want) in cases {
+            assert_eq!(defaults(&cpu_set(set)), [want], "{set}");
+        }
+        // No package: the board controller's reading goes first.
+        let mut raw = cpu_set("example");
+        raw.retain(|r| r.key != "coretemp-isa-0000/temp1");
+        assert_eq!(
+            under(&lay(&raw), "## CPU")[..2],
+            [
+                "example_acpi: CPU temp (default) 46°C",
+                "coretemp: Core 0 44°C"
+            ]
+        );
+        // The board controller's reading alone is a group of one line.
+        assert_eq!(
+            under(&lay(&cpu_set("board")), "## CPU"),
+            ["example_acpi: CPU temp 46°C"]
+        );
+        // Tdie goes first, Tctl beside it stays a line, Tccd is under CPU.
+        let m = lay(&cpu_set("k10temp-tdie"));
+        assert_eq!(
+            under(&m, "## CPU"),
+            [
+                "k10temp: Tdie (default) 50°C",
+                "k10temp: Tctl 60°C",
+                "Maximum 60°C"
+            ]
+        );
+        let m = lay(&cpu_set("k10temp-tctl"));
+        assert_eq!(
+            under(&m, "## CPU"),
+            [
+                "k10temp: Tctl (default) 60°C",
+                "k10temp: Tccd1 55°C",
+                "Maximum 60°C"
+            ]
+        );
+        // Maximum stays last when it is the default.
+        let m = lay(&cpu_set("monolith"));
+        let lines = under(&m, "## CPU");
+        assert_eq!(
+            lines.last().map(String::as_str),
+            Some("Maximum (default) 38°C")
+        );
+        assert_eq!(lines.len(), 5);
+        // A chip that names no CPU has no place in its group.
+        let m = lay(&cpu_set("board-label-not-platform"));
+        assert!(
+            !render(&m).contains(&"## CPU".to_string()),
+            "{:?}",
+            render(&m)
+        );
+        // Each drive has its Composite.
+        let raw = drive_set("two-drives");
+        let d = Settings::default();
+        let shown = menu::shown(&raw, &d);
+        let pins = shown.new_install_pins();
+        for key in ["nvme-pci-0100/temp1", "nvme-pci-0200/temp1"] {
+            assert!(
+                pins.contains(&format!("temperature/lm-sensors/{key}")),
+                "{pins:?}"
+            );
+        }
+        // No Composite: the first reading.
+        let m = lay(&drive_set("no-composite"));
+        assert!(
+            render(&m)
+                .iter()
+                .filter(|e| e.contains("(default)"))
+                .count()
+                >= 1
+        );
+        // A group of one line: no mark, and a new install does not check it,
+        // unless no default line exists at all.
+        let m = lay(&drive_set("one-sensor"));
+        assert_eq!(
+            render(&m)
+                .iter()
+                .filter(|e| e.starts_with("composite"))
+                .count(),
+            1
+        );
+        assert!(
+            render(&m).contains(&"composite 38°C".to_string()),
+            "{:?}",
+            render(&m)
+        );
+        let mut raw = cpu_set("two-packages");
+        raw.extend(drive_set("one-sensor"));
+        let shown = menu::shown(&raw, &d);
+        assert!(!shown
+            .new_install_pins()
+            .contains(&"temperature/lm-sensors/nvme-pci-0100/temp1".to_string()));
+        let raw = cpu_set("no-cpu");
+        let shown = menu::shown(&raw, &d);
+        assert!(shown.lines().all(|l| !l.default));
+        assert_eq!(
+            shown.new_install_pins(),
+            ["temperature/lm-sensors/iwlwifi_1-virtual-0/temp1"]
+        );
+        // Fans and voltages never have one, and none temperature means none.
+        let shown = menu::shown(&menu_set("D"), &d);
+        assert!(shown.new_install_pins().is_empty());
+        assert!(shown.lines().all(|l| !l.default));
+    });
+}
+
+/// A group's Maximum follows the higher reading at each poll.
+#[test]
+fn c_core_menu_34() {
+    puron_testkit::limit("C-core.menu-34", LIMIT, || {
+        let d = Settings::default();
+        let maximum = |raw: &[RawReading], identity: &str| {
+            let shown = menu::shown(raw, &d);
+            shown.line(identity).expect(identity).value
+        };
+        let set_value = |raw: &mut Vec<RawReading>, key: &str, value: Option<f64>| {
+            let reading = raw.iter_mut().find(|r| r.key == key).expect(key);
+            reading.value = value;
+        };
+        let cpu = "@maximum/cpu";
+        let mut raw = cpu_set("example");
+        assert_eq!(maximum(&raw, cpu), Some(48.0));
+        set_value(&mut raw, "example_acpi-isa-0000/temp1", Some(60.0));
+        assert_eq!(maximum(&raw, cpu), Some(60.0));
+        set_value(&mut raw, "example_acpi-isa-0000/temp1", Some(40.0));
+        assert_eq!(maximum(&raw, cpu), Some(48.0));
+        // A reading that does not count is left out; with none left: no value.
+        for key in ["temp1", "temp2", "temp3", "temp4", "temp5"] {
+            let key = format!("coretemp-isa-0000/{key}");
+            set_value(&mut raw, &key, Some(-5.0));
+        }
+        assert_eq!(maximum(&raw, cpu), Some(40.0));
+        set_value(&mut raw, "example_acpi-isa-0000/temp1", None);
+        assert_eq!(maximum(&raw, cpu), None);
+        let m = lay(&raw);
+        assert!(under(&m, "## CPU").contains(&"Maximum N/A".to_string()));
+        // Its own group's readings only, and one reading has no such line.
+        let raw = drive_set("example");
+        let drive = "@maximum/lm-sensors/nvme-pci-0100";
+        assert_eq!(maximum(&raw, drive), Some(43.85));
+        assert_eq!(maximum(&raw, cpu), Some(48.0));
+        let shown = menu::shown(&cpu_set("no-cpu"), &d);
+        assert!(shown.lines().all(|l| !l.is_maximum()));
+        // The identity does not depend on the rows' values or order.
+        let raw = cpu_set("two-packages");
+        assert_eq!(
+            menu::shown(&raw, &d).line(cpu).map(|l| l.is_maximum()),
+            Some(true)
+        );
+    });
+}
+
+/// The set's nvme-cli readings, with lm-sensors off.
+fn nvme_cli_only(set: &str) -> Vec<RawReading> {
+    let mut raw = drive_set(set);
+    raw.retain(|r| r.provider == Provider::NvmeCli);
+    raw
+}
+
+/// An nvme-cli line has the word when its name has no device part, and the
+/// reading's label when it has one.
+#[test]
+fn nvme_cli_line_names() {
+    puron_testkit::limit("nvme_cli_line_names", LIMIT, || {
+        let lines = |set: &str| {
+            let mut all = render(&lay(&nvme_cli_only(set)));
+            all.retain(|l| {
+                !l.starts_with('#') && !["—", "homepage", "settings"].contains(&l.as_str())
+            });
+            all
+        };
+        assert_eq!(lines("one-sensor"), ["temperature 38°C"]);
+        assert_eq!(
+            lines("lm-sensors-off"),
+            ["S1 (default) 38°C", "S2 44°C", "Maximum 44°C"]
+        );
     });
 }

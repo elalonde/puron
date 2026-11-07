@@ -1,0 +1,1180 @@
+{
+  "example": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU temp",
+      "key": "example_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU fan",
+      "key": "example_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "device_chars": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 9,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 10,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 11,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "example-configured": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "CPU",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU temp",
+      "key": "example_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU fan",
+      "key": "example_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "WiFi",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "device_chars": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 9,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "SSD",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 0
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 10,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 11,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "lm-sensors-off": [
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "no-such-chip": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Package id 0",
+      "key": "coretemp-isa-0000/temp1",
+      "value": 47.8,
+      "kernel_label": "Package id 0",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 0",
+      "key": "coretemp-isa-0000/temp2",
+      "value": 44.0,
+      "kernel_label": "Core 0",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 1",
+      "key": "coretemp-isa-0000/temp3",
+      "value": 48.0,
+      "kernel_label": "Core 1",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 2",
+      "key": "coretemp-isa-0000/temp4",
+      "value": 45.0,
+      "kernel_label": "Core 2",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "coretemp-isa-0000",
+      "name": "Example Core E7-1000 Core 3",
+      "key": "coretemp-isa-0000/temp5",
+      "value": 43.0,
+      "kernel_label": "Core 3",
+      "platform": true,
+      "device_chars": 20
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 5,
+      "kind": "temperature",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU temp",
+      "key": "example_acpi-isa-0000/temp1",
+      "value": 46.0,
+      "kernel_label": "CPU temp",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 6,
+      "kind": "fan",
+      "chip": "example_acpi-isa-0000",
+      "name": "Example Laptop CPU fan",
+      "key": "example_acpi-isa-0000/fan1",
+      "value": 0.0,
+      "kernel_label": "CPU fan",
+      "platform": true,
+      "device_chars": 14
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 7,
+      "kind": "temperature",
+      "chip": "iwlwifi_1-virtual-0",
+      "name": "iwlwifi temp1",
+      "key": "iwlwifi_1-virtual-0/temp1",
+      "value": 29.0,
+      "device_chars": 7
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 8,
+      "kind": "voltage",
+      "chip": "BAT0-acpi-0",
+      "name": "BAT0 in0",
+      "key": "BAT0-acpi-0/in0",
+      "value": 8.68,
+      "device_chars": 4
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-address": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0200/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0200/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0200/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-function": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.1/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.1/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-domain": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0001:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0001:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-chip": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "drivetemp-pci-0100",
+      "name": "Disk Sensor 1",
+      "key": "drivetemp-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 4
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "drivetemp-pci-0100",
+      "name": "Disk Sensor 2",
+      "key": "drivetemp-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 4
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-file": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "no-address": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "fabric-0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "fabric-0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "one-sensor": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Model One Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 9
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Model One",
+      "key": "0000:01:00.0/temp1",
+      "value": 37.85,
+      "device_chars": 0
+    }
+  ],
+  "encodings": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-01ff",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-01ff/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-1021c",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-1021c/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-e100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-e100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "M0 S1",
+      "key": "0000:01:1f.7/temp2",
+      "value": 37.85,
+      "device_chars": 2
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "M1 S1",
+      "key": "0001:02:03.4/temp2",
+      "value": 37.85,
+      "device_chars": 2
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 2,
+      "kind": "temperature",
+      "name": "M2 S1",
+      "key": "0000:e1:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 2
+    }
+  ],
+  "values-differ": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Another Name S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 99.0,
+      "device_chars": 12
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Another Name S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 99.0,
+      "device_chars": 12
+    }
+  ],
+  "no-composite": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB composite",
+      "key": "nvme-pci-0200/temp1",
+      "value": 40.0,
+      "kernel_label": "composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0200/temp2",
+      "value": 41.0,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 0,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S1",
+      "key": "0000:01:00.0/temp2",
+      "value": 37.85,
+      "device_chars": 15
+    },
+    {
+      "provider": "nvme-cli",
+      "position": 1,
+      "kind": "temperature",
+      "name": "Example SSD 1TB S2",
+      "key": "0000:01:00.0/temp3",
+      "value": 43.85,
+      "device_chars": 15
+    }
+  ],
+  "other-chip-composite": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "Board Composite",
+      "key": "puron-isa-0000/temp1",
+      "value": 40.0,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 5
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "puron-isa-0000",
+      "name": "Board Inlet",
+      "key": "puron-isa-0000/temp2",
+      "value": 41.0,
+      "kernel_label": "Inlet",
+      "platform": false,
+      "device_chars": 5
+    }
+  ],
+  "two-drives": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 3,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0200/temp1",
+      "value": 50.0,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 4,
+      "kind": "temperature",
+      "chip": "nvme-pci-0200",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0200/temp2",
+      "value": 51.0,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    }
+  ],
+  "hot-sensor": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 40.0,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 41.0,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 90.0,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    }
+  ],
+  "sensor-gone": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": 37.85,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    }
+  ],
+  "composite-silent": [
+    {
+      "provider": "lm-sensors",
+      "position": 0,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Composite",
+      "key": "nvme-pci-0100/temp1",
+      "value": null,
+      "kernel_label": "Composite",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 1,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 1",
+      "key": "nvme-pci-0100/temp2",
+      "value": 37.85,
+      "kernel_label": "Sensor 1",
+      "platform": false,
+      "device_chars": 15
+    },
+    {
+      "provider": "lm-sensors",
+      "position": 2,
+      "kind": "temperature",
+      "chip": "nvme-pci-0100",
+      "name": "Example SSD 1TB Sensor 2",
+      "key": "nvme-pci-0100/temp3",
+      "value": 43.85,
+      "kernel_label": "Sensor 2",
+      "platform": false,
+      "device_chars": 15
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+P: /devices/virtual/dmi/id
+E: SUBSYSTEM=dmi
+A: sys_vendor=ExampleCo\n
+A: product_name=Example Laptop\n
+A: board_vendor=ExampleCo\n
+A: board_name=Example Laptop\n
+
+P: /devices/platform/ACPI0003:00/power_supply/AC/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=AC\n
+L: device=../../AC
+
+P: /devices/platform/ACPI0003:00/power_supply/AC
+E: SUBSYSTEM=power_supply
+L: device=../../../ACPI0003:00
+
+P: /devices/platform/ACPI0003:00
+E: SUBSYSTEM=platform
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00/power_supply/BAT0/hwmon1
+E: SUBSYSTEM=hwmon
+A: name=BAT0\n
+A: in0_input=8494\n
+A: curr1_input=0\n
+L: device=../../BAT0
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00/power_supply/BAT0
+E: SUBSYSTEM=power_supply
+A: type=Battery\n
+A: model_name=BAT\n
+A: manufacturer=Notebook\n
+L: device=../../../PNP0C0A:00
+
+P: /devices/LNXSYSTM:00/LNXSYBUS:00/PNP0C0A:00
+E: SUBSYSTEM=acpi
+
+P: /devices/platform/EXMP0001:00/hwmon/hwmon2
+E: SUBSYSTEM=hwmon
+A: name=example_acpi\n
+A: temp1_input=67000\n
+A: temp1_label=CPU temp\n
+A: fan1_input=0\n
+A: fan1_label=CPU fan\n
+L: device=../../../EXMP0001:00
+
+P: /devices/platform/EXMP0001:00
+E: SUBSYSTEM=platform
+
+P: /devices/pci0000:00/0000:00:06.0/0000:01:00.0/nvme/nvme0/hwmon3
+E: SUBSYSTEM=hwmon
+A: name=nvme\n
+A: temp1_input=37850\n
+A: temp2_input=37850\n
+A: temp3_input=43850\n
+A: temp1_label=Composite\n
+A: temp2_label=Sensor 1\n
+A: temp3_label=Sensor 2\n
+L: device=../../nvme0
+
+P: /devices/pci0000:00/0000:00:06.0/0000:01:00.0/nvme/nvme0
+E: SUBSYSTEM=nvme
+A: model=Example SSD 1TB                 \n
+L: device=../../../0000:01:00.0
+
+P: /devices/pci0000:00/0000:00:06.0/0000:01:00.0
+E: SUBSYSTEM=pci
+A: vendor=0x1234\n
+L: device=../../0000:00:06.0
+
+P: /devices/pci0000:00/0000:00:06.0
+E: SUBSYSTEM=pci
+A: vendor=0x1234\n
+
+P: /devices/virtual/thermal/thermal_zone0/hwmon4
+E: SUBSYSTEM=hwmon
+A: name=iwlwifi_1\n
+A: temp1_input=33000\n
+L: device=../../thermal_zone0
+
+P: /devices/virtual/thermal/thermal_zone0
+E: SUBSYSTEM=thermal
+
+P: /devices/platform/coretemp.0/hwmon/hwmon5
+E: SUBSYSTEM=hwmon
+A: name=coretemp\n
+A: temp1_input=73000\n
+A: temp2_input=65000\n
+A: temp3_input=71000\n
+A: temp4_input=64000\n
+A: temp5_input=72000\n
+A: temp1_label=Package id 0\n
+A: temp2_label=Core 0\n
+A: temp3_label=Core 1\n
+A: temp4_label=Core 2\n
+A: temp5_label=Core 3\n
+L: device=../../../coretemp.0
+
+P: /devices/platform/coretemp.0
+E: SUBSYSTEM=platform

@@ -4,7 +4,9 @@
 use std::collections::BTreeMap;
 
 use puron_core::order;
-use puron_core::rows::{self, Class, Family, Kind, Provider, RawReading, Row, ShownClasses};
+use puron_core::rows::{
+    self, Class, CpuRole, Family, Kind, Provider, RawReading, Row, ShownClasses,
+};
 
 const LIMIT: u64 = 2;
 
@@ -189,6 +191,7 @@ fn c_core_rows_12() {
             provider,
             position: 0,
             key: "0000:01:00.0".to_string(),
+            device_chars: 0,
         };
         let ids = rows::identities(&[row(Provider::LmSensors), row(Provider::Nvidia)]);
         assert_eq!(
@@ -204,7 +207,15 @@ fn c_core_rows_12() {
 #[test]
 fn c_core_rows_13() {
     puron_testkit::limit("C-core.rows-13", LIMIT, || {
-        assert_eq!(rows::MAXIMUM_IDENTITY, "@maximum");
+        assert_eq!(rows::MAXIMUM_WORD, "@maximum");
+        let line = "@maximum/lm-sensors/nvme-pci-0100";
+        for pin in [rows::MAXIMUM_WORD, rows::OLD_CPU_PIN, "@maximum/cpu", line] {
+            assert_eq!(
+                rows::class_of_identity(pin),
+                Some(Class::Temperature),
+                "{pin}"
+            );
+        }
     });
 }
 
@@ -462,6 +473,9 @@ fn c_core_rows_26() {
             unit: None,
             key: "@maximum".to_string(),
             value: Some(40.0),
+            kernel_label: None,
+            platform: false,
+            device_chars: 0,
         });
         let out = rows::rows(&raw, &ShownClasses::ALL);
         assert_eq!(out.last().map(|r| r.name.as_str()), Some("@maximum"));
@@ -482,5 +496,243 @@ fn c_core_rows_27() {
             rows::identities(&out),
             vec!["temperature/lm-sensors/k", "temperature/lm-sensors/k"]
         );
+    });
+}
+
+/// The keys of the NVMe rows that are kept.
+fn nvme_keys(set: &str) -> Vec<String> {
+    rows::rows(&load_set("drives.json", set), &ShownClasses::ALL)
+        .into_iter()
+        .filter(|r| r.provider == Provider::NvmeCli)
+        .map(|r| r.key)
+        .collect()
+}
+
+/// The (left out, stays) identities of the set.
+fn repeats(set: &str) -> Vec<(String, String)> {
+    rows::repeats(&load_set("drives.json", set))
+}
+
+#[test]
+fn c_core_rows_28() {
+    puron_testkit::limit("C-core.rows-28", LIMIT, || {
+        let pair = |nvme: &str, lm: &str| {
+            (
+                format!("temperature/nvme-cli/{nvme}"),
+                format!("temperature/lm-sensors/{lm}"),
+            )
+        };
+        // The same bus, device and function, and the same file: left out.
+        assert!(nvme_keys("example").is_empty());
+        assert_eq!(
+            repeats("example"),
+            [
+                pair("0000:01:00.0/temp2", "nvme-pci-0100/temp2"),
+                pair("0000:01:00.0/temp3", "nvme-pci-0100/temp3"),
+            ]
+        );
+        // The rows of lm-sensors are all there.
+        let raw = load_set("drives.json", "example");
+        let kept = rows::rows(&raw, &ShownClasses::ALL);
+        let lm: Vec<&str> = kept
+            .iter()
+            .filter(|r| r.key.starts_with("nvme-pci-0100/"))
+            .map(|r| r.name.as_str())
+            .collect();
+        assert_eq!(
+            lm,
+            [
+                "Example SSD 1TB Composite",
+                "Example SSD 1TB Sensor 1",
+                "Example SSD 1TB Sensor 2",
+            ]
+        );
+        // The one-sensor case, through temp1.
+        assert!(nvme_keys("one-sensor").is_empty());
+        assert_eq!(
+            repeats("one-sensor"),
+            [pair("0000:01:00.0/temp1", "nvme-pci-0100/temp1")]
+        );
+        // How the chip name encodes the address: device, function, domain.
+        assert!(nvme_keys("encodings").is_empty());
+        assert_eq!(
+            repeats("encodings"),
+            [
+                pair("0000:01:1f.7/temp2", "nvme-pci-01ff/temp2"),
+                pair("0001:02:03.4/temp2", "nvme-pci-1021c/temp2"),
+                pair("0000:e1:00.0/temp2", "nvme-pci-e100/temp2"),
+            ]
+        );
+        // Names and values play no part.
+        assert!(nvme_keys("values-differ").is_empty());
+    });
+}
+
+#[test]
+fn c_core_rows_29() {
+    puron_testkit::limit("C-core.rows-29", LIMIT, || {
+        let both = ["0000:01:00.0/temp2", "0000:01:00.0/temp3"];
+        // No lm-sensors reading, or no chip for this address: as today.
+        for set in [
+            "lm-sensors-off",
+            "no-such-chip",
+            "other-address",
+            "other-chip",
+        ] {
+            assert_eq!(nvme_keys(set), both, "{set}");
+            assert!(repeats(set).is_empty(), "{set}");
+        }
+        // Another function or domain is another device.
+        assert_eq!(
+            nvme_keys("other-function"),
+            ["0000:01:00.1/temp2", "0000:01:00.1/temp3"]
+        );
+        assert_eq!(
+            nvme_keys("other-domain"),
+            ["0001:01:00.0/temp2", "0001:01:00.0/temp3"]
+        );
+        // An address that is no PCI address proves nothing.
+        assert_eq!(nvme_keys("no-address").len(), 2);
+        // The same chip without that file: only the matching file leaves.
+        assert_eq!(nvme_keys("other-file"), ["0000:01:00.0/temp3"]);
+    });
+}
+
+#[test]
+fn shown_names() {
+    puron_testkit::limit("shown_names", LIMIT, || {
+        let name = |name: &str, device_chars| {
+            rows::shown_name(&Row {
+                class: Class::Temperature,
+                family: Some(Family::General),
+                name: name.to_string(),
+                value: None,
+                provider: Provider::LmSensors,
+                position: 0,
+                key: String::new(),
+                device_chars,
+            })
+        };
+        // 44 stays; 42 is the longest real name known.
+        let at_limit = "x".repeat(44);
+        assert_eq!(name(&at_limit, 10), at_limit);
+        // 45 with a device: cut inside it to 44, the label whole.
+        let long = format!("{} Sensor 1", "d".repeat(36));
+        let got = name(&long, 36);
+        assert_eq!(got, format!("{}… Sensor 1", "d".repeat(34)));
+        assert_eq!(got.chars().count(), 44);
+        // No space is left before the mark.
+        let spaced = format!("{} {} Sensor 1", "d".repeat(33), "e".repeat(5));
+        assert_eq!(name(&spaced, 39), format!("{}… Sensor 1", "d".repeat(33)));
+        // No device, or no room for it: at the end.
+        assert_eq!(name(&"y".repeat(50), 0), format!("{}…", "y".repeat(43)));
+        let no_room = format!("dev {}", "z".repeat(45));
+        assert_eq!(name(&no_room, 3), format!("dev {}…", "z".repeat(39)));
+        // The rest takes all 43 characters before the mark: still at the end.
+        let no_room_left = format!("dd{}", "z".repeat(43));
+        assert_eq!(name(&no_room_left, 2), format!("dd{}…", "z".repeat(41)));
+        // Characters, not bytes.
+        let wide = format!("{} °C", "é".repeat(50));
+        assert_eq!(name(&wide, 50), format!("{}… °C", "é".repeat(40)));
+    });
+}
+
+/// How many nvme-cli rows `example` has, with its controller's address
+/// and its lm-sensors chip replaced.
+fn nvme_rows_at(address: &str, chip: &str) -> usize {
+    let mut raw = load_set("drives.json", "example");
+    for r in &mut raw {
+        r.key = r
+            .key
+            .replace("0000:01:00.0", address)
+            .replace("nvme-pci-0100", chip);
+    }
+    rows::rows(&raw, &ShownClasses::ALL)
+        .into_iter()
+        .filter(|r| r.provider == Provider::NvmeCli)
+        .count()
+}
+
+#[test]
+fn nvme_address_limits() {
+    puron_testkit::limit("nvme_address_limits", LIMIT, || {
+        // The chip of the address: the nvme-cli rows leave.
+        assert_eq!(nvme_rows_at("0000:01:00.0", "nvme-pci-0100"), 0);
+        assert_eq!(nvme_rows_at("0000:01:1f.7", "nvme-pci-01ff"), 0);
+        // No PCI address, though its number would name that chip: both stay.
+        assert_eq!(nvme_rows_at("0000:1:00.0", "nvme-pci-0100"), 2);
+        assert_eq!(nvme_rows_at("0000:01:20.0", "nvme-pci-0100"), 2);
+        assert_eq!(nvme_rows_at("0000:01:00.8", "nvme-pci-0108"), 2);
+    });
+}
+
+#[test]
+fn drive_chips_are_temperatures() {
+    puron_testkit::limit("drive_chips_are_temperatures", LIMIT, || {
+        let composite = load_set("drives.json", "example")
+            .into_iter()
+            .find(|r| r.kernel_label.as_deref() == Some("Composite"))
+            .expect("a Composite reading");
+        let key = composite.key.clone();
+        assert_eq!(rows::composites(std::slice::from_ref(&composite)), [key]);
+        let fan = RawReading {
+            kind: Some(Kind::Fan),
+            ..composite
+        };
+        assert_eq!(rows::composites(&[fan]), Vec::<String>::new());
+    });
+}
+
+#[test]
+fn cpu_source_name_without_the_number() {
+    puron_testkit::limit("cpu_source_name_without_the_number", LIMIT, || {
+        let all = rows::rows(&load_set("drives.json", "example"), &ShownClasses::ALL);
+        let row = all
+            .iter()
+            .find(|r| r.key.starts_with("iwlwifi_1-"))
+            .expect("the iwlwifi row");
+        assert_eq!(
+            rows::chip_line_name(row),
+            format!("iwlwifi: {}", rows::reading_label(row))
+        );
+    });
+}
+
+#[test]
+fn cpu_roles_of_the_cpu_drivers() {
+    puron_testkit::limit("cpu_roles_of_the_cpu_drivers", LIMIT, || {
+        let package = load_set("drives.json", "example")
+            .into_iter()
+            .find(|r| r.key == "coretemp-isa-0000/temp1")
+            .expect("the package reading");
+        assert!(package.platform);
+        let labelled = |label: &str| RawReading {
+            kernel_label: Some(label.to_string()),
+            ..package.clone()
+        };
+        let key = package.key.clone();
+        let role = |label: &str| {
+            let role = (key.clone(), CpuRole::Part);
+            assert_eq!(rows::cpu_roles(&[labelled(label)]), [role], "{label}");
+        };
+        let lowest = (key.clone(), CpuRole::Package(0));
+        assert_eq!(rows::cpu_roles(std::slice::from_ref(&package)), [lowest]);
+        let third = (key.clone(), CpuRole::Package(3));
+        assert_eq!(rows::cpu_roles(&[labelled("Package id 3")]), [third]);
+        // Every other label of a CPU driver is a part of the CPU.
+        role("Core 0");
+        role("Core x");
+        // "Package id " with no number, or more than a number after it.
+        role("Package id ");
+        role("Package id 1x");
+        // Board is for another chip.
+        role("CPU Temp");
+        // Only a temperature has a role: the board's fan is named after the CPU.
+        let fan = RawReading {
+            kind: Some(Kind::Fan),
+            chip: Some("example_acpi-isa-0000".to_string()),
+            ..labelled("CPU fan")
+        };
+        assert_eq!(rows::cpu_roles(&[fan]), []);
     });
 }

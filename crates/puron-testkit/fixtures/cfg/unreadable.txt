@@ -1,4 +1,6 @@
-# unreadable: show_voltage mode 000, group_voltage not UTF-8.
+# unreadable: show_voltage mode 000, show_power not UTF-8, and an old
+# row_sources entry not UTF-8.
 @base good
-@hex group_voltage fffe
+@hex show_power fffe
+@hex row_sources fffe
 @mode show_voltage 000

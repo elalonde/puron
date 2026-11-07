@@ -108,7 +108,7 @@ fn items(plan: &Plan) -> Vec<&puron_settings::window::Item> {
     plan.sections.iter().flat_map(|s| s.items.iter()).collect()
 }
 
-/// Item `n` (1 to 20) of the plan.
+/// Item `n` (1 to 17) of the plan.
 fn item(plan: &Plan, n: usize) -> puron_settings::window::Item {
     items(plan)[n - 1].clone()
 }
@@ -166,14 +166,14 @@ fn grep_count(pattern: &str) -> String {
 }
 
 /// The setting defaults, in item order.
-const DEFAULTS: [&str; 20] = [
+const DEFAULTS: [&str; 17] = [
     "5", "on", "°C", "on", "on", "on", "on", "off", "on", "off", "off", "off", "off", "on", "on",
-    "on", "on", "on", "on", "on",
+    "on", "on",
 ];
 /// The values of the cfg fixture good.txt, in item order.
-const GOOD: [&str; 20] = [
+const GOOD: [&str; 17] = [
     "7", "off", "°F", "off", "off", "off", "off", "on", "off", "on", "on", "on", "on", "off",
-    "off", "off", "off", "off", "off", "off",
+    "off", "off", "off",
 ];
 
 #[test]
@@ -207,7 +207,8 @@ fn c_settings_window_1() {
             out.status,
             String::from_utf8_lossy(&out.stdout)
         );
-        assert_eq!(plan.sections.len(), 6, "six headings");
+        assert_eq!(plan.sections.len(), 5, "five headings");
+        assert_eq!(items(&plan).len(), 17, "seventeen items");
     });
 }
 
@@ -245,8 +246,8 @@ fn c_settings_window_3() {
     });
 }
 
-/// The keys of the 18 switches, items 2, 4 to 20.
-const SWITCH_KEYS: [&str; 18] = [
+/// The keys of the 15 switches, items 2, 4 to 17.
+const SWITCH_KEYS: [&str; 15] = [
     "show_panel_icons",
     "show_temperature_unit",
     "show_rotation_rate_unit",
@@ -262,9 +263,6 @@ const SWITCH_KEYS: [&str; 18] = [
     "show_rotation_rate",
     "show_voltage",
     "show_power",
-    "group_temperature",
-    "group_rotation_rate",
-    "group_voltage",
 ];
 
 #[test]
@@ -272,7 +270,7 @@ fn c_settings_window_4() {
     puron_testkit::limit("C-settings.window-4", LIMIT, || {
         let fx = cfg::build("empty-none");
         let mut w = open(&fx);
-        let switches: Vec<usize> = std::iter::once(2).chain(4..=20).collect();
+        let switches: Vec<usize> = std::iter::once(2).chain(4..=17).collect();
         let mut out = Vec::new();
         for &n in &switches {
             out.extend(toggle(&mut w, n));
@@ -417,25 +415,6 @@ fn c_settings_window_8() {
             Some("Show additional digits after decimal point")
         );
         assert_eq!(grep_count("additionnal"), "0");
-    });
-}
-
-#[test]
-fn c_settings_window_9() {
-    puron_testkit::limit("C-settings.window-9", LIMIT, || {
-        let fx = cfg::build("good");
-        let plan = open(&fx).plan();
-        let got: Vec<_> = (18..=20).map(|n| tip(&plan, n)).collect();
-        assert_eq!(
-            got,
-            [
-                "Group temperature sensors (one or more)",
-                "Group two or more rotation rate sensors",
-                "Group two or more voltage sensors",
-            ]
-            .map(|s| Some(s.to_string()))
-        );
-        assert_eq!(grep_count("three or more"), "0");
     });
 }
 

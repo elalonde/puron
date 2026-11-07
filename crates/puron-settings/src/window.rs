@@ -29,7 +29,7 @@ pub fn window_settings() -> WindowSettings {
     }
 }
 
-/// An event of the window. Items are addressed by their number, 1 to 20,
+/// An event of the window. Items are addressed by their number, 1 to 17,
 /// in window order.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -114,7 +114,7 @@ pub struct Plan {
 }
 
 /// The keys of the items, by item number less one.
-const KEYS: [&str; 20] = [
+const KEYS: [&str; 17] = [
     puron_config::POLL_INTERVAL_SECS,
     puron_config::SHOW_PANEL_ICONS,
     puron_config::TEMPERATURE_UNIT,
@@ -132,13 +132,10 @@ const KEYS: [&str; 20] = [
     puron_config::SHOW_ROTATION_RATE,
     puron_config::SHOW_VOLTAGE,
     puron_config::SHOW_POWER,
-    puron_config::GROUP_TEMPERATURE,
-    puron_config::GROUP_ROTATION_RATE,
-    puron_config::GROUP_VOLTAGE,
 ];
 
 /// The sections: the first and last item number of each.
-const SECTIONS: [(usize, usize); 6] = [(1, 8), (9, 10), (11, 11), (12, 13), (14, 17), (18, 20)];
+const SECTIONS: [(usize, usize); 5] = [(1, 8), (9, 10), (11, 11), (12, 13), (14, 17)];
 
 fn heading(section: usize) -> String {
     match section {
@@ -146,8 +143,7 @@ fn heading(section: usize) -> String {
         1 => fl!("heading-generic"),
         2 => fl!("heading-gpu"),
         3 => fl!("heading-drive"),
-        4 => fl!("heading-shown"),
-        _ => fl!("heading-grouping"),
+        _ => fl!("heading-shown"),
     }
 }
 
@@ -168,9 +164,9 @@ fn label(item: usize) -> String {
         11 => "Nvidia".to_string(),
         12 => "Udisks2".to_string(),
         13 => "nvme-cli".to_string(),
-        14 | 18 => fl!("class-temperature"),
-        15 | 19 => fl!("class-rotation"),
-        16 | 20 => fl!("class-voltage"),
+        14 => fl!("class-temperature"),
+        15 => fl!("class-rotation"),
+        16 => fl!("class-voltage"),
         _ => fl!("class-power"),
     }
 }
@@ -180,9 +176,6 @@ fn tooltip(item: usize) -> Option<(&'static str, String)> {
         8 => Some(("tip-decimals", fl!("tip-decimals"))),
         9 => Some(("tip-lm-sensors", fl!("tip-lm-sensors"))),
         10 => Some(("tip-liquidctl", fl!("tip-liquidctl"))),
-        18 => Some(("tip-group-temp", fl!("tip-group-temp"))),
-        19 => Some(("tip-group-fan", fl!("tip-group-fan"))),
-        20 => Some(("tip-group-volt", fl!("tip-group-volt"))),
         _ => None,
     }
 }
@@ -212,9 +205,6 @@ fn switch(s: &mut Settings, item: usize) -> Option<&mut bool> {
         15 => &mut s.show_rotation_rate,
         16 => &mut s.show_voltage,
         17 => &mut s.show_power,
-        18 => &mut s.group_temperature,
-        19 => &mut s.group_rotation_rate,
-        20 => &mut s.group_voltage,
         _ => return None,
     })
 }

@@ -19,19 +19,22 @@ pub const FOLD_UNICODE_VERSION: (u8, u8, u8) = fold::UNICODE_VERSION;
 
 /// The rows in display order, each exactly once.
 pub fn order(mut rows: Vec<Row>) -> Vec<Row> {
-    rows.sort_by(|a, b| {
-        let pa = part(a);
-        pa.cmp(&part(b))
-            .then_with(|| {
-                if pa == 1 {
-                    Ordering::Equal
-                } else {
-                    name_order(&a.name, &b.name)
-                }
-            })
-            .then_with(|| provider_order(a, b))
-    });
+    rows.sort_by(compare);
     rows
+}
+
+/// Which of two rows comes first in display order.
+pub fn compare(a: &Row, b: &Row) -> Ordering {
+    let pa = part(a);
+    pa.cmp(&part(b))
+        .then_with(|| {
+            if pa == 1 {
+                Ordering::Equal
+            } else {
+                name_order(&a.name, &b.name)
+            }
+        })
+        .then_with(|| provider_order(a, b))
 }
 
 /// The part of a row, 1 to 6: GPU, general and drive temperatures,

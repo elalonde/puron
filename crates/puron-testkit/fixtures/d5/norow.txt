@@ -4,12 +4,11 @@ raw	temperature/lm-sensors/amdgpu-nvme-pci-0300/temp1	40
 raw	voltage/lm-sensors/BAT0-acpi-0/in0	8.494
 raw	-/liquidctl/kraken/Pump duty	60
 raw	voltage/liquidctl/kraken/+12V	none
-menu	0	group	temperature	temperature	50°C	-
-menu	1	row	general	CPU	50°C	0
-menu	0	separator	-	-	-	-
-menu	0	maximum	maximum	Maximum	50°C	1
+menu	0	section	temperature	-	-	-
+menu	1	device	-	CPU	-	-
+menu	2	row	general	coretemp: CPU	50°C	1
 menu	0	separator	-	-	-	-
 menu	0	homepage	-	-	-	-
 menu	0	settings	-	-	-	-
+panel	general	50°C
 panel	slot	missing
-panel	maximum	50°C

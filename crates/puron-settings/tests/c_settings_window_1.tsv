@@ -15,6 +15,3 @@ Show Sensors	Temperature	switch	show_temperature	none
 Show Sensors	Rotation Rate	switch	show_rotation_rate	none
 Show Sensors	Voltage	switch	show_voltage	none
 Show Sensors	Power	switch	show_power	none
-Group Items	Temperature	switch	group_temperature	tip-group-temp
-Group Items	Rotation Rate	switch	group_rotation_rate	tip-group-fan
-Group Items	Voltage	switch	group_voltage	tip-group-volt

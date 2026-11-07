@@ -178,6 +178,9 @@ pub fn reading(provider: Provider, position: u32, name: &str, value: f64) -> Raw
         unit: None,
         key: name.to_string(),
         value: Some(value),
+        kernel_label: None,
+        platform: false,
+        device_chars: 0,
     }
 }
 

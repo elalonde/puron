@@ -4,7 +4,7 @@
 use cosmic::applet::Context;
 use cosmic::iced::{Alignment, Length, Padding};
 use cosmic::widget::{column, container, icon, row, text, Id, Space};
-use puron_core::menu::{GroupKind, IconKind};
+use puron_core::menu::{IconKind, Section};
 use puron_core::panel::{Icon, Item, Panel};
 
 use crate::i18n;
@@ -47,7 +47,7 @@ pub fn icon_size(context: &Context) -> u16 {
 /// it too.
 pub fn icon_name(kind: IconKind) -> &'static str {
     match kind {
-        IconKind::GeneralTemperature | IconKind::Maximum => "puron-temperature-symbolic",
+        IconKind::GeneralTemperature => "puron-temperature-symbolic",
         IconKind::GpuTemperature => "puron-gpu-temperature-symbolic",
         IconKind::DriveTemperature => "drive-harddisk-system-symbolic",
         IconKind::Fan => "puron-fan-symbolic",
@@ -55,12 +55,13 @@ pub fn icon_name(kind: IconKind) -> &'static str {
     }
 }
 
-/// The icon name of a group kind, from the same map.
-pub fn group_icon_name(kind: GroupKind) -> &'static str {
-    icon_name(match kind {
-        GroupKind::Temperature => IconKind::GeneralTemperature,
-        GroupKind::Fan => IconKind::Fan,
-        GroupKind::Voltage => IconKind::Voltage,
+/// The icon name of a section, from the same map.
+pub fn section_icon_name(section: Section) -> &'static str {
+    icon_name(match section {
+        Section::Temperature => IconKind::GeneralTemperature,
+        Section::Fan => IconKind::Fan,
+        Section::Voltage => IconKind::Voltage,
+        Section::Power => IconKind::Power,
     })
 }
 

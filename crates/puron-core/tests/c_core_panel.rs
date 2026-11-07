@@ -102,7 +102,6 @@ fn kind(k: IconKind) -> &'static str {
         IconKind::Fan => "fan",
         IconKind::Voltage => "voltage",
         IconKind::Power => "power",
-        IconKind::Maximum => "Maximum",
     }
 }
 
@@ -139,12 +138,12 @@ fn c_core_panel_1() {
         let p = run(&raw, &pinned("P1"), &s, &State::default());
         assert_items(
             &p,
-            &["fan 0rpm", "general 91°F", "general 163°F", "drive 100°F"],
+            &["general 163°F", "drive 100°F", "general 91°F", "fan 0rpm"],
         );
     });
 }
 
-/// The value of `identity` in the menu layout (walking group members).
+/// The value of `identity` in the menu layout.
 fn menu_value(raw: &[RawReading], settings: &Settings, identity: &str) -> Option<Text> {
     let m = menu::menu(
         &menu::shown(raw, settings),
@@ -153,19 +152,11 @@ fn menu_value(raw: &[RawReading], settings: &Settings, identity: &str) -> Option
         None,
         false,
     );
-    let mut items = Vec::new();
-    for e in &m.entries {
-        match e {
-            Entry::Sensor(i) | Entry::Maximum(i) => items.push(i.clone()),
-            Entry::Group { members, .. } => items.extend(members.iter().cloned()),
-            _ => {}
-        }
-    }
-    items
-        .into_iter()
-        .find(|i| i.identity == identity)
-        .expect("identity in the menu")
-        .value
+    let found = m.entries.iter().find_map(|e| match e {
+        Entry::Line(i) if i.identity == identity => Some(i.value.clone()),
+        _ => None,
+    });
+    found.expect("identity in the menu")
 }
 
 #[test]
@@ -186,10 +177,13 @@ fn c_core_panel_2() {
             let s = settings_with(change);
             let p = run(&raw, &p1, &s, &State::default());
             assert_eq!(p.items.len(), p1.len());
-            for (item, identity) in p.items.iter().zip(&p1) {
+            let shown = menu::shown(&raw, &s);
+            let lines = shown.lines().filter(|l| p1.contains(&l.identity));
+            for (item, line) in p.items.iter().zip(lines) {
                 let Item::Pin { value, .. } = item else {
                     panic!("pin item")
                 };
+                let identity = &line.identity;
                 assert_eq!(value, &Some(menu_value(&raw, &s, identity)), "{identity}");
             }
         }
@@ -226,8 +220,15 @@ fn c_core_panel_4() {
 fn c_core_panel_5() {
     puron_testkit::limit("C-core.panel-5", LIMIT, || {
         let raw = capture();
-        assert_eq!(pinned("P3"), ids(&raw, &["WiFi", "@maximum"]));
-        assert_items(&lay(&raw, &pinned("P3")), &["general 33°C", "Maximum 73°C"]);
+        let pins = ids(
+            &raw,
+            &["@maximum/lm-sensors/nvme-pci-0100", "WiFi", "@maximum/cpu"],
+        );
+        // In popup order, each with the icon of its device.
+        assert_items(
+            &lay(&raw, &pins),
+            &["general 73°C", "drive 45°C", "general 33°C"],
+        );
     });
 }
 
@@ -245,11 +246,11 @@ fn c_core_panel_7() {
         assert_eq!(p5, ids(&capture(), &["WiFi", "CPU"]));
         let s = Settings::default();
         let first = run(&snapshot("S1"), &p5, &s, &State::default());
-        assert_items(&first, &["general 33°C", "general 73°C"]);
+        assert_items(&first, &["general 73°C", "general 33°C"]);
         let second = run(&snapshot("S3"), &p5, &s, &first.state);
-        assert_items(&second, &["general ⚠", "general 73°C"]);
+        assert_items(&second, &["general 73°C", "general ⚠"]);
         let third = run(&snapshot("S1"), &p5, &s, &second.state);
-        assert_items(&third, &["general 33°C", "general 73°C"]);
+        assert_items(&third, &["general 73°C", "general 33°C"]);
     });
 }
 
@@ -259,9 +260,9 @@ fn c_core_panel_8() {
         let p5 = pinned("P5");
         let s = Settings::default();
         let first = run(&snapshot("S3"), &p5, &s, &State::default());
-        assert_items(&first, &["∅ ⚠", "general 73°C"]);
+        assert_items(&first, &["general 73°C", "∅ ⚠"]);
         let second = run(&snapshot("S1"), &p5, &s, &first.state);
-        assert_items(&second, &["general 33°C", "general 73°C"]);
+        assert_items(&second, &["general 73°C", "general 33°C"]);
     });
 }
 
@@ -273,26 +274,27 @@ fn c_core_panel_10() {
         let off = settings_with(|s| s.show_panel_icons = false);
         let first = run(&snapshot("S1"), &p5, &on, &State::default());
         let second = run(&snapshot("S3"), &p5, &off, &first.state);
-        assert_items(&second, &["⚠", "73°C"]);
+        assert_items(&second, &["73°C", "⚠"]);
         let third = run(&snapshot("S3"), &p5, &on, &second.state);
-        assert_items(&third, &["∅ ⚠", "general 73°C"]);
+        assert_items(&third, &["general 73°C", "∅ ⚠"]);
     });
 }
 
 #[test]
 fn c_core_panel_11() {
     puron_testkit::limit("C-core.panel-11", LIMIT, || {
-        let p3 = pinned("P3");
+        // Sets D and C have two temperatures on this chip, set F none.
+        let pins = ["@maximum/lm-sensors/puron-isa-0000".to_string()];
         let s = Settings::default();
-        let maximum = |p: &Panel| render(p)[1].clone();
-        let first = run(&capture(), &p3, &s, &State::default());
-        assert_eq!(maximum(&first), "Maximum 73°C");
-        let second = run(&set("summary.json", "C"), &p3, &s, &first.state);
-        assert_eq!(maximum(&second), "Maximum N/A");
-        let third = run(&set("summary.json", "F"), &p3, &s, &second.state);
-        assert_eq!(maximum(&third), "Maximum ⚠");
+        let d = set("summary.json", "D");
+        let first = run(&d, &pins, &s, &State::default());
+        assert_items(&first, &["general 0°C"]);
+        let second = run(&set("summary.json", "C"), &pins, &s, &first.state);
+        assert_items(&second, &["general N/A"]);
+        let third = run(&set("summary.json", "F"), &pins, &s, &second.state);
+        assert_items(&third, &["general ⚠"]);
         let hidden = settings_with(|s| s.show_temperature = false);
-        let fourth = run(&capture(), &p3, &hidden, &third.state);
+        let fourth = run(&d, &pins, &hidden, &third.state);
         assert_items(&fourth, &["empty"]);
     });
 }
@@ -315,7 +317,7 @@ fn c_core_panel_13() {
     puron_testkit::limit("C-core.panel-13", LIMIT, || {
         let raw = capture();
         assert_eq!(pinned("P4"), ids(&raw, &["gone", "CPU"]));
-        assert_items(&lay(&raw, &pinned("P4")), &["∅ ⚠", "general 73°C"]);
+        assert_items(&lay(&raw, &pinned("P4")), &["general 73°C", "∅ ⚠"]);
     });
 }
 
@@ -327,11 +329,11 @@ fn c_core_panel_14() {
         let first = run(&raw, &p1, &Settings::default(), &State::default());
         let fan_hidden = settings_with(|s| s.show_rotation_rate = false);
         let second = run(&raw, &p1, &fan_hidden, &first.state);
-        assert_items(&second, &["general 33°C", "general 73°C", "drive 38°C"]);
+        assert_items(&second, &["general 73°C", "drive 38°C", "general 33°C"]);
         let third = run(&raw, &p1, &Settings::default(), &second.state);
         assert_items(
             &third,
-            &["fan 0rpm", "general 33°C", "general 73°C", "drive 38°C"],
+            &["general 73°C", "drive 38°C", "general 33°C", "fan 0rpm"],
         );
         let temperature_hidden = settings_with(|s| s.show_temperature = false);
         let fourth = run(&raw, &pinned("P4"), &temperature_hidden, &third.state);
@@ -363,7 +365,18 @@ fn c_core_panel_16() {
             pinned: Vec<String>,
         }
         let k: Kinds = json("kinds.json");
-        let p = lay(&k.readings, &k.pinned);
+        // A second reading of the drive gives it a Maximum line, which has
+        // the drive's icon.
+        let mut raw = k.readings;
+        let drive = raw[2].clone();
+        raw.push(RawReading {
+            name: Some("d6".to_string()),
+            key: "k6".to_string(),
+            ..drive
+        });
+        let mut pins = k.pinned;
+        pins.push("@maximum/lm-sensors/nvme-pci-0100".to_string());
+        let p = lay(&raw, &pins);
         let icons: Vec<Icon> = p
             .items
             .iter()
@@ -376,12 +389,12 @@ fn c_core_panel_16() {
             icons,
             [
                 IconKind::GpuTemperature,
-                IconKind::GeneralTemperature,
                 IconKind::DriveTemperature,
+                IconKind::DriveTemperature,
+                IconKind::GeneralTemperature,
                 IconKind::Fan,
                 IconKind::Voltage,
                 IconKind::Power,
-                IconKind::Maximum,
             ]
             .map(Icon::Kind)
         );
@@ -416,5 +429,43 @@ fn c_core_panel_18() {
         assert_eq!(raw[0].name.as_deref(), Some("a"));
         let p = lay(&raw, &["temperature/lm-sensors/k".to_string()]);
         assert_items(&p, &["general 50°C"]);
+    });
+}
+
+#[test]
+fn c_core_panel_19() {
+    puron_testkit::limit("C-core.panel-19", LIMIT, || {
+        let text = std::fs::read_to_string(puron_testkit::fixture("raw", "cpu.json")).unwrap();
+        let mut sets: std::collections::BTreeMap<String, Vec<puron_core::rows::RawReading>> =
+            serde_json::from_str(&text).unwrap();
+        let raw = sets.remove("example").unwrap();
+        let pinned = vec!["@maximum/cpu".to_string()];
+        let mut s = puron_core::settings::Settings::default();
+        let value = |s: &puron_core::settings::Settings| {
+            let shown = puron_core::menu::shown(&raw, s);
+            let state = puron_core::panel::State::default();
+            puron_core::panel::panel(&shown, &pinned, s, &state).items
+        };
+        // Shown: the line's value on the panel.
+        let items = value(&s);
+        assert!(matches!(
+            items.as_slice(),
+            [puron_core::panel::Item::Pin {
+                value: Some(Some(_)),
+                ..
+            }]
+        ));
+        // Hidden: no line, no item, and the pin stays through a click.
+        s.show_temperature = false;
+        let shown = puron_core::menu::shown(&raw, &s);
+        assert!(shown.line("@maximum/cpu").is_none());
+        assert_eq!(value(&s), [puron_core::panel::Item::EmptyState]);
+        let classes = puron_core::rows::ShownClasses {
+            temperature: false,
+            ..puron_core::rows::ShownClasses::ALL
+        };
+        let fan = "fan/lm-sensors/example_acpi-isa-0000/fan1".to_string();
+        let after = puron_core::pins::click(&pinned, &fan, std::slice::from_ref(&fan), &classes);
+        assert_eq!(after, ["@maximum/cpu".to_string(), fan]);
     });
 }

@@ -17,8 +17,5 @@ show_temperature false
 show_rotation_rate false
 show_voltage false
 show_power false
-group_temperature false
-group_rotation_rate false
-group_voltage false
 debug_logging true
 pinned ["a", "b"]

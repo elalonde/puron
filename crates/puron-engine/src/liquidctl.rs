@@ -234,6 +234,9 @@ fn readings(output: &[u8]) -> Result<Vec<RawReading>, Check> {
                 unit: Some(unit.to_string()),
                 key: format!("{prefix}/{key}"),
                 value: item.get("value").and_then(Value::as_f64),
+                kernel_label: None,
+                platform: false,
+                device_chars: 0,
             });
         }
     }

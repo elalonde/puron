@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use common::*;
 use puron_applet::app::{self, Command, Event, Output, Source};
-use puron_config::{StoreResult, KEYS};
+use puron_config::{Config, StoreResult, KEYS};
 use puron_core::menu::{Entry, MessageKind};
 use puron_core::panel::{Icon, Item};
 use puron_core::settings::TemperatureUnit;
@@ -46,7 +46,7 @@ fn as_4() -> (
 ) {
     let (c, h, mut a, _) = started("p5");
     let out = a.handle(Event::Snapshot(capture()));
-    assert_eq!(values(&panel_of(&out).unwrap()), ["33°C", "73°C"]);
+    assert_eq!(values(&panel_of(&out).unwrap()), ["73°C", "33°C"]);
     (c, h, a)
 }
 
@@ -119,7 +119,7 @@ fn c_applet_app_4() {
         assert_eq!(commands(&out), []);
         assert_eq!(
             values(&panel_of(&out).expect("rebuilt at once")),
-            ["33", "73"]
+            ["73", "33"]
         );
         let out = a.handle(delivery(&a, &["show_temperature_unit"], |s| {
             s.show_temperature_unit = true
@@ -127,7 +127,7 @@ fn c_applet_app_4() {
         assert_eq!(commands(&out), []);
         assert_eq!(
             values(&panel_of(&out).expect("rebuilt at once")),
-            ["33°C", "73°C"]
+            ["73°C", "33°C"]
         );
     });
 }
@@ -141,9 +141,9 @@ fn c_applet_app_5() {
         }));
         assert_eq!(commands(&out), [Command::PollNow]);
         assert!(panel_of(&out).is_none() && !has_layout(&out), "{out:?}");
-        assert_eq!(values(a.panel()), ["33°C", "73°C"]);
+        assert_eq!(values(a.panel()), ["73°C", "33°C"]);
         let out = a.handle(Event::Snapshot(capture()));
-        assert_eq!(values(&panel_of(&out).unwrap()), ["91°F", "163°F"]);
+        assert_eq!(values(&panel_of(&out).unwrap()), ["163°F", "91°F"]);
     });
 }
 
@@ -171,7 +171,7 @@ fn c_applet_app_7() {
         );
         assert_eq!(
             puron_config::Config::new(&c.root).load().settings.pinned,
-            pins("P3")
+            Some(pins("P3"))
         );
         let h = handle(0);
         let mut a = app(&c.root, &h);
@@ -230,7 +230,7 @@ fn c_applet_app_7() {
             menu.identities
         );
         let p = panel_of(&out).expect("panel at the combined delivery");
-        assert_eq!(values(&p), ["33", "73"], "pins without the unit");
+        assert_eq!(values(&p), ["73", "33"], "pins without the unit");
         let out = a.handle(Event::Snapshot(capture()));
         assert!(
             out.iter()
@@ -262,7 +262,7 @@ fn c_applet_app_9() {
         assert_eq!(commands(&out), []);
         let p = panel_of(&out).expect("panel rebuilt at once");
         assert_eq!(icons(&p), [Some(Icon::None), Some(Icon::None)]);
-        assert_eq!(values(&p), ["33°C", "73°C"]);
+        assert_eq!(values(&p), ["73°C", "33°C"]);
     });
 }
 
@@ -298,7 +298,7 @@ fn c_applet_app_11() {
     puron_testkit::limit("C-applet.app-11", LIMIT, || {
         let (_c, _h, mut a, _) = started("good-p5");
         let items = a.panel().items.clone();
-        let out = a.handle(delivery(&a, &["pinned"], |s| s.pinned = pins("P1")));
+        let out = a.handle(delivery(&a, &["pinned"], |s| s.pinned = Some(pins("P1"))));
         assert_eq!(a.pinned(), pins("P5"));
         assert_eq!(a.panel().items, items);
         assert!(panel_of(&out).is_none(), "{out:?}");
@@ -332,11 +332,11 @@ fn c_applet_app_12() {
         assert_eq!(stores, [&Output::Store(want.clone(), StoreResult::Stored)]);
         assert_eq!(
             puron_config::Config::new(&c.root).load().settings.pinned,
-            want
+            Some(want)
         );
         assert_eq!(commands(&out), [Command::PollNow]);
         let p = panel_of(&out).expect("panel in the click's event");
-        assert_eq!(values(&p), ["33°C", "73°C", "0 rpm"]);
+        assert_eq!(values(&p), ["73°C", "33°C", "0 rpm"]);
         assert_eq!(
             icons(&p)[2],
             Some(Icon::Kind(puron_core::menu::IconKind::Fan))
@@ -377,7 +377,198 @@ fn c_applet_app_18() {
         h.deliver(capture());
         let (s, out) = vrx.recv().unwrap();
         assert_eq!(s, Source::Subscription, "{out:?}");
-        assert_eq!(values(&panel_of(&out).expect("panel")), ["33°C", "73°C"]);
+        assert_eq!(values(&panel_of(&out).expect("panel")), ["73°C", "33°C"]);
         std::mem::forget(c);
+    });
+}
+
+/// Set `name` of the CPU fixture as a snapshot.
+fn cpu_snapshot(name: &str) -> puron_engine::engine::Snapshot {
+    let text = std::fs::read_to_string(puron_testkit::fixture("raw", "cpu.json")).unwrap();
+    let mut sets: std::collections::BTreeMap<String, Vec<puron_core::rows::RawReading>> =
+        serde_json::from_str(&text).unwrap();
+    puron_engine::engine::Snapshot {
+        readings: sets.remove(name).expect("X-raw-cpu set"),
+        lm_sensors: puron_engine::engine::LmReport::Answered,
+    }
+}
+
+fn drive_snapshot(name: &str) -> puron_engine::engine::Snapshot {
+    let text = std::fs::read_to_string(puron_testkit::fixture("raw", "drives.json")).unwrap();
+    let mut sets: std::collections::BTreeMap<String, Vec<puron_core::rows::RawReading>> =
+        serde_json::from_str(&text).unwrap();
+    puron_engine::engine::Snapshot {
+        readings: sets.remove(name).expect("X-raw-drives set"),
+        lm_sensors: puron_engine::engine::LmReport::Answered,
+    }
+}
+
+const NVME_S1: &str = "temperature/nvme-cli/0000:01:00.0/temp2";
+const NVME_S2: &str = "temperature/nvme-cli/0000:01:00.0/temp3";
+const DRIVE_S1: &str = "temperature/lm-sensors/nvme-pci-0100/temp2";
+const DRIVE_S2: &str = "temperature/lm-sensors/nvme-pci-0100/temp3";
+
+/// An app started with `pinned` stored.
+fn pinned_app(
+    pinned: &[&str],
+) -> (
+    cfg::Cfg,
+    std::sync::Arc<puron_testkit::eng::Handle>,
+    app::App,
+    Config,
+) {
+    let c = cfg::build("p5");
+    let config = Config::new(c.root.clone());
+    let list = pinned.iter().map(|e| e.to_string()).collect();
+    let stored = config.store(puron_config::PINNED, &puron_config::Value::List(list));
+    assert_eq!(stored, StoreResult::Stored);
+    let h = handle(0);
+    let mut a = app(&c.root, &h);
+    a.handle(Event::Start);
+    (c, h, a, config)
+}
+
+fn pin_stores(out: &[Output]) -> usize {
+    out.iter()
+        .filter(|o| matches!(o, Output::Store(..)))
+        .count()
+}
+
+#[test]
+fn c_applet_app_23() {
+    puron_testkit::limit("C-applet.app-23", LIMIT, || {
+        // With lm-sensors off a pin on the NVMe reading works as it did.
+        let (_c, _h, mut a, config) = pinned_app(&[NVME_S2]);
+        let out = a.handle(Event::Snapshot(drive_snapshot("lm-sensors-off")));
+        assert_eq!(a.pinned(), [NVME_S2.to_string()]);
+        assert_eq!(pin_stores(&out), 0);
+        // Both report it: the pin moves to the line that stays, once.
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [DRIVE_S2.to_string()]);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![DRIVE_S2.to_string()])
+        );
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(pin_stores(&out), 0);
+        // Lost again: it stays where it moved to.
+        a.handle(Event::Snapshot(drive_snapshot("lm-sensors-off")));
+        assert_eq!(a.pinned(), [DRIVE_S2.to_string()]);
+        // A pin on the line that stays and on its repeat: one pin.
+        let (_c, _h, mut a, _) = pinned_app(&[NVME_S1, DRIVE_S1]);
+        a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [DRIVE_S1.to_string()]);
+        // No proof of a repeat: the pin stays.
+        let (_c, _h, mut a, _) = pinned_app(&[NVME_S1]);
+        a.handle(Event::Snapshot(drive_snapshot("other-address")));
+        assert_eq!(a.pinned(), [NVME_S1.to_string()]);
+    });
+}
+
+const PACKAGE: &str = "temperature/lm-sensors/coretemp-isa-0000/temp1";
+const BOARD: &str = "temperature/lm-sensors/example_acpi-isa-0000/temp1";
+const COMPOSITE: &str = "temperature/lm-sensors/nvme-pci-0100/temp1";
+const FAN: &str = "fan/lm-sensors/example_acpi-isa-0000/fan1";
+
+/// A new install checks the default lines of what it reads, and stores
+/// nothing until a click; stored pins of older versions move once.
+#[test]
+fn c_applet_app_26() {
+    puron_testkit::limit("C-applet.app-26", LIMIT, || {
+        // New install: nothing stored.
+        let c = cfg::build("p5");
+        std::fs::remove_file(c.id_dir().join("pinned")).expect("no pins stored");
+        let config = Config::new(c.root.clone());
+        let h = handle(0);
+        let mut a = app(&c.root, &h);
+        let out = a.handle(Event::Start);
+        assert!(a.pinned().is_empty());
+        assert_eq!(panel_of(&out).unwrap().items, [Item::EmptyState]);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        let defaults = [PACKAGE.to_string(), COMPOSITE.to_string()];
+        assert_eq!(a.pinned(), defaults);
+        assert_eq!(pin_stores(&out), 0);
+        assert_eq!(config.load().settings.pinned, None);
+        assert_eq!(values(&panel_of(&out).unwrap()), ["48°C", "38°C"]);
+        // A click: that list less the line, stored, and defaults no longer apply.
+        let out = a.handle(Event::PinClick(COMPOSITE.to_string()));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![PACKAGE.to_string()])
+        );
+        a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        // Stored empty stays empty.
+        let (_c, _h, mut a, _) = pinned_app(&[]);
+        a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert!(a.pinned().is_empty());
+
+        // Version 1.0.0's Maximum: the CPU's default line, once, no drive.
+        let (_c, _h, mut a, config) = pinned_app(&["@maximum"]);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![PACKAGE.to_string()])
+        );
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(pin_stores(&out), 0);
+        // In its place, among others; a hidden class and no report yet wait.
+        let (_c, _h, mut a, _) = pinned_app(&[FAN, "@maximum", BOARD]);
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(
+            a.pinned(),
+            [FAN.to_string(), PACKAGE.to_string(), BOARD.to_string()]
+        );
+        let (_c, _h, mut a, _) = pinned_app(&["@maximum"]);
+        let mut early = cpu_snapshot("example");
+        early.lm_sensors = puron_engine::engine::LmReport::NoneYet;
+        let out = a.handle(Event::Snapshot(early));
+        assert_eq!(a.pinned(), ["@maximum".to_string()]);
+        assert_eq!(pin_stores(&out), 0);
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        // No CPU: the first line.
+        let (_c, _h, mut a, _) = pinned_app(&["@maximum"]);
+        a.handle(Event::Snapshot(cpu_snapshot("no-cpu")));
+        assert_eq!(
+            a.pinned(),
+            ["temperature/lm-sensors/iwlwifi_1-virtual-0/temp1".to_string()]
+        );
+
+        // A development build's CPU pin, with what it was reading.
+        let with_source = |source: &str| {
+            let (c, h, _, _) = pinned_app(&["@cpu"]);
+            let pairs = format!(r#"[("@cpu", "{source}")]"#);
+            cfg::write(&c.id_dir().join("row_sources"), pairs.as_bytes());
+            let mut a = app(&c.root, &h);
+            a.handle(Event::Start);
+            (c, a)
+        };
+        let (_c, mut a) = with_source("example_acpi-isa-0000/temp1");
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(a.pinned(), [BOARD.to_string()]);
+        let (_c, mut a) = with_source("@maximum");
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(a.pinned(), ["@maximum/cpu".to_string()]);
+        // A sensor that is gone, and no pair at all: the default line.
+        let (_c, mut a) = with_source("nothing-here/temp1");
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        let (_c, _h, mut a, _) = pinned_app(&["@cpu"]);
+        a.handle(Event::Snapshot(cpu_snapshot("monolith")));
+        assert_eq!(a.pinned(), ["@maximum/cpu".to_string()]);
+        // Both on the one line: one pin. Neither is lost, none doubled.
+        let (_c, _h, mut a, config) = pinned_app(&["@maximum", "@cpu", PACKAGE]);
+        a.handle(Event::Snapshot(cpu_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![PACKAGE.to_string()])
+        );
     });
 }

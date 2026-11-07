@@ -1,0 +1,22 @@
+P: /devices/virtual/dmi/id
+E: SUBSYSTEM=dmi
+A: sys_vendor=ExampleCo\n
+A: product_name=Example Server 110\n
+A: board_vendor=ExampleCo\n
+A: board_name=Example Server 110\n
+
+P: /devices/platform/coretemp.0/hwmon/hwmon0
+E: SUBSYSTEM=hwmon
+A: name=coretemp\n
+A: temp2_input=41000\n
+A: temp3_input=42000\n
+A: temp4_input=43000\n
+A: temp5_input=44000\n
+A: temp2_label=Core 0\n
+A: temp3_label=Core 1\n
+A: temp4_label=Core 2\n
+A: temp5_label=Core 3\n
+L: device=../../../coretemp.0
+
+P: /devices/platform/coretemp.0
+E: SUBSYSTEM=platform

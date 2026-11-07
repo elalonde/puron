@@ -234,7 +234,7 @@ fn c_applet_panel_1() {
                 puron_core::panel::Item::EmptyState => panic!("pin item"),
             })
             .collect();
-        let want: Vec<String> = [FAN, TEMP, TEMP, DRIVE]
+        let want: Vec<String> = [TEMP, DRIVE, TEMP, FAN]
             .iter()
             .zip(&texts)
             .enumerate()
@@ -424,7 +424,7 @@ fn c_applet_panel_9() {
         let readings: Vec<RawReading> = serde_json::from_value(k["R"].clone()).expect("R");
         let pins: Vec<String> = serde_json::from_value(k["P"].clone()).expect("P");
         let plan = plan_of(&core_panel(&readings, &pins, true), Orientation::Horizontal);
-        assert_eq!(names(&plan), [GPU, TEMP, DRIVE, FAN, VOLT, VOLT, TEMP]);
+        assert_eq!(names(&plan), [GPU, DRIVE, TEMP, FAN, VOLT, VOLT]);
     });
 }
 

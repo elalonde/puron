@@ -1,0 +1,13 @@
+processor	: 0
+vendor_id	: ExampleCo
+cpu family	: 6
+model		: 1
+model name	: Example(R) Core(TM) E7-1000 @ 2.80GHz
+stepping	: 1
+
+processor	: 1
+vendor_id	: ExampleCo
+cpu family	: 6
+model		: 1
+model name	: Example(R) Core(TM) E7-1000 @ 2.80GHz
+stepping	: 1

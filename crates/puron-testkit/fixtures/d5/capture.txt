@@ -10,27 +10,33 @@ raw	temperature/lm-sensors/coretemp-isa-0000/temp5	72
 raw	fan/lm-sensors/example_acpi-isa-0000/fan1	0
 raw	temperature/lm-sensors/example_acpi-isa-0000/temp1	67
 raw	voltage/lm-sensors/BAT0-acpi-0/in0	8.494
-menu	0	group	temperature	temperature	163°F	-
-menu	1	row	general	Core 0	149°F	0
-menu	1	row	general	Core 1	160°F	0
-menu	1	row	general	Core 2	147°F	0
-menu	1	row	general	Core 3	162°F	0
-menu	1	row	general	CPU	163°F	1
-menu	1	row	general	CPU temp	153°F	0
-menu	1	row	general	WiFi	91°F	1
-menu	1	row	drive	Sensor 1	100°F	0
-menu	1	row	drive	Sensor 2	113°F	0
-menu	1	row	drive	SSD	100°F	1
+menu	0	section	temperature	-	-	-
+menu	1	device	-	CPU	-	-
+menu	2	row	general	coretemp: Core 0	149°F	0
+menu	2	row	general	coretemp: Core 1	160°F	0
+menu	2	row	general	coretemp: Core 2	147°F	0
+menu	2	row	general	coretemp: Core 3	162°F	0
+menu	2	row	general	coretemp: CPU	163°F	1
+menu	2	maximum	general	Maximum (default)	163°F	0
+menu	1	device	-	nvme	-	-
+menu	2	row	drive	Sensor 1 (default)	100°F	0
+menu	2	row	drive	Sensor 2	113°F	0
+menu	2	row	drive	SSD	100°F	1
+menu	2	maximum	drive	Maximum	113°F	0
+menu	1	device	-	CPU temp	-	-
+menu	2	row	general	example_acpi: CPU temp	153°F	0
+menu	1	device	-	WiFi	-	-
+menu	2	row	general	iwlwifi: WiFi	91°F	1
 menu	0	separator	-	-	-	-
-menu	0	maximum	maximum	Maximum	163°F	0
+menu	0	section	fan	-	-	-
+menu	2	row	fan	CPU fan	0 rpm	1
 menu	0	separator	-	-	-	-
-menu	0	row	fan	CPU fan	0 rpm	1
-menu	0	separator	-	-	-	-
-menu	0	row	voltage	in0	+8.49V	0
+menu	0	section	voltage	-	-	-
+menu	2	row	voltage	in0	+8.49V	0
 menu	0	separator	-	-	-	-
 menu	0	homepage	-	-	-	-
 menu	0	settings	-	-	-	-
-panel	fan	0 rpm
-panel	general	91°F
 panel	general	163°F
 panel	drive	100°F
+panel	general	91°F
+panel	fan	0 rpm

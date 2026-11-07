@@ -34,11 +34,9 @@ fn good() -> Settings {
         show_rotation_rate: false,
         show_voltage: false,
         show_power: false,
-        group_temperature: false,
-        group_rotation_rate: false,
-        group_voltage: false,
         debug_logging: true,
-        pinned: vec!["a".to_string(), "b".to_string()],
+        pinned: Some(vec!["a".to_string(), "b".to_string()]),
+        old_cpu_source: None,
     }
 }
 
@@ -63,11 +61,9 @@ fn defaults() -> Settings {
         show_rotation_rate: true,
         show_voltage: true,
         show_power: true,
-        group_temperature: true,
-        group_rotation_rate: true,
-        group_voltage: true,
         debug_logging: false,
-        pinned: vec!["@maximum".to_string()],
+        pinned: None,
+        old_cpu_source: None,
     }
 }
 
@@ -101,11 +97,8 @@ fn good_values() -> Vec<(&'static str, Value)> {
         ("show_rotation_rate", Value::Bool(s.show_rotation_rate)),
         ("show_voltage", Value::Bool(s.show_voltage)),
         ("show_power", Value::Bool(s.show_power)),
-        ("group_temperature", Value::Bool(s.group_temperature)),
-        ("group_rotation_rate", Value::Bool(s.group_rotation_rate)),
-        ("group_voltage", Value::Bool(s.group_voltage)),
         ("debug_logging", Value::Bool(s.debug_logging)),
-        ("pinned", Value::List(s.pinned.clone())),
+        ("pinned", Value::List(s.pinned.expect("good has pins"))),
     ]
 }
 
@@ -161,6 +154,37 @@ fn c_config_1() {
         let loaded = Config::new(&fx.root).load();
         assert_eq!(loaded.settings, good());
         assert_eq!(loaded.problems, vec![]);
+        assert_eq!(puron_config::KEYS.len(), 19);
+        let stored: Vec<&str> = good_values().iter().map(|(key, _)| *key).collect();
+        assert_eq!(stored, puron_config::KEYS);
+
+        // Entries of older versions: no Problem. Of the old row sources, only
+        // the last choice for the CPU row is read.
+        for key in ["group_temperature", "group_rotation_rate", "group_voltage"] {
+            cfg::write(&fx.id_dir().join(key), b"false");
+        }
+        cfg::write(
+            &fx.id_dir().join("row_sources"),
+            br#"[("@cpu", "chip/temp1"), ("@cpu", "chip/temp2"), ("@other", "chip/temp3")]"#,
+        );
+        let before = fx.tree();
+        let loaded = Config::new(&fx.root).load();
+        let expected = Settings {
+            old_cpu_source: Some("chip/temp2".to_string()),
+            ..good()
+        };
+        assert_eq!(loaded.settings, expected);
+        assert_eq!(loaded.problems, vec![]);
+        assert_eq!(fx.tree(), before, "load changed an entry");
+
+        // Old row sources with no choice for the CPU row.
+        cfg::write(
+            &fx.id_dir().join("row_sources"),
+            br#"[("@other", "chip/temp3")]"#,
+        );
+        let loaded = Config::new(&fx.root).load();
+        assert_eq!(loaded.settings, good());
+        assert_eq!(loaded.problems, vec![]);
     });
 }
 
@@ -203,7 +227,7 @@ fn c_config_4() {
             show_power: true,
             temperature_unit: TemperatureUnit::Celsius,
             poll_interval_secs: 5,
-            pinned: vec!["@maximum".to_string()],
+            pinned: None,
             ..good()
         };
         assert_eq!(loaded.settings, expected);
@@ -258,7 +282,7 @@ fn c_config_6() {
             loaded.settings,
             Settings {
                 show_voltage: true,
-                group_voltage: true,
+                show_power: true,
                 ..good()
             }
         );
@@ -266,7 +290,7 @@ fn c_config_6() {
             loaded.problems,
             vec![
                 problem("show_voltage", ProblemKind::Unreadable),
-                problem("group_voltage", ProblemKind::Unreadable),
+                problem("show_power", ProblemKind::Unreadable),
             ]
         );
     });
