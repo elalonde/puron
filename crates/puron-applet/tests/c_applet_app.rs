@@ -12,7 +12,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use common::*;
-use puron_applet::app::{self, Command, Event, Output, Source};
+use puron_applet::app::{self, Command, Event, Output, PinPhase, Source};
 use puron_config::{Config, StoreResult, KEYS};
 use puron_core::menu::{Entry, MessageKind};
 use puron_core::panel::{Icon, Item};
@@ -570,5 +570,194 @@ fn c_applet_app_26() {
             config.load().settings.pinned,
             Some(vec![PACKAGE.to_string()])
         );
+    });
+}
+
+const MAXIMUM: &str = "@maximum";
+
+/// A stored Maximum waits for readings of lm-sensors: a failed start or a
+/// failed read moves nothing and stores nothing; the first readings move it,
+/// once. With lm-sensors switched off it waits no more.
+#[test]
+fn c_applet_app_27() {
+    puron_testkit::limit("C-applet.app-27", LIMIT, || {
+        let (c, _h, mut a, config) = pinned_app(&[MAXIMUM]);
+        let file = c.id_dir().join("pinned");
+        let stored = std::fs::read(&file).unwrap();
+        assert_eq!(a.pin_phase(), PinPhase::Waiting);
+        for lm in [
+            puron_engine::engine::LmReport::Unavailable,
+            puron_engine::engine::LmReport::Answered,
+        ] {
+            let mut failed = drive_snapshot("lm-sensors-off");
+            failed.lm_sensors = lm;
+            let out = a.handle(Event::Snapshot(failed));
+            assert_eq!(a.pinned(), [MAXIMUM.to_string()]);
+            assert_eq!(pin_stores(&out), 0);
+            assert_eq!(values(&panel_of(&out).unwrap()), ["⚠"]);
+            assert_eq!(a.pin_phase(), PinPhase::Waiting);
+        }
+        assert_eq!(std::fs::read(&file).unwrap(), stored);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![PACKAGE.to_string()])
+        );
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(pin_stores(&out), 0);
+        // lm-sensors switched off: the first device's default line.
+        let (_c, _h, mut a, _) = pinned_app(&[MAXIMUM]);
+        let off = delivery(&a, &["provider_lm_sensors"], |s| {
+            s.provider_lm_sensors = false
+        });
+        a.handle(off);
+        let out = a.handle(Event::Snapshot(drive_snapshot("lm-sensors-off")));
+        assert_eq!(pin_stores(&out), 1);
+        assert!(
+            a.pinned()[0].starts_with("temperature/nvme-cli/"),
+            "{:?}",
+            a.pinned()
+        );
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+    });
+}
+
+/// A click while a stored Maximum waits keeps it in the stored list, and it
+/// still moves once lm-sensors reads.
+#[test]
+fn c_applet_app_28() {
+    puron_testkit::limit("C-applet.app-28", LIMIT, || {
+        let (_c, _h, mut a, config) = pinned_app(&[MAXIMUM]);
+        let mut failed = drive_snapshot("lm-sensors-off");
+        failed.lm_sensors = puron_engine::engine::LmReport::Unavailable;
+        a.handle(Event::Snapshot(failed));
+        let out = a.handle(Event::PinClick(NVME_S1.to_string()));
+        let both = vec![MAXIMUM.to_string(), NVME_S1.to_string()];
+        assert_eq!(a.pinned(), both);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(config.load().settings.pinned, Some(both));
+        assert_eq!(a.pin_phase(), PinPhase::Waiting);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        let moved = vec![PACKAGE.to_string(), DRIVE_S1.to_string()];
+        assert_eq!(a.pinned(), moved);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(config.load().settings.pinned, Some(moved));
+    });
+}
+
+/// A stored pinned value that cannot be read is no new install: nothing is
+/// checked, the stored value stays until a click, which replaces it.
+#[test]
+fn c_applet_app_29() {
+    puron_testkit::limit("C-applet.app-29", LIMIT, || {
+        let c = cfg::build("p5");
+        let file = c.id_dir().join("pinned");
+        cfg::write(&file, b"42");
+        let config = Config::new(c.root.clone());
+        let h = handle(0);
+        let mut a = app(&c.root, &h);
+        let out = a.handle(Event::Start);
+        assert!(out.contains(&Output::Diag("config-problem")), "{out:?}");
+        assert!(a.pinned().is_empty());
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+        for _ in 0..2 {
+            let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+            assert!(a.pinned().is_empty());
+            assert_eq!(pin_stores(&out), 0);
+            assert_eq!(values(&panel_of(&out).unwrap()), ["∅state"]);
+        }
+        assert_eq!(std::fs::read(&file).unwrap(), b"42");
+        let out = a.handle(Event::PinClick(PACKAGE.to_string()));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(
+            config.load().settings.pinned,
+            Some(vec![PACKAGE.to_string()])
+        );
+        // A read error: an entry with no read permission (not run as root).
+        let c = cfg::build("p5");
+        let file = c.id_dir().join("pinned");
+        set_mode(&file, 0o000);
+        let mut a = app(&c.root, &h);
+        let out = a.handle(Event::Start);
+        set_mode(&file, 0o600);
+        assert!(out.contains(&Output::Diag("config-problem")), "{out:?}");
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert!(a.pinned().is_empty());
+        assert_eq!(pin_stores(&out), 0);
+    });
+}
+
+fn set_mode(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+}
+
+/// A failed store of the pinned list is tried again at each snapshot, with
+/// one diag event, until it is stored; then no more stores.
+#[test]
+fn pinned_store_retried() {
+    puron_testkit::limit("pinned_store_retried", LIMIT, || {
+        let (c, _h, mut a) = as_4();
+        let (dir, file) = (c.id_dir(), c.id_dir().join("pinned"));
+        set_mode(&file, 0o400);
+        set_mode(&dir, 0o500);
+        let fan = a.menu().unwrap().identities[2].clone();
+        let out = a.handle(Event::PinClick(fan.clone()));
+        let failed = |out: &[Output]| {
+            out.iter()
+                .filter(|o| matches!(o, Output::Store(_, StoreResult::Failed)))
+                .count()
+        };
+        assert_eq!(failed(&out), 1);
+        assert!(out.contains(&Output::Diag("pinned-store-failed")));
+        assert!(a.store_pending());
+        let out = a.handle(Event::Snapshot(capture()));
+        assert_eq!((failed(&out), pin_stores(&out)), (1, 1));
+        assert!(!out.contains(&Output::Diag("pinned-store-failed")));
+        set_mode(&dir, 0o700);
+        set_mode(&file, 0o600);
+        let out = a.handle(Event::Snapshot(capture()));
+        assert_eq!((failed(&out), pin_stores(&out)), (0, 1));
+        assert!(!a.store_pending());
+        let config = Config::new(c.root.clone());
+        assert_eq!(config.load().settings.pinned.as_deref(), Some(a.pinned()));
+        assert!(a.pinned().contains(&fan));
+        let out = a.handle(Event::Snapshot(capture()));
+        assert_eq!(pin_stores(&out), 0);
+    });
+}
+
+/// A list written from outside during a new install is taken as stored: the
+/// defaults are no longer checked, and a click builds on that list.
+#[test]
+fn outside_pins_end_new_install() {
+    puron_testkit::limit("outside_pins_end_new_install", LIMIT, || {
+        let c = cfg::build("p5");
+        std::fs::remove_file(c.id_dir().join("pinned")).unwrap();
+        let config = Config::new(c.root.clone());
+        let h = handle(0);
+        let mut a = app(&c.root, &h);
+        a.handle(Event::Start);
+        assert_eq!(a.pin_phase(), PinPhase::NewInstall);
+        a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string(), COMPOSITE.to_string()]);
+        let written = delivery(&a, &["pinned"], |s| {
+            s.pinned = Some(vec![BOARD.to_string()])
+        });
+        let out = a.handle(written);
+        assert_eq!(a.pinned(), [BOARD.to_string()]);
+        assert_eq!(pin_stores(&out), 0);
+        assert_eq!(values(&panel_of(&out).unwrap()).len(), 1);
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+        a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [BOARD.to_string()]);
+        a.handle(Event::PinClick(PACKAGE.to_string()));
+        let both = vec![BOARD.to_string(), PACKAGE.to_string()];
+        assert_eq!(config.load().settings.pinned, Some(both));
     });
 }

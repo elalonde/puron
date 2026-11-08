@@ -95,9 +95,10 @@ fn c_core_pins_4() {
     puron_testkit::limit("C-core.pins-4", LIMIT, || {
         let list = ids(&["@maximum", "@maximum/cpu", "@cpu", "CPU fan"]);
         let m2 = menu_ids("M2");
+        // The older pins wait to move and stay; a Maximum line goes.
         assert_eq!(
             pins::click(&list, &id("CPU fan"), &m2, &ShownClasses::ALL),
-            Vec::<String>::new()
+            ids(&["@maximum", "@cpu"])
         );
         assert_eq!(
             pins::click(&list, &id("CPU fan"), &m2, &TEMPERATURE_HIDDEN),
