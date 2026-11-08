@@ -640,64 +640,94 @@ fn under(m: &Menu, heading: &str) -> Vec<String> {
     rest.cloned().collect()
 }
 
-/// Sections and device headings, the groups in order, CPU first.
+/// Sections and device headings, the groups in order, CPU first. A waiting
+/// pin's line ends the CPU group, ahead of the other device groups.
 #[test]
 fn c_core_menu_32() {
     puron_testkit::limit("C-core.menu-32", LIMIT, || {
         let raw = cpu_set("sections");
         let m = lay(&raw);
-        assert_entries(
-            &m,
-            &[
-                "# temperature",
-                "## CPU",
-                "coretemp: Package id 0 (default) 40°C",
-                "coretemp: Package id 1 39°C",
-                "example_acpi: CPU temp 38°C",
-                "coretemp: Core 0 41°C",
-                "Maximum 41°C",
-                "## GeForce RTX 4070",
-                "temperature 42°C",
-                "## Radeon RX 6600",
-                "edge (default) 36°C",
-                "junction 37°C",
-                "Maximum 37°C",
-                "## Alpha SSD",
-                "composite 32°C",
-                "## Barracuda",
-                "temperature 44°C",
-                "## WD Blue",
-                "temperature 43°C",
-                "## Zeta SSD",
-                "composite (default) 30°C",
-                "Sensor 1 31°C",
-                "Maximum 31°C",
-                "## acpitz",
-                "temp1 (default) 34°C",
-                "temp2 35°C",
-                "Maximum 35°C",
-                "## iwlwifi",
-                "temp1 33°C",
-                "## Kraken X",
-                "Liquid 45°C",
-                "—",
-                "# fan",
-                "Example Laptop CPU fan 0rpm",
-                "—",
-                "# voltage",
-                "BAT0 in0 +8.68V",
-                "—",
-                "# power",
-                "Radeon RX 6600 PPT +15.00W",
-                "—",
-                "homepage",
-                "settings",
-            ],
-        );
+        let want = [
+            "# temperature",
+            "## CPU",
+            "coretemp: Package id 0 (default) 40°C",
+            "coretemp: Package id 1 39°C",
+            "example_acpi: CPU temp 38°C",
+            "coretemp: Core 0 41°C",
+            "Maximum 41°C",
+            "## GeForce RTX 4070",
+            "temperature 42°C",
+            "## Radeon RX 6600",
+            "edge (default) 36°C",
+            "junction 37°C",
+            "Maximum 37°C",
+            "## Alpha SSD",
+            "composite 32°C",
+            "## Barracuda",
+            "temperature 44°C",
+            "## WD Blue",
+            "temperature 43°C",
+            "## Zeta SSD",
+            "composite (default) 30°C",
+            "Sensor 1 31°C",
+            "Maximum 31°C",
+            "## acpitz",
+            "temp1 (default) 34°C",
+            "temp2 35°C",
+            "Maximum 35°C",
+            "## iwlwifi",
+            "temp1 33°C",
+            "## Kraken X",
+            "Liquid 45°C",
+            "—",
+            "# fan",
+            "Example Laptop CPU fan 0rpm",
+            "—",
+            "# voltage",
+            "BAT0 in0 +8.68V",
+            "—",
+            "# power",
+            "Radeon RX 6600 PPT +15.00W",
+            "—",
+            "homepage",
+            "settings",
+        ];
+        assert_entries(&m, &want);
         // A section heading and a device heading are labels: no identity.
         assert!(!m.identities.iter().any(|i| i.is_empty()));
-        let shown = menu::shown(&raw, &Settings::default());
+        let settings = Settings::default();
+        let shown = menu::shown(&raw, &settings);
         assert_eq!(shown.lines().count(), m.identities.len());
+
+        // The same readings with a pin that waits for lm-sensors: its line
+        // is the last of the CPU group, which stays the only CPU group, and
+        // no other group gets it.
+        let pin = "@maximum".to_string();
+        let w = menu::menu_with(
+            &shown,
+            &settings,
+            Report::Answered,
+            None,
+            false,
+            std::slice::from_ref(&pin),
+        );
+        let waiting = "CPU: waiting for lm-sensors N/A";
+        let mut want_w: Vec<&str> = want.to_vec();
+        let gpu = want.iter().position(|e| *e == "## GeForce RTX 4070");
+        want_w.insert(gpu.expect("the first group after CPU"), waiting);
+        assert_entries(&w, &want_w);
+        assert_eq!(
+            under(&w, "## CPU").last().map(String::as_str),
+            Some(waiting)
+        );
+        let rendered = render(&w);
+        assert_eq!(rendered.iter().filter(|e| *e == "## CPU").count(), 1);
+        assert_eq!(rendered.iter().filter(|e| *e == waiting).count(), 1);
+        // The line counts as a line: its identity follows the CPU group's.
+        let cpu_lines = under(&m, "## CPU").len();
+        let mut want_ids = m.identities.clone();
+        want_ids.insert(cpu_lines, pin.clone());
+        assert_eq!(w.identities, want_ids);
     });
 }
 
