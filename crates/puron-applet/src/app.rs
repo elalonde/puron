@@ -343,7 +343,15 @@ impl App {
         out.push(Output::Switch(self.settings.debug_logging));
         self.problems(&loaded.problems, out);
         self.shown = self.compute_shown();
-        let m = menu::menu(&self.shown, &self.settings, Report::NoneYet, None, false);
+        let waiting = self.waiting();
+        let m = menu::menu_with(
+            &self.shown,
+            &self.settings,
+            Report::NoneYet,
+            None,
+            false,
+            &waiting,
+        );
         self.set_menu(m, false, out);
         self.set_panel(State::default(), out);
         self.handle.start(&self.settings);
@@ -365,6 +373,19 @@ impl App {
                 self.pin_phase = stored_phase(&self.pinned);
             }
         }
+    }
+
+    /// The stored older pins that wait for lm-sensors: each has a line in the
+    /// popup, so that a click can remove it.
+    fn waiting(&self) -> Vec<String> {
+        if self.pin_phase != PinPhase::Waiting {
+            return Vec::new();
+        }
+        self.pinned
+            .iter()
+            .filter(|e| pins::waits(e))
+            .cloned()
+            .collect()
     }
 
     fn compute_shown(&self) -> Shown {
@@ -403,12 +424,13 @@ impl App {
 
     /// A layout after start (a snapshot's, or one rebuilt at once).
     fn layout(&mut self, forced: bool, out: &mut Vec<Output>) {
-        let m = menu::menu(
+        let m = menu::menu_with(
             &self.shown,
             &self.settings,
             self.report(),
             self.last_key.as_ref(),
             forced,
+            &self.waiting(),
         );
         if m.update == Update::Rebuild {
             self.diag(diag::applet::menu_rebuilt(), out);
@@ -485,10 +507,16 @@ impl App {
             .as_ref()
             .map(|m| m.identities.clone())
             .unwrap_or_default();
+        let waiting = self.waiting();
         self.pinned = pins::click(&self.pinned, id, &ids, &self.layout_classes);
         self.pin_phase = stored_phase(&self.pinned);
         self.store_pinned(out);
-        self.set_panel(self.panel.state.clone(), out);
+        if self.waiting() != waiting {
+            // A waiting pin was removed: its line goes at once.
+            self.layout(false, out);
+        } else {
+            self.set_panel(self.panel.state.clone(), out);
+        }
         self.handle.poll_now();
         out.push(Output::Engine(Command::PollNow));
     }

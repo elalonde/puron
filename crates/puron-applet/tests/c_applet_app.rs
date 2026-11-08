@@ -761,3 +761,85 @@ fn outside_pins_end_new_install() {
         assert_eq!(config.load().settings.pinned, Some(both));
     });
 }
+
+/// The popup of the latest layout in `out`, with the in-memory list.
+fn popup_of(out: &[Output], pinned: &[String]) -> Option<puron_applet::popup::Plan> {
+    out.iter().rev().find_map(|o| match o {
+        Output::Layout { menu, .. } => Some(puron_applet::popup::plan(menu, pinned, 16)),
+        _ => None,
+    })
+}
+
+/// The texts and values of the plan's lines, the CPU group's first.
+fn waiting_line(plan: &puron_applet::popup::Plan) -> Option<(String, String, bool, String)> {
+    use puron_applet::popup::Drawn;
+    let at = plan
+        .entries
+        .iter()
+        .position(|e| matches!(e, Drawn::Line(l) if l.identity == MAXIMUM))?;
+    let Drawn::Line(l) = &plan.entries[at] else {
+        unreachable!()
+    };
+    let heading = match &plan.entries[..at]
+        .iter()
+        .rev()
+        .find(|e| matches!(e, Drawn::Device { .. }))
+    {
+        Some(Drawn::Device { text }) => text.clone(),
+        _ => String::new(),
+    };
+    Some((l.text.clone(), l.value.clone(), l.pinned, heading))
+}
+
+/// A stored Maximum that waits for lm-sensors has a line in the popup's CPU
+/// group, with the warning sign; a click on it removes the pin. When
+/// lm-sensors reads, the line goes and the pin moves.
+#[test]
+fn c_applet_app_30() {
+    puron_testkit::limit("C-applet.app-30", LIMIT, || {
+        puron_applet::start();
+        let failed = || {
+            let mut s = drive_snapshot("lm-sensors-off");
+            s.lm_sensors = puron_engine::engine::LmReport::Unavailable;
+            s
+        };
+        let want = (
+            "CPU: waiting for lm-sensors".to_string(),
+            "⚠".to_string(),
+            true,
+            "CPU".to_string(),
+        );
+        let (_c, _h, mut a, config) = pinned_app(&[MAXIMUM]);
+        let out = a.handle(Event::Snapshot(failed()));
+        let plan = popup_of(&out, a.pinned()).expect("a layout");
+        assert_eq!(waiting_line(&plan), Some(want.clone()));
+        // The CPU group comes before the drives.
+        let first = plan.entries.iter().find_map(|e| match e {
+            puron_applet::popup::Drawn::Device { text } => Some(text.clone()),
+            _ => None,
+        });
+        assert_eq!(first.as_deref(), Some("CPU"));
+        // The click removes it, stores the list and lays the popup out
+        // without the line.
+        let out = a.handle(Event::PinClick(MAXIMUM.to_string()));
+        assert!(a.pinned().is_empty(), "{:?}", a.pinned());
+        assert_eq!(pin_stores(&out), 1);
+        assert_eq!(config.load().settings.pinned, Some(vec![]));
+        assert_eq!(a.pin_phase(), PinPhase::Settled);
+        let plan = popup_of(&out, a.pinned()).expect("a layout at the click");
+        assert_eq!(waiting_line(&plan), None);
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert!(a.pinned().is_empty());
+        assert_eq!(pin_stores(&out), 0);
+        // Not removed: once lm-sensors reads, the line goes and the pin moves.
+        let (_c, _h, mut a, _) = pinned_app(&[MAXIMUM]);
+        let out = a.handle(Event::Snapshot(failed()));
+        assert_eq!(
+            waiting_line(&popup_of(&out, a.pinned()).unwrap()),
+            Some(want)
+        );
+        let out = a.handle(Event::Snapshot(drive_snapshot("example")));
+        assert_eq!(a.pinned(), [PACKAGE.to_string()]);
+        assert_eq!(waiting_line(&popup_of(&out, a.pinned()).unwrap()), None);
+    });
+}

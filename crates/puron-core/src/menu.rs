@@ -20,6 +20,9 @@ pub enum LineWord {
     Package,
     Temperature,
     Maximum,
+    /// A stored older pin that waits for lm-sensors: the whole text of its
+    /// line, in the CPU group.
+    Waiting,
 }
 
 /// One line: a reading, or the Maximum of a device's readings.
@@ -479,9 +482,57 @@ pub fn menu(
     last_key: Option<&Key>,
     forced: bool,
 ) -> Menu {
+    menu_with(shown, settings, report, last_key, forced, &[])
+}
+
+/// The line of an older pin that waits for lm-sensors. It has no value and no
+/// name: the popup draws its whole text from the word.
+fn waiting_item(pin: &str) -> Item {
+    Item {
+        identity: pin.to_string(),
+        name: String::new(),
+        word: Some(LineWord::Waiting),
+        default: false,
+        value: None,
+    }
+}
+
+/// The menu layout with a line for each pin of `waiting`, the stored older
+/// pins that wait for lm-sensors: at the end of the CPU group, or in a CPU
+/// group of their own before the other devices. Each such line can be
+/// clicked like any other, so the pin can be removed while it waits.
+pub fn menu_with(
+    shown: &Shown,
+    settings: &Settings,
+    report: Report,
+    last_key: Option<&Key>,
+    forced: bool,
+    waiting: &[String],
+) -> Menu {
     let s = settings;
     let mut entries = Vec::new();
-    let identities: Vec<String> = shown.lines().map(|l| l.identity.clone()).collect();
+    let mut groups: Vec<(Heading, Vec<Item>)> = shown
+        .devices
+        .iter()
+        .map(|d| {
+            (
+                d.heading.clone(),
+                d.lines.iter().map(|l| item(l, s)).collect(),
+            )
+        })
+        .collect();
+    if !waiting.is_empty() {
+        let lines = waiting.iter().map(|p| waiting_item(p));
+        match groups.iter_mut().find(|(h, _)| *h == Heading::Cpu) {
+            Some((_, items)) => items.extend(lines),
+            None => groups.insert(0, (Heading::Cpu, lines.collect())),
+        }
+    }
+    let identities: Vec<String> = groups
+        .iter()
+        .flat_map(|(_, items)| items.iter().map(|i| i.identity.clone()))
+        .chain(shown.others.iter().map(|l| l.identity.clone()))
+        .collect();
     let key = if identities.is_empty() {
         // lm-sensors is ready when it is switched on and has not reported
         // that it is unavailable; before its first report it counts as ready.
@@ -497,11 +548,11 @@ pub fn menu(
         });
         Key::Message(kind)
     } else {
-        if !shown.devices.is_empty() {
+        if !groups.is_empty() {
             entries.push(Entry::Section(Section::Temperature));
-            for device in &shown.devices {
-                entries.push(Entry::Device(device.heading.clone()));
-                entries.extend(device.lines.iter().map(|l| Entry::Line(item(l, s))));
+            for (heading, items) in groups {
+                entries.push(Entry::Device(heading));
+                entries.extend(items.into_iter().map(Entry::Line));
             }
         }
         for (section, class) in [

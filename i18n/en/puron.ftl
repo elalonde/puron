@@ -14,6 +14,7 @@ cpu-default = (default)
 line-composite = composite
 line-package = package
 line-temperature = temperature
+line-waiting = waiting for lm-sensors
 section-fan = Fan
 class-temperature = Temperature
 class-rotation = Rotation Rate
