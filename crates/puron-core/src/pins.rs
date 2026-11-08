@@ -20,9 +20,11 @@ pub fn click(
         list.push(clicked.to_string());
     }
     // Step 2: drop entries that are not in the menu, but keep entries of
-    // a hidden class.
+    // a hidden class and the older pins that wait to move.
     list.retain(|e| {
-        menu_identities.contains(e) || class_of_identity(e).is_some_and(|c| !shown.contains(c))
+        menu_identities.contains(e)
+            || waits(e)
+            || class_of_identity(e).is_some_and(|c| !shown.contains(c))
     });
     // Step 3: once each.
     once_each(list)
@@ -78,6 +80,12 @@ fn cpu_source_line(shown: &Shown, source: &str) -> Option<String> {
         }
     };
     cpu.lines.iter().find(named).map(|l| l.identity.clone())
+}
+
+/// Whether `entry` is an older pin that waits for readings to move to a line:
+/// version 1.0.0's Maximum or a development build's CPU pin.
+pub fn waits(entry: &str) -> bool {
+    entry == MAXIMUM_WORD || entry == OLD_CPU_PIN
 }
 
 /// Whether `identity` is pinned: exact text match.
