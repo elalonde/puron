@@ -2,7 +2,7 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Puron
 Source: https://github.com/elalonde/puron
 Comment: The complete corresponding source of the binaries is the release
- asset puron-1.1.0-source.tar.xz of the tag v1.1.0, see SOURCE-OFFER in
+ asset puron-1.1.1-source.tar.xz of the tag v1.1.1, see SOURCE-OFFER in
  this folder. Every crate the binaries are built from is listed with its
  license and notices in THIRD-PARTY-NOTICES.txt in this folder.
 

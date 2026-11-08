@@ -35,7 +35,7 @@ names the need.
 ## Install
 
     make deb      # also needs python3 and the crates of Cargo.lock
-    sudo apt install ./target/deb/puron_1.1.0_amd64.deb
+    sudo apt install ./target/deb/puron_1.1.1_amd64.deb
 
 Then add Puron to a panel in COSMIC Settings, among the panel applets.
 `make install PREFIX=/usr/local` installs without a package.
@@ -75,7 +75,7 @@ The package ships the GPL-3.0 text, `SOURCE-OFFER` and
 lists every crate in `Cargo.lock` with its license and notices.
 
 The complete corresponding source of the binaries is the release asset
-`puron-1.1.0-source.tar.xz` of the tag `v1.1.0`: Puron's full source
+`puron-1.1.1-source.tar.xz` of the tag `v1.1.1`: Puron's full source
 with the locked dependencies vendored and the cargo config for an
 offline build.
 
