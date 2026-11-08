@@ -55,7 +55,7 @@ pub fn icon_name(kind: IconKind) -> &'static str {
     }
 }
 
-/// The icon name of a section, from the same map.
+/// The icon name of a section, through `icon_name`.
 pub fn section_icon_name(section: Section) -> &'static str {
     icon_name(match section {
         Section::Temperature => IconKind::GeneralTemperature,

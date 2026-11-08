@@ -889,7 +889,7 @@ fn c_src_registry_5() {
     });
 }
 
-// A handle dropped without Shut down still stops the workers.
+// A handle dropped without a `shutdown` call still stops the workers.
 #[test]
 fn engine_drop_sends_shutdown() {
     puron_testkit::limit("p4f3-drop", LIMIT, || {

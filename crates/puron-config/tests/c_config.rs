@@ -67,7 +67,7 @@ fn defaults() -> Settings {
     }
 }
 
-/// The values of the `good` fixture as Store inputs, one per key.
+/// The values of the `good` fixture as `Config::store` inputs, one per key.
 fn good_values() -> Vec<(&'static str, Value)> {
     let s = good();
     vec![

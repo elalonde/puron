@@ -1,5 +1,5 @@
 //! The i18n tests that run in `puron-applet` (`cargo test` without a
-//! display). A case that runs Start or sets the language variables runs
+//! display). A case that runs `start` or sets the language variables runs
 //! in a re-executed child:
 //! the parent removes the four variables, sets the map's ones, and
 //! passes on the child's exit status.

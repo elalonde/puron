@@ -24,7 +24,7 @@ pub type Adapters = Box<dyn FnMut(Provider) -> Box<dyn Source> + Send>;
 
 /// Read deadline of an in-process read.
 pub const READ_DEADLINE: Duration = Duration::from_secs(10);
-/// Shutdown wait.
+/// How long `shutdown` waits at most for the workers to end.
 pub const SHUTDOWN_WAIT: Duration = Duration::from_secs(1);
 
 /// The lm-sensors report of a snapshot.
@@ -35,7 +35,8 @@ pub enum LmReport {
     Answered,
 }
 
-/// A snapshot.
+/// What the subscription returns: the readings of the providers that are
+/// on, and the lm-sensors report.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Snapshot {
     pub readings: Vec<RawReading>,
@@ -77,7 +78,8 @@ enum In {
     SetInterval(u32),
     SetProviders(Settings),
     Shutdown,
-    /// A worker's report.
+    /// A worker's report: provider index, generation, outcome. A report of
+    /// an earlier generation, or of a provider now off, has no effect.
     Report(usize, u64, ReadOutcome),
     /// An in-process read started at this time; its read deadline counts
     /// from here.
@@ -181,9 +183,10 @@ impl Engine {
     }
 }
 
-/// A handle dropped without Shut down sends it without waiting: the
-/// scheduler raises every worker's stop signal and the threads end on
-/// their own. `shutdown` remains the way to wait for them.
+/// A handle dropped without a `shutdown` call sends the shutdown command
+/// without waiting: the scheduler raises every worker's stop signal and
+/// the threads end on their own. `shutdown` remains the way to wait for
+/// them.
 impl Drop for Engine {
     fn drop(&mut self) {
         let mut s = self.sh.st.lock().unwrap_or_else(|e| e.into_inner());
@@ -457,7 +460,7 @@ impl Scheduler {
         }
     }
 
-    /// Shut down: the timer stops; each worker is told to stop.
+    /// On `In::Shutdown`: the timer stops; each worker is told to stop.
     fn shutdown(&mut self) {
         self.next_poll = None;
         {

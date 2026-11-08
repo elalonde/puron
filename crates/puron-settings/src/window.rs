@@ -6,7 +6,8 @@ use puron_core::settings::{Settings, TemperatureUnit, POLL_INTERVAL_MAX, POLL_IN
 
 /// Window title: a fixed text.
 pub const TITLE: &str = "Puron";
-/// App ID.
+/// libcosmic's App ID. Kept apart from `puron_config::CONFIG_ID`: libcosmic
+/// keeps its own state under the App ID, never in Puron's entries.
 pub const APP_ID: &str = "io.github.elalonde.Puron.Settings";
 
 /// The window settings `main` hands to libcosmic, sizes in logical
@@ -56,16 +57,16 @@ pub enum Event {
 /// An output of [`Window::handle`], in order.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Output {
-    /// `config` Store of one key, with its result (handled in the same
+    /// `Config::store` of one key, with its result (handled in the same
     /// call).
     Store {
         key: &'static str,
         value: Value,
         result: StoreResult,
     },
-    /// `config` Watch is to be started (the end of Open).
+    /// `Config::watch` is to be started (the end of `Event::Open`).
     WatchStart,
-    /// The program exits (Close).
+    /// The program exits (`Event::Close`).
     Exit,
 }
 
@@ -263,7 +264,7 @@ pub struct Window {
 }
 
 impl Window {
-    /// A window over `config`; nothing is loaded before Open.
+    /// A window over `config`; nothing is loaded before `Event::Open`.
     pub fn new(config: Config) -> Window {
         Window {
             config,

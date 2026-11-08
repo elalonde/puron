@@ -49,7 +49,7 @@ fn tag(value: &OsStr) -> Option<LanguageIdentifier> {
     v.replace('_', "-").parse().ok()
 }
 
-/// The language list for Start, from the four locale variables as `get`
+/// The language list for `start`, from the four locale variables as `get`
 /// gives them.
 pub fn languages(get: impl Fn(&str) -> Option<OsString>) -> Vec<LanguageIdentifier> {
     let set = |name: &str| get(name).filter(|v| !v.is_empty());
@@ -121,7 +121,7 @@ pub fn start() -> LanguageIdentifier {
     start_with(Box::new(Catalogs), |name| std::env::var_os(name))
 }
 
-/// The loader of this process; English alone when Start has not run.
+/// The loader of this process; English alone when `start` has not run.
 pub fn loader() -> &'static FluentLanguageLoader {
     &STATE
         .get_or_init(|| {

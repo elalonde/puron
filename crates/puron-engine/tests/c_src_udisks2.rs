@@ -1,4 +1,4 @@
-//! Tests of the udisks2 source, through Start, Read and Stop with a
+//! Tests of the udisks2 source, through `start`, `read` and `stop` with a
 //! private fixture bus as the bus address and a bus time limit of 1 s.
 
 use std::os::fd::AsFd;

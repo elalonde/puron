@@ -1,12 +1,12 @@
 //! The lm-sensors source: sensors through libsensors.
 //!
-//! Each Read initializes the library with the configuration, lists
+//! Each `read` initializes the library with the configuration, lists
 //! chips and features in library order, reads one subfeature per
 //! feature and releases the library before it returns, on every path:
 //! the handle is a local value, dropped also on unwind. Nothing is
 //! kept between reads. The adapter only reads.
 //!
-//! The device part of a row name is the exception: Start finds it once
+//! The device part of a row name is the exception: `start` finds it once
 //! for each chip and keeps it until the next start.
 
 use std::borrow::Cow;
@@ -45,7 +45,7 @@ const MACHINE_PLACEHOLDERS: [&str; 11] = [
     "Unknown",
 ];
 
-/// The device name that Start found for one chip.
+/// The device name that `start` found for one chip.
 #[derive(Debug)]
 struct Device {
     chip: String,
@@ -314,7 +314,7 @@ fn reading(info: &ChipInfo<'_>, feature: FeatureRef<'_>, position: u32) -> Optio
 }
 
 /// The readings of one chip, appended to `out`; a chip whose name the
-/// library cannot give is left out. A chip that Start did not find goes by
+/// library cannot give is left out. A chip that `start` did not find goes by
 /// its chip name, as one that appeared later has no device name yet.
 fn chip_readings(chip: ChipRef<'_>, devices: &[Device], out: &mut Vec<RawReading>) {
     let Ok(name) = chip.raw_name() else {

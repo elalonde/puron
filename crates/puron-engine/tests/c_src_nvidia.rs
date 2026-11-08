@@ -1,4 +1,4 @@
-//! Tests of the NVIDIA source, through Start, Read and Stop with a fake
+//! Tests of the NVIDIA source, through `start`, `read` and `stop` with a fake
 //! PCI sysfs tree as the sysfs root and a fake NVML interface, except
 //! the static checks in `c_src_nvidia_11` and `c_src_nvidia_12`.
 

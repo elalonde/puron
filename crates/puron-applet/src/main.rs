@@ -3,8 +3,8 @@
 //! applet runs on the main thread and draws the panel button (`panel`)
 //! and the popup (`popup`) from the state the loop sends after each
 //! event. Popup clicks go to the loop as UI events. When libcosmic's run
-//! returns (the panel removed the applet or closed its connection), a
-//! Stop event goes to the loop, which exits after the engine has shut
+//! returns (the panel removed the applet or closed its connection), an
+//! `Event::Stop` goes to the loop, which exits after the engine has shut
 //! down.
 
 use std::sync::mpsc::{self, Sender};
@@ -239,7 +239,7 @@ fn main() {
     // event loop too, so the engine is still shut down.
     let ui_tx = tx.clone();
     let _ = std::panic::catch_unwind(move || cosmic::applet::run::<Applet>(ui_tx));
-    // The toolkit's event loop ended: send Stop. Our loop exits the
+    // The toolkit's event loop ended: send `Event::Stop`. Our loop exits the
     // process with status 0 once the engine shutdown has returned.
     let _ = tx.send((Source::Stop, Event::Stop));
     // The loop returns only by a panic (the profile unwinds). No

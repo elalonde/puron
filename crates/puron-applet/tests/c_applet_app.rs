@@ -22,7 +22,7 @@ use puron_testkit::eng::HandleCall;
 
 const LIMIT: u64 = 5;
 
-/// Start with the fixture `name`; the outputs of Start.
+/// Start with the fixture `name`; the outputs of `Event::Start`.
 fn started(
     name: &str,
 ) -> (

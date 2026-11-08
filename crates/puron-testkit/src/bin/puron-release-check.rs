@@ -1,5 +1,5 @@
 //! The engine's read-after-panic case, built with the release profile:
-//! a Read that panics gives no value for that poll, the next Read works
+//! a `read` that panics gives no value for that poll, the next `read` works
 //! again, and the other provider is not affected. Prints a success line
 //! and exits 0 when the checks hold; prints the failed check and exits 1
 //! otherwise.

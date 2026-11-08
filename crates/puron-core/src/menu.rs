@@ -182,7 +182,7 @@ pub struct Item {
     pub value: Option<Text>,
 }
 
-/// One entry.
+/// One entry of the popup layout (`Menu::entries`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Entry {
     Section(Section),
@@ -212,7 +212,7 @@ pub struct Menu {
 /// What the popup can show of a snapshot's raw readings.
 pub fn shown(raw: &[RawReading], settings: &Settings) -> Shown {
     let s = settings;
-    // Step 1: the Show Sensors switches are the shown classes.
+    // The Show Sensors switches are the shown classes.
     let classes = ShownClasses {
         temperature: s.show_temperature,
         fan: s.show_rotation_rate,

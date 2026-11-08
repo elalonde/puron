@@ -1,5 +1,5 @@
 //! `puron-cfg-writer <root> <key> <RON value>` stores one key through
-//! `config` Store, then exits 0 on *stored* and 1 otherwise.
+//! `Config::store`, then exits 0 on *stored* and 1 otherwise.
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

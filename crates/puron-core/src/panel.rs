@@ -21,7 +21,8 @@ pub enum Icon {
     EmptySlot,
 }
 
-/// One item.
+/// One panel item: a pinned entry, or the empty state when no pinned
+/// entry is visible.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Item {
     /// `value`: `None` is missing ("⚠"), `Some(None)` is "no value".
@@ -39,7 +40,8 @@ pub struct State {
     pub icons: BTreeMap<String, IconKind>,
 }
 
-/// The output.
+/// What `panel` returns: the items, the label padding, and the state to
+/// pass back on the next call.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Panel {
     pub items: Vec<Item>,
@@ -80,7 +82,8 @@ pub fn panel(shown: &Shown, pinned: &[String], settings: &Settings, state: &Stat
             } else {
                 icons.get(id).map_or(Icon::EmptySlot, |k| Icon::Kind(*k))
             };
-            // The value of the rows passed in, whatever the cause.
+            // `None` (missing, "⚠") whenever `shown` has no line for the
+            // pin; why the line is absent does not matter here.
             let value = found(shown, id, s).map(|(_, v)| v);
             Item::Pin { icon, value }
         })

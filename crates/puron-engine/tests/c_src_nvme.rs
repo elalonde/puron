@@ -1,4 +1,4 @@
-//! Tests of the nvme source, through Start, Read and Stop with a fake
+//! Tests of the nvme source, through `start`, `read` and `stop` with a fake
 //! sysfs tree as the sysfs root.
 
 use std::os::fd::AsFd;

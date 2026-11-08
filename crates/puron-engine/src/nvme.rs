@@ -2,7 +2,7 @@
 //!
 //! Start lists the controllers of `class/nvme/` with their model,
 //! address, hwmon directory and sensor set; the list stays fixed until
-//! the next start. Each Read reads the input files of the listed
+//! the next start. Each `read` reads the input files of the listed
 //! controllers. Every file is opened for reading only.
 
 use std::os::fd::BorrowedFd;
