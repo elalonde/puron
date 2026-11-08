@@ -52,6 +52,8 @@ pub struct SystemClock {
 }
 
 impl SystemClock {
+    // Every user holds the clock as a shared `dyn Clock`, so it is made as one.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn Clock> {
         Arc::new(SystemClock {
             origin: Instant::now(),

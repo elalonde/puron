@@ -172,7 +172,7 @@ fn c_engine_1__a() {
         let lm = r
             .fake(LmSensors)
             .reads([ReadStep::Takes(1.0, r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(16.0);
         assert_eq!(lm.times(CallKind::Read), [0.0, 5.0, 10.0, 15.0]);
     });
@@ -185,7 +185,7 @@ fn c_engine_1__b() {
         let lm = Fake::new(real.clone(), LmSensors).reads([gives(r1(LmSensors))]);
         let e = Engine::new(SystemClock::new());
         let t0 = Instant::now();
-        e.start(&on(&[LmSensors], 1), adapters(&[lm.clone()]));
+        e.start(&on(&[LmSensors], 1), adapters(std::slice::from_ref(&lm)));
         sleep_to(t0, 3.6);
         let reads: Vec<f64> = lm
             .times(CallKind::Read)
@@ -227,7 +227,7 @@ fn c_engine_3() {
         let lm = r
             .fake(LmSensors)
             .reads([ReadStep::Takes(12.25, r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 1), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 1), std::slice::from_ref(&lm));
         r.to(25.5);
         r.e.set_interval(60);
         r.clock.settle();
@@ -243,7 +243,7 @@ fn c_engine_4() {
         let lq = r
             .fake(Liquidctl)
             .reads([ReadStep::Takes(2.5, r1(Liquidctl))]);
-        r.start(&on(&[Liquidctl], 1), &[lq.clone()]);
+        r.start(&on(&[Liquidctl], 1), std::slice::from_ref(&lq));
         r.to(7.0);
         assert_eq!(lq.times(CallKind::Read), [0.0, 3.0, 6.0]);
     });
@@ -254,7 +254,7 @@ fn c_engine_5() {
     puron_testkit::limit("C-engine-5", LIMIT, || {
         let r = Run::new();
         let lm = r.fake(LmSensors).reads([gives(r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(6.0);
         r.e.set_interval(3);
         r.to(13.0);
@@ -376,7 +376,7 @@ fn c_engine_10() {
         let lm = r
             .fake(LmSensors)
             .reads([gives(r1(LmSensors)), ReadStep::Hangs]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(20.0);
         assert_eq!(r.of(LmSensors), novalue());
         lm.release_read(r2(LmSensors));
@@ -512,7 +512,7 @@ fn c_engine_14__stop() {
             .fake(LmSensors)
             .stops([StopStep::Panics, StopStep::AtOnce])
             .reads([gives(r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(1.0);
         r.set(&on(&[], 5));
         assert_eq!(r.of(LmSensors), []);
@@ -533,7 +533,7 @@ fn c_engine_16() {
     puron_testkit::limit("C-engine-16", LIMIT, || {
         let mut r = Run::new();
         let lm = r.fake(LmSensors).reads([ReadStep::Hangs]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         for (t, s) in [(2.0, false), (3.0, true), (4.0, false), (5.0, true)] {
             r.to(t);
             r.set(&on(if s { &[LmSensors] } else { &[] }, 5));
@@ -564,7 +564,7 @@ fn c_engine_17() {
         let lm = r
             .fake(LmSensors)
             .reads([ReadStep::Hangs, gives(r2(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(3.0);
         r.set(&on(&[], 5));
         r.to(4.0);
@@ -685,7 +685,7 @@ fn c_engine_21__b() {
     puron_testkit::limit("C-engine-21", LIMIT, || {
         let r = Run::new();
         let lm = r.fake(LmSensors).reads([ReadStep::Hangs]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         let back: Arc<Mutex<Option<f64>>> = Arc::default();
         let (e, c, b) = (Arc::clone(&r.e), Arc::clone(&r.clock), Arc::clone(&back));
         r.clock.spawn(move || {
@@ -707,7 +707,7 @@ fn c_engine_21__c() {
         let lm = Fake::new(real.clone(), LmSensors).reads([ReadStep::Hangs]);
         let e = Engine::new(SystemClock::new());
         let t0 = Instant::now();
-        e.start(&on(&[LmSensors], 5), adapters(&[lm.clone()]));
+        e.start(&on(&[LmSensors], 5), adapters(std::slice::from_ref(&lm)));
         sleep_to(t0, 2.0);
         let t = Instant::now();
         e.shutdown();
@@ -723,7 +723,7 @@ fn c_engine_22__stop() {
     puron_testkit::limit("C-engine-22", LIMIT, || {
         let r = Run::new();
         let lq = r.fake(Liquidctl).reads([ReadStep::Hangs]);
-        r.start(&on(&[Liquidctl], 5), &[lq.clone()]);
+        r.start(&on(&[Liquidctl], 5), std::slice::from_ref(&lq));
         r.to(2.0);
         r.set(&on(&[], 5));
         assert_eq!(lq.calls()[1].call, CallKind::Read);
@@ -740,7 +740,7 @@ fn c_engine_22__shutdown() {
     puron_testkit::limit("C-engine-22", LIMIT, || {
         let r = Run::new();
         let lq = r.fake(Liquidctl).reads([ReadStep::Hangs]);
-        r.start(&on(&[Liquidctl], 5), &[lq.clone()]);
+        r.start(&on(&[Liquidctl], 5), std::slice::from_ref(&lq));
         r.to(2.0);
         let (e, c) = (Arc::clone(&r.e), Arc::clone(&r.clock));
         r.clock.spawn(move || {
@@ -785,7 +785,7 @@ fn c_engine_26__a() {
     puron_testkit::limit("C-engine-26", LIMIT, || {
         let r = Run::new();
         let lm = r.fake(LmSensors).reads([gives(r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         for t in [2.0, 4.0] {
             r.to(t);
             r.e.poll_now();
@@ -818,7 +818,7 @@ fn c_engine_26__c() {
         let lm = r
             .fake(LmSensors)
             .reads([ReadStep::Takes(2.0, r1(LmSensors))]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         r.to(1.0);
         r.e.poll_now();
         r.to(7.0);
@@ -831,7 +831,7 @@ fn c_src_registry_3() {
     puron_testkit::limit("C-src.registry-3", LIMIT, || {
         let r = Run::new();
         let ud = r.fake(Udisks2).reads([gives(r1(Udisks2))]);
-        r.start(&on(&[Udisks2], 5), &[ud.clone()]);
+        r.start(&on(&[Udisks2], 5), std::slice::from_ref(&ud));
         r.to(11.0);
         assert_eq!(ud.times(CallKind::Start), [0.0]);
         assert_eq!(ud.times(CallKind::Read), [0.0, 5.0, 10.0]);
@@ -850,7 +850,7 @@ fn c_src_registry_4() {
             .fake(NvmeCli)
             .starts([StartStep::Unavailable, StartStep::Available])
             .reads([gives(r1(NvmeCli))]);
-        r.start(&on(&[NvmeCli], 5), &[nv.clone()]);
+        r.start(&on(&[NvmeCli], 5), std::slice::from_ref(&nv));
         let empty = Snapshot {
             readings: vec![],
             lm_sensors: LmReport::NoneYet,
@@ -879,7 +879,7 @@ fn c_src_registry_5() {
             gives(ReadOutcome::Unavailable),
             gives(r1(LmSensors)),
         ]);
-        r.start(&on(&[LmSensors], 5), &[lm.clone()]);
+        r.start(&on(&[LmSensors], 5), std::slice::from_ref(&lm));
         assert_eq!(r.of(LmSensors), r1v());
         r.to(5.0);
         assert_eq!(r.of(LmSensors), []);
@@ -895,7 +895,7 @@ fn engine_drop_sends_shutdown() {
     puron_testkit::limit("p4f3-drop", LIMIT, || {
         let r = Run::new();
         let lq = r.fake(Liquidctl).reads([ReadStep::Hangs]);
-        r.start(&on(&[Liquidctl], 5), &[lq.clone()]);
+        r.start(&on(&[Liquidctl], 5), std::slice::from_ref(&lq));
         r.to(2.0);
         let Run { clock, e, .. } = r;
         drop(Arc::try_unwrap(e).ok().expect("the only handle"));

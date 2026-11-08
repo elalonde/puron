@@ -176,12 +176,13 @@ impl<F: Future> Future for Within<F> {
     }
 }
 
-type Managed = HashMap<OwnedObjectPath, HashMap<String, HashMap<String, OwnedValue>>>;
+type Interfaces = HashMap<String, HashMap<String, OwnedValue>>;
+type Managed = HashMap<OwnedObjectPath, Interfaces>;
 
 /// The drive listing: the objects with both interfaces and a string
 /// `Model`, in code point order of their paths.
 fn drives(objects: Managed) -> Vec<Drive> {
-    let mut objects: Vec<(String, HashMap<String, HashMap<String, OwnedValue>>)> = objects
+    let mut objects: Vec<(String, Interfaces)> = objects
         .into_iter()
         .map(|(p, i)| (p.as_str().to_string(), i))
         .collect();

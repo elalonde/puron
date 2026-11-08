@@ -13,6 +13,9 @@ use puron_engine::lmsensors::LmSensors;
 use puron_engine::registry::{self, ReadOutcome, Source, StartOutcome};
 use puron_testkit::{fixture, jrn, temp_dir, umd, workspace_root};
 
+/// One reading as compared: key, kind, name, value.
+type Reading = (String, Option<Kind>, Option<String>, Option<f64>);
+
 const LIMIT: u64 = 10;
 
 /// The nvme hwmon directory of the captured testbed, under
@@ -179,12 +182,12 @@ fn same(got: &[RawReading], exp: &[Exp]) {
     chips.sort();
     chips.dedup();
     for chip in chips {
-        let g: Vec<(String, Option<Kind>, Option<String>, Option<f64>)> = got
+        let g: Vec<Reading> = got
             .iter()
             .filter(|r| r.chip.as_deref() == Some(chip))
             .map(|r| (r.key.clone(), r.kind, r.name.clone(), r.value))
             .collect();
-        let e: Vec<(String, Option<Kind>, Option<String>, Option<f64>)> = exp
+        let e: Vec<Reading> = exp
             .iter()
             .filter(|e| e.0 == chip)
             .map(|e| {

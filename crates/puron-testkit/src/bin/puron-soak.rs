@@ -69,14 +69,15 @@ fn install_fake() -> PathBuf {
 }
 
 fn settings(on: &[Provider]) -> Settings {
-    let mut s = Settings::default();
-    s.poll_interval_secs = 1;
-    s.provider_lm_sensors = on.contains(&Provider::LmSensors);
-    s.provider_liquidctl = on.contains(&Provider::Liquidctl);
-    s.provider_nvidia = on.contains(&Provider::Nvidia);
-    s.provider_udisks2 = on.contains(&Provider::Udisks2);
-    s.provider_nvme = on.contains(&Provider::NvmeCli);
-    s
+    Settings {
+        poll_interval_secs: 1,
+        provider_lm_sensors: on.contains(&Provider::LmSensors),
+        provider_liquidctl: on.contains(&Provider::Liquidctl),
+        provider_nvidia: on.contains(&Provider::Nvidia),
+        provider_udisks2: on.contains(&Provider::Udisks2),
+        provider_nvme: on.contains(&Provider::NvmeCli),
+        ..Settings::default()
+    }
 }
 
 fn main() {

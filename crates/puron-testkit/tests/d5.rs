@@ -202,7 +202,12 @@ fn d5_unavailable() {
         let clock = SystemClock::new();
         let fake = Fake::new(clock.clone(), Provider::LmSensors).starts([StartStep::Unavailable]);
         let t = std::time::Instant::now();
-        let text = d5::dump(clock, &s, adapters(&[fake.clone()]), Duration::from_secs(3));
+        let text = d5::dump(
+            clock,
+            &s,
+            adapters(std::slice::from_ref(&fake)),
+            Duration::from_secs(3),
+        );
         assert!(
             t.elapsed() < Duration::from_secs(2),
             "waited {:?}",
@@ -216,7 +221,12 @@ fn d5_unavailable() {
         );
         let fake = Fake::new(SystemClock::new(), Provider::LmSensors)
             .reads([ReadStep::Gives(ReadOutcome::Readings(capture()))]);
-        d5::dump(SystemClock::new(), &s, adapters(&[fake.clone()]), d5::WAIT);
+        d5::dump(
+            SystemClock::new(),
+            &s,
+            adapters(std::slice::from_ref(&fake)),
+            d5::WAIT,
+        );
         assert_eq!(fake.count(CallKind::Stop), 1);
     });
 }

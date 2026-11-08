@@ -403,6 +403,8 @@ impl Scheduler {
     }
 
     /// Queues `m`; a stop or shutdown also raises the stop signal.
+    // "to" names the receiver here ("send to worker"), not a conversion.
+    #[allow(clippy::wrong_self_convention)]
     fn to_worker(&mut self, i: usize, m: Msg) {
         let mut s = self.sh.st.lock().unwrap();
         let Some(w) = s.workers[i].as_mut() else {
