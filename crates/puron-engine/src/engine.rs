@@ -1,9 +1,25 @@
-//! The engine: poll cycle, workers and snapshots.
+//! The engine runs the sensor providers on their own threads and
+//! publishes their readings as snapshots.
 //!
-//! Threads: the scheduler, which also runs the aggregator, and one
-//! worker per provider from its first start. They share one lock; every
-//! wait is a wait on the engine's clock, and nothing calls the clock
-//! while it holds the lock.
+//! A provider is one source of readings (lm-sensors, liquidctl, NVIDIA,
+//! udisks2 or NVMe), listed in `registry::PROVIDERS`. The settings switch
+//! each provider on or off. The engine has one scheduler thread and one
+//! worker thread per provider. A provider's worker thread is created the
+//! first time the provider is switched on and lives until shutdown, so a
+//! provider that is switched off and on again reuses it.
+//!
+//! The scheduler handles the commands sent through the `Engine` handle,
+//! asks each worker for a read once per poll interval, collects the
+//! results, and stores a new `Snapshot` after every worker result,
+//! every provider switched off, and every read that runs past its
+//! deadline. It never waits for a worker, so a slow provider delays only
+//! itself.
+//!
+//! All threads share one `Mutex<State>`. Every blocking wait goes through
+//! `Clock::wait_until`, so that tests can run the engine on a virtual
+//! clock. `wait_until` runs its `ready` check under the clock's own lock,
+//! and those checks take the state lock. For that reason no thread calls
+//! the clock while it holds the state lock: doing so could deadlock.
 
 use std::collections::VecDeque;
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
@@ -18,32 +34,46 @@ use crate::clock::{self, Clock};
 use crate::diag;
 use crate::registry::{self, Action, ProviderKind, ReadOutcome, Source, StartOutcome, PROVIDERS};
 
-/// The adapters' configuration: builds the adapter of a
-/// provider, once, when its worker is created at its first start.
+/// Builds the adapter for a provider: the `Source` that reads that
+/// provider's sensors. The engine calls it once per provider, when the
+/// provider is first switched on and its worker thread is created.
 pub type Adapters = Box<dyn FnMut(Provider) -> Box<dyn Source> + Send>;
 
-/// Read deadline of an in-process read.
+/// How long an in-process read may run before the snapshot shows that
+/// provider's readings without values. The read is not interrupted: if
+/// it finishes later, its result is still used.
 pub const READ_DEADLINE: Duration = Duration::from_secs(10);
-/// How long `shutdown` waits at most for the workers to end.
+/// The longest time `Engine::shutdown` waits for the worker threads to
+/// end. After it, `shutdown` returns even if a worker is still reading.
 pub const SHUTDOWN_WAIT: Duration = Duration::from_secs(1);
 
-/// The lm-sensors report of a snapshot.
+/// The state of the lm-sensors provider in a snapshot. Callers use it
+/// to tell "lm-sensors is unavailable" apart from "lm-sensors works
+/// but has found nothing to show".
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LmReport {
+    /// lm-sensors has not reported since it was last switched on, or it
+    /// is switched off.
     NoneYet,
+    /// lm-sensors could not start, or a read reported it unavailable.
     Unavailable,
+    /// lm-sensors has completed a read, whether it succeeded or failed.
     Answered,
 }
 
-/// What the subscription returns: the readings of the providers that are
-/// on, and the lm-sensors report.
+/// What the engine publishes: the current readings of every provider
+/// that is switched on, in provider order, and the state of lm-sensors.
+/// `Scheduler::snapshot` decides which readings a provider contributes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Snapshot {
     pub readings: Vec<RawReading>,
     pub lm_sensors: LmReport,
 }
 
-/// The engine handle. No command waits for a provider.
+/// The caller's handle to the engine. `start`, `poll_now`,
+/// `set_interval` and `set_providers` only queue a command for the
+/// scheduler thread and return at once; none of them waits for a
+/// provider.
 pub struct Engine {
     sh: Arc<Shared>,
 }
@@ -54,21 +84,33 @@ struct Shared {
 }
 
 struct State {
-    /// Commands and reports for the scheduler, in arrival order.
+    /// Messages for the scheduler thread, in arrival order: commands
+    /// from the handle and results from the workers.
     inbox: VecDeque<In>,
-    /// One slot per provider, in provider order, from its first start.
+    /// One slot per entry of `PROVIDERS`, in the same order. A slot is
+    /// `None` until that provider is first switched on.
     workers: Vec<Option<Slot>>,
     created: usize,
+    /// Worker threads still running; `shutdown` waits for this to reach
+    /// zero.
     alive: usize,
-    /// The latest-value channel: it holds one snapshot.
+    /// The most recent snapshot. Only one is kept: a new snapshot
+    /// replaces it whether or not it was read. `fresh` is true while it
+    /// has not yet been returned by `next` or `try_next`.
     latest: Option<Snapshot>,
     fresh: bool,
-    /// The scheduler has told every worker to stop for shutdown.
+    /// Set once the scheduler has told every worker to shut down. A
+    /// worker exits when this is set and its adapter is stopped.
     shut: bool,
 }
 
+/// The scheduler's side of a worker: its message queue and its stop
+/// signal.
 struct Slot {
     queue: VecDeque<Msg>,
+    /// The worker's stop signal: an eventfd that `raise` makes readable.
+    /// A child-run read (one that runs an external program) waits on it,
+    /// so that a stop or shutdown can end the run early.
     stop: Arc<OwnedFd>,
 }
 
@@ -78,20 +120,23 @@ enum In {
     SetInterval(u32),
     SetProviders(Settings),
     Shutdown,
-    /// A worker's report: provider index, generation, outcome. A report of
-    /// an earlier generation, or of a provider now off, has no effect.
+    /// A worker's result: provider index, generation (see
+    /// `Prov::generation`), outcome. The scheduler ignores it if the
+    /// provider has since been switched off or restarted.
     Report(usize, u64, ReadOutcome),
-    /// An in-process read started at this time; its read deadline counts
-    /// from here.
+    /// Sent by a worker when an in-process read begins, with the clock
+    /// time; that read's `READ_DEADLINE` counts from this time.
     ReadStarted(usize, u64, Duration),
 }
 
-/// Commands to a worker, run in the order sent.
+/// Messages to a worker, handled in the order queued.
 enum Msg {
+    /// Start the adapter for the given generation.
     Start(u64),
     Stop,
     Shutdown,
-    /// The pending request: at most one in a queue.
+    /// Read once. The scheduler keeps at most one in a queue, so polls
+    /// that pile up behind a slow read result in a single read.
     Read,
 }
 
@@ -100,7 +145,8 @@ fn index(p: Provider) -> usize {
 }
 
 impl Engine {
-    /// The handle, with its scheduler; no worker yet.
+    /// Creates the engine and starts its scheduler thread. No provider
+    /// runs until `start`.
     pub fn new(clock: Arc<dyn Clock>) -> Engine {
         let sh = Arc::new(Shared {
             clock,
@@ -126,6 +172,9 @@ impl Engine {
         self.sh.clock.wake();
     }
 
+    /// Starts the providers that `settings` switches on, and the poll
+    /// timer. Call it once: a second call starts the adapters of those
+    /// providers again without stopping them first.
     pub fn start(&self, settings: &Settings, adapters: Adapters) {
         self.send(In::Start(settings.clone(), adapters));
     }
@@ -142,7 +191,9 @@ impl Engine {
         self.send(In::SetProviders(settings.clone()));
     }
 
-    /// Returns when every worker has ended, or after the shutdown wait.
+    /// Tells the scheduler to stop every worker, then waits until all
+    /// worker threads have ended or `SHUTDOWN_WAIT` has passed, whichever
+    /// comes first.
     pub fn shutdown(&self) {
         self.send(In::Shutdown);
         let until = self.sh.clock.now() + SHUTDOWN_WAIT;
@@ -152,8 +203,11 @@ impl Engine {
         });
     }
 
-    /// The subscription: waits until a snapshot is new, returns the
-    /// latest unread one.
+    /// Blocks until there is a snapshot that has not been returned yet,
+    /// then returns it. Only the most recent snapshot is kept, so a
+    /// caller that reads slowly skips the ones in between. After shutdown
+    /// no new snapshot comes, so a call then blocks for ever unless one
+    /// is still unread.
     pub fn next(&self) -> Snapshot {
         let mut out = None;
         self.sh.clock.wait_until(None, &mut || {
@@ -163,7 +217,7 @@ impl Engine {
         out.unwrap()
     }
 
-    /// The latest unread snapshot, if one is new; does not wait.
+    /// Like `next`, but returns `None` at once instead of waiting.
     pub fn try_next(&self) -> Option<Snapshot> {
         self.take()
     }
@@ -177,18 +231,22 @@ impl Engine {
         s.latest.clone()
     }
 
-    /// The number of workers created, for tests.
+    /// How many worker threads have been created so far. Switching a
+    /// provider off does not remove its worker. Used by tests.
     pub fn workers(&self) -> usize {
         self.sh.st.lock().unwrap().created
     }
 }
 
-/// A handle dropped without a `shutdown` call sends the shutdown command
-/// without waiting: the scheduler raises every worker's stop signal and
-/// the threads end on their own. `shutdown` remains the way to wait for
-/// them.
+/// Dropping the handle without calling `shutdown` still shuts the engine
+/// down, but does not wait: it queues the shutdown command, and the
+/// scheduler and the workers end on their own. Call `shutdown` to wait
+/// for them.
 impl Drop for Engine {
     fn drop(&mut self) {
+        // Use the state even if another thread panicked while holding the
+        // lock: a panic in `drop` while the thread is already unwinding
+        // would abort the process.
         let mut s = self.sh.st.lock().unwrap_or_else(|e| e.into_inner());
         if !s.shut {
             s.inbox.push_back(In::Shutdown);
@@ -198,16 +256,23 @@ impl Drop for Engine {
     }
 }
 
-/// What the aggregator keeps of a provider.
+/// The scheduler's record of one provider, from which it builds
+/// snapshots.
 #[derive(Default)]
 struct Prov {
     on: bool,
+    /// Counts the provider's starts. Every message about a read carries
+    /// the generation it was started under, so that the result of a read
+    /// from before the provider was switched off (and maybe on again) is
+    /// recognised and ignored.
     generation: u64,
-    /// Its latest report of the current generation.
+    /// The latest result from the worker since the provider was last
+    /// started: a read's outcome, or `Unavailable` if the start failed.
     outcome: Option<ReadOutcome>,
-    /// Its last *readings* report of the current generation.
+    /// The readings of the latest successful read since the last start.
     last: Option<Vec<RawReading>>,
-    /// The read deadline passed and the read has not ended.
+    /// An in-process read has run past `READ_DEADLINE` and has not
+    /// reported yet.
     stale: bool,
 }
 
@@ -226,10 +291,12 @@ struct Scheduler {
     interval: Duration,
     next_poll: Option<Duration>,
     provs: Vec<Prov>,
-    /// Armed read deadlines: (provider, generation of the read, time).
-    /// One of an earlier generation passes with no effect.
+    /// Read deadlines that have not passed yet: (provider index,
+    /// generation of the read, time it passes). One whose generation is
+    /// no longer current has no effect when it passes.
     deadlines: Vec<(usize, u64, Duration)>,
-    /// Worker queues changed: wake after the lock is released.
+    /// A worker queue has changed. `flush` wakes the workers once the
+    /// state lock is released.
     sent: bool,
     publish: bool,
 }
@@ -281,6 +348,9 @@ impl Scheduler {
             let now = self.sh.clock.now();
             let mut down = false;
             for m in batch {
+                // `PollNow`, `SetInterval` and `SetProviders` are ignored
+                // until the first `Start`: before it there are no settings
+                // to poll or compare against, and no adapters to build.
                 match m {
                     In::Start(settings, adapters) => {
                         self.adapters = Some(adapters);
@@ -302,8 +372,9 @@ impl Scheduler {
                     }
                     In::Shutdown => down = true,
                     In::Report(i, g, outcome) => self.report(i, g, outcome),
-                    // A read of a stopped provider or an earlier
-                    // generation arms nothing.
+                    // Arm a deadline only if the provider is still on and
+                    // the read belongs to its current generation (see
+                    // `Prov::generation`).
                     In::ReadStarted(i, g, at) => {
                         let p = &self.provs[i];
                         if p.on && g == p.generation {
@@ -336,7 +407,11 @@ impl Scheduler {
         }
     }
 
-    /// Publishes a snapshot if one is due, then wakes the waits.
+    /// Stores a new snapshot if a worker result or a provider change asked
+    /// for one (`publish`). Then, if a snapshot was stored or a worker
+    /// queue changed (`sent`), wakes every thread that waits on the
+    /// clock: the workers waiting for messages and any caller blocked in
+    /// `Engine::next`. The wake comes after the state lock is released.
     fn flush(&mut self) {
         if self.publish {
             let snap = self.snapshot();
@@ -351,7 +426,8 @@ impl Scheduler {
         }
     }
 
-    /// A poll: a request to each enabled worker; the timer restarts.
+    /// Asks the worker of every switched-on provider for a read, unless
+    /// one is already queued, and restarts the poll timer from `now`.
     fn poll(&mut self, now: Duration) {
         let settings = self.settings.as_ref().unwrap();
         let mut s = self.sh.st.lock().unwrap();
@@ -369,7 +445,8 @@ impl Scheduler {
         self.next_poll = Some(now + self.interval);
     }
 
-    /// The registry's actions from `old` to `new`.
+    /// Starts the providers that `new` switches on and stops the ones it
+    /// switches off, compared with `old` (`None` at engine start).
     fn switch(&mut self, old: Option<&Settings>, new: &Settings) {
         for a in registry::actions(old, new) {
             match a {
@@ -379,7 +456,8 @@ impl Scheduler {
                     let pr = &mut self.provs[i];
                     pr.on = false;
                     pr.reset();
-                    // A stop drops the provider's read deadline.
+                    // The provider's pending read deadline no longer
+                    // applies.
                     self.deadlines.retain(|d| d.0 != i);
                     self.publish = true;
                     self.to_worker(i, Msg::Stop);
@@ -388,6 +466,8 @@ impl Scheduler {
         }
     }
 
+    /// Each start begins a new generation. The worker thread is created
+    /// on the provider's first start only.
     fn start_provider(&mut self, i: usize) {
         let pr = &mut self.provs[i];
         pr.on = true;
@@ -402,8 +482,10 @@ impl Scheduler {
         self.to_worker(i, Msg::Start(g));
     }
 
-    /// Queues `m`; a stop or shutdown also raises the stop signal.
-    // "to" names the receiver here ("send to worker"), not a conversion.
+    /// Queues `m` for worker `i`. For a stop or shutdown it also raises
+    /// the stop signal, so that a child-run read in progress ends early.
+    // The name means "send to worker", not a conversion, so clippy's
+    // naming rule for `to_*` methods does not apply.
     #[allow(clippy::wrong_self_convention)]
     fn to_worker(&mut self, i: usize, m: Msg) {
         let mut s = self.sh.st.lock().unwrap();
@@ -411,7 +493,7 @@ impl Scheduler {
             return;
         };
         if matches!(m, Msg::Stop | Msg::Shutdown) {
-            // The pending request of the old generation goes too.
+            // A queued read was asked for before this stop: drop it.
             w.queue.retain(|q| !matches!(q, Msg::Read));
             raise(&w.stop);
         }
@@ -419,6 +501,8 @@ impl Scheduler {
         self.sent = true;
     }
 
+    /// Records a worker's result, unless the provider has been switched
+    /// off since or the result belongs to an earlier generation.
     fn report(&mut self, i: usize, g: u64, outcome: ReadOutcome) {
         let p = &mut self.provs[i];
         if !p.on || p.generation != g {
@@ -434,6 +518,15 @@ impl Scheduler {
         self.publish = true;
     }
 
+    /// Builds a snapshot from the providers that are switched on, in
+    /// provider order. A provider contributes, checked in this order:
+    /// - while an in-process read is past its deadline: the readings of
+    ///   its last successful read, with the values removed;
+    /// - after a successful read: that read's readings;
+    /// - after a failed in-process read: the readings of its last
+    ///   successful read, with the values removed;
+    /// - otherwise (before its first result, after an `Unavailable`
+    ///   result, or after a failed child-run read): nothing.
     fn snapshot(&self) -> Snapshot {
         let mut readings = vec![];
         for (p, e) in self.provs.iter().zip(PROVIDERS) {
@@ -450,6 +543,7 @@ impl Scheduler {
                 _ => {}
             }
         }
+        // lm-sensors is the first entry of `PROVIDERS`.
         let lm = &self.provs[0];
         let lm_sensors = match &lm.outcome {
             None => LmReport::NoneYet,
@@ -462,7 +556,9 @@ impl Scheduler {
         }
     }
 
-    /// On `In::Shutdown`: the timer stops; each worker is told to stop.
+    /// Handles the shutdown command: stops the poll timer, replaces each
+    /// worker's queue with a single shutdown message, and raises its stop
+    /// signal. The scheduler thread returns right after this.
     fn shutdown(&mut self) {
         self.next_poll = None;
         {
@@ -486,15 +582,19 @@ fn eventfd() -> OwnedFd {
     unsafe { OwnedFd::from_raw_fd(fd) }
 }
 
-/// Makes the stop signal readable.
+/// Raises the stop signal by making the eventfd readable.
 fn raise(fd: &OwnedFd) {
+    // The result is not checked: the write fails only if the counter
+    // would overflow, and it is lowered at every start.
     let one: u64 = 1;
     // SAFETY: writes 8 bytes from a valid u64.
     unsafe { libc::write(fd.as_raw_fd(), (&one as *const u64).cast(), 8) };
 }
 
-/// Makes the stop signal not readable.
+/// Lowers the stop signal by reading the eventfd's counter back to zero.
 fn drain(fd: &OwnedFd) {
+    // The result is not checked: when the signal is already lowered, the
+    // read fails with EAGAIN, which is the state wanted.
     let mut n: u64 = 0;
     // SAFETY: reads at most 8 bytes into a valid u64.
     unsafe { libc::read(fd.as_raw_fd(), (&mut n as *mut u64).cast(), 8) };
@@ -528,7 +628,8 @@ struct Worker {
     stop: Arc<OwnedFd>,
 }
 
-/// The panic message when it is text, else empty.
+/// The message of a caught panic, or an empty string when the panic's
+/// payload is not a string.
 fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
     p.downcast_ref::<&str>()
         .map(|s| s.to_string())
@@ -550,6 +651,13 @@ impl Worker {
         diag::event(diag::engine::panic(self.word(), phase, &panic_text(p)));
     }
 
+    /// The worker's loop: it handles the messages of its queue in order,
+    /// and exits after shutdown once its adapter is stopped.
+    ///
+    /// Every call into the adapter is wrapped in `catch_unwind`, so that
+    /// a faulty adapter does not end the worker thread. The panic is
+    /// logged; a panic in `start` is reported as `Unavailable`, one in
+    /// `read` as `Failed`, and one in `stop` has no other effect.
     fn run(mut self) {
         let kind = PROVIDERS[self.i].kind;
         let mut generation = 0;
@@ -564,6 +672,8 @@ impl Worker {
             });
             match msg.unwrap() {
                 Msg::Start(g) => {
+                    // The stop signal may still be raised from the
+                    // previous stop.
                     drain(&self.stop);
                     generation = g;
                     started = true;
@@ -592,6 +702,10 @@ impl Worker {
                     }
                 }
                 Msg::Read if available => {
+                    // Only an in-process read has a read deadline. A
+                    // child-run read has its own time limit in the
+                    // adapter, and it also ends when the stop signal is
+                    // raised.
                     if kind == ProviderKind::InProcess {
                         let now = self.sh.clock.now();
                         self.send(In::ReadStarted(self.i, generation, now));
@@ -605,7 +719,10 @@ impl Worker {
                         }
                     };
                     if kind == ProviderKind::ChildRun {
-                        // A poll during a run is dropped.
+                        // Drop the read requests that arrived while the
+                        // program ran, so that the next read waits for the
+                        // next poll instead of starting the program again
+                        // at once.
                         let mut s = self.sh.st.lock().unwrap();
                         let q = &mut s.workers[self.i].as_mut().unwrap().queue;
                         while matches!(q.front(), Some(Msg::Read)) {
@@ -614,8 +731,11 @@ impl Worker {
                     }
                     self.send(In::Report(self.i, generation, out));
                 }
+                // A read for an adapter that is not available, and a stop
+                // for one that was never started, have nothing to do.
                 _ => {}
             }
+            // After shutdown, exit only once the adapter has been stopped.
             let shut = self.sh.st.lock().unwrap().shut;
             if shut && !started {
                 break;
