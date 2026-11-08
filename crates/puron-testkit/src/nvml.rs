@@ -1,6 +1,6 @@
 //! The NVML fake of the NVIDIA provider: scripts in code. Per PCI
-//! address a name and a temperature, or an error for one call; per Open
-//! (the n-th Open of the fake, which is the n-th read that opens NVML)
+//! address a name and a temperature, or an error for one call; per `open` call
+//! (the n-th `open` of the fake, which is the n-th read that opens NVML)
 //! an outcome. Every call is logged in order with its address; Open
 //! takes no argument.
 
@@ -19,7 +19,7 @@ pub enum Call {
     Close,
 }
 
-/// An Open outcome.
+/// What one `open` call gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Opens {
     Ok,
@@ -39,7 +39,7 @@ pub enum Answer {
 /// A script of the fake.
 #[derive(Clone, Debug)]
 pub struct Script {
-    /// The outcome of the n-th Open; the last one repeats.
+    /// The outcome of the n-th `open`; the last one repeats.
     pub opens: Vec<Opens>,
     /// Per address; any other address as [`good`] gives it.
     pub gpus: HashMap<String, Answer>,
@@ -77,22 +77,22 @@ fn good_name(name: &str, temperature: u32) -> Answer {
     Answer::Good(name.into(), temperature)
 }
 
-/// Every Open succeeds; every address gives a name and a temperature.
+/// Every `open` succeeds; every address gives a name and a temperature.
 pub fn good() -> Script {
     script(&[Opens::Ok], &[])
 }
 
-/// NVML is missing at every Open.
+/// NVML is missing at every `open`.
 pub fn missing() -> Script {
     script(&[Opens::Missing], &[])
 }
 
-/// NVML fails to initialize at every Open.
+/// NVML fails to initialize at every `open`.
 pub fn initfail() -> Script {
     script(&[Opens::InitFail], &[])
 }
 
-/// Missing at the first Open, then as [`good`].
+/// Missing at the first `open`, then as [`good`].
 pub fn flaky() -> Script {
     script(&[Opens::Missing, Opens::Ok], &[])
 }

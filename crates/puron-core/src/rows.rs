@@ -159,7 +159,8 @@ impl ShownClasses {
     }
 }
 
-/// One row.
+/// One row: a reading that `rows` kept, with its class, family and
+/// display name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
     pub class: Class,

@@ -1,5 +1,5 @@
 //! The production NVML interface of the NVIDIA source, over
-//! `nvml-wrapper`, which loads `libnvidia-ml.so` at each Open.
+//! `nvml-wrapper`, which loads `libnvidia-ml.so` at each `open`.
 //! This file holds only the thin calls into NVML. The test suite cannot
 //! run them without an NVIDIA GPU, so they are checked by hand on a
 //! machine that has one.

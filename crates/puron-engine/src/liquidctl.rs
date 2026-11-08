@@ -1,6 +1,6 @@
 //! The liquidctl source: liquidctl status runs.
 //!
-//! Start looks for the program on the search path once. Each Read is
+//! Start looks for the program on the search path once. Each `read` is
 //! one run of `liquidctl status --json` in the runner, then the checks
 //! on a complete run's output.
 
@@ -20,11 +20,12 @@ use crate::diag::{self, liquidctl as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 use runner::End;
 
-/// Program name.
+/// The program name looked up on the search path.
 pub const PROGRAM: &str = "liquidctl";
 /// Time limit in production.
 pub const LIMIT: Duration = Duration::from_secs(10);
-/// Output cap.
+/// The most output a run may produce; a run that writes more ends as
+/// `End::OverCap`, and the read fails.
 pub const CAP: usize = 1_048_576;
 /// Search path when `PATH` is not set.
 pub const DEFAULT_SEARCH_PATH: &str = "/bin:/usr/bin";

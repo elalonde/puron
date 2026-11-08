@@ -70,7 +70,7 @@ fn icon_size() -> u16 {
     })
 }
 
-/// Texts from `i18n` after Start.
+/// Texts from `i18n` after `i18n::start`.
 fn setup() {
     puron_applet::start();
 }
@@ -164,7 +164,8 @@ fn c_applet_popup_1() {
     puron_testkit::limit("C-applet.popup-1", LIMIT, || {
         setup();
         let (m, plan) = capture_plan(&pinned("P1"));
-        // One drawn entry per entry, in Entries order, nothing added.
+        // One drawn entry per layout entry, in the layout's order, nothing
+        // added.
         assert_eq!(plan.entries.len(), m.entries.len());
         for (e, d) in m.entries.iter().zip(&plan.entries) {
             match (e, d) {
@@ -274,7 +275,7 @@ fn c_applet_popup_23() {
                     name.x
                 );
             }
-            // The width rule counts the same slot.
+            // `fit_width` counts the same slot.
             let measure = |t: &str| t.chars().count() as f32 * 7.0;
             assert_eq!(
                 popup::fit_width(&m, size, 48.0, &measure),

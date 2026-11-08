@@ -3,7 +3,7 @@
 //! Start connects to the bus, lists the service's objects once and keeps
 //! the drives with both the Drive and the Drive.Ata interface and a
 //! string `Model`, in object path order; the list stays fixed until the
-//! next start. Each Read asks for each kept drive's stored
+//! next start. Each `read` asks for each kept drive's stored
 //! `SmartTemperature` with one property call. No other call is made to
 //! the service. The crate's async calls run on the worker thread through
 //! `zbus::block_on`.
@@ -23,9 +23,10 @@ use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 use crate::diag::{self, udisks2 as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 
-/// Service name.
+/// The udisks2 bus name; every call goes to it.
 pub const SERVICE: &str = "org.freedesktop.UDisks2";
-/// Object manager path.
+/// The path of udisks2's object manager, whose `GetManagedObjects` lists
+/// the drives at start.
 pub const MANAGER_PATH: &str = "/org/freedesktop/UDisks2";
 /// The interfaces of a listed drive.
 const DRIVE: &str = "org.freedesktop.UDisks2.Drive";

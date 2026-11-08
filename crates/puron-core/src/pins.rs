@@ -26,7 +26,7 @@ pub fn click(
             || waits(e)
             || class_of_identity(e).is_some_and(|c| !shown.contains(c))
     });
-    // Step 3: once each.
+    // Step 3: a repeated identity keeps its first entry.
     once_each(list)
 }
 

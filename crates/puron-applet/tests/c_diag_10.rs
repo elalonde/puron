@@ -113,7 +113,7 @@ fn body() {
     assert_eq!(read(&mut s), ReadOutcome::Failed, "liquidctl");
     s.stop();
 
-    // applet.app: the Settings link with no settings program.
+    // applet.app: the settings link with no settings program.
     let c = cfg::build("good");
     let noprog = temp_dir("c-diag-10").join("noprog");
     std::fs::create_dir_all(&noprog).unwrap();

@@ -12,3 +12,7 @@ process	(^|[^A-Za-z0-9_])p[0-9][a-z][0-9]*[a-z]?([^A-Za-z0-9_]|$)|[Hh]and[ -]mut
 home-path	/home/[A-Za-z0-9_]|(^|[^A-Za-z0-9_])~[a-z][a-z0-9_-]*|/root/|/Users/
 ip-address	(^|[^0-9.])[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}([^0-9.]|$)
 freon-cite	\.js([^A-Za-z0-9_]|$)|[Ff]reon[A-Za-z0-9_-]*/|\.gschema|[Ff]reon[^ ]*:[0-9]+
+# A comment that is only "Case N", or that says "as required": neither
+# tells a maintainer what is checked or why.
+residue	(//+!?|#)[[:space:]]*[Cc]ase [0-9]+[.:]?[[:space:]]*$
+residue	(//|#|/\*)(.*[^A-Za-z])?[Aa]s required([^A-Za-z]|$)

@@ -797,7 +797,8 @@ fn device_read_errors() {
                 );
                 s.stop();
             }
-            // The last rule needs no file.
+            // No name can be read (no cpuinfo, product_name a directory):
+            // each chip keeps its chip name.
             std::fs::remove_file(tb("sys/class/dmi/id/product_name")).unwrap();
             std::fs::create_dir(tb("sys/class/dmi/id/product_name")).unwrap();
             let mut s = with_cpuinfo("/nonexistent/cpuinfo");
@@ -1086,8 +1087,9 @@ fn c_src_lmsensors_29() {
     });
 }
 
-/// The library's chip names against the rule that reads them from an NVMe
-/// controller's address: the same reading through both real adapters.
+/// The library's chip names against the name that puron-core derives from
+/// an NVMe controller's address: the same reading through both real
+/// adapters.
 #[test]
 fn nvme_repeats_through_the_library() {
     puron_testkit::limit("nvme_repeats_through_the_library", LIMIT, || {

@@ -72,7 +72,7 @@ pub enum Drawn {
     Line(Line),
     Separator,
     /// The message shown when there are no readings: a click sends
-    /// Homepage link.
+    /// `Event::HomepageLink`.
     Message {
         text: String,
     },
@@ -122,9 +122,10 @@ pub fn clicked(plan: &Plan, clicked: Clicked) -> Reply {
     }
 }
 
-/// A click on a drawn entry. A line sends Pin click and leaves the popup open.
-/// The message and the homepage link send Homepage link, the settings link
-/// sends Settings link, and both close the popup. Nothing else answers.
+/// A click on a drawn entry. A line sends `Event::PinClick` and leaves the
+/// popup open. The message and the homepage link send `Event::HomepageLink`,
+/// the settings link sends `Event::SettingsLink`, and these close the popup.
+/// Nothing else answers.
 pub fn click(entry: &Drawn) -> Reply {
     let (event, close) = match entry {
         Drawn::Line(l) => (Some(Event::PinClick(l.identity.clone())), false),

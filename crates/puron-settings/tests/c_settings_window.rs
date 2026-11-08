@@ -53,15 +53,15 @@ fn not_root() {
     puron_testkit::host_need("a test user who is not root", "test \"$(id -u)\" -ne 0");
 }
 
-/// Opens a window on the fixture's root; checks that Open ends with
-/// Watch start and stores nothing.
+/// Opens a window on the fixture's root; checks that `Event::Open` ends with
+/// `Output::WatchStart` and stores nothing.
 fn open(fx: &Cfg) -> Window {
     let mut w = Window::new(Config::new(&fx.root));
     assert_eq!(w.handle(Event::Open), vec![Output::WatchStart], "Open");
     w
 }
 
-/// Starts the watch the production loop starts after Open.
+/// Starts the watch the production loop starts after `Event::Open`.
 fn watch(fx: &Cfg) -> (puron_config::Watch, mpsc::Receiver<Delivery>) {
     let (tx, rx) = mpsc::channel();
     let watch = Config::new(&fx.root)
@@ -84,7 +84,7 @@ fn deliver(w: &mut Window, rx: &mpsc::Receiver<Delivery>) -> Vec<Output> {
     out
 }
 
-/// The Store list of outputs: (key, value).
+/// The `Output::Store` outputs, as (key, value).
 fn stores(out: &[Output]) -> Vec<(&'static str, Value)> {
     out.iter()
         .filter_map(|o| match o {

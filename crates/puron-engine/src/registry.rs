@@ -50,7 +50,7 @@ pub const PROVIDERS: &[Entry] = &[
     },
 ];
 
-/// The outcome of a Start.
+/// The outcome of a `start`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartOutcome {
     Available,
@@ -58,12 +58,14 @@ pub enum StartOutcome {
     Unavailable,
 }
 
-/// The outcome of a Read.
+/// The outcome of a `read`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReadOutcome {
     Readings(Vec<RawReading>),
     Failed,
-    /// Returned only by the lm-sensors and NVIDIA sources.
+    /// A read returns it only in the lm-sensors and NVIDIA sources; the
+    /// worker also reports it for a provider whose start was unavailable
+    /// or panicked.
     Unavailable,
 }
 

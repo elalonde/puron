@@ -216,7 +216,7 @@ pub fn write(path: &Path, bytes: &[u8]) {
 
 /// The `puron-cfg-writer` helper: stores `key` = `ron` (the value in
 /// RON, as a description line holds it) into the configuration root
-/// `root` through `config` Store. Returns the exit code: 0 on *stored*,
+/// `root` through `Config::store`. Returns the exit code: 0 on *stored*,
 /// 1 otherwise (a value this helper cannot read included).
 #[cfg(feature = "cfg-writer")]
 pub fn writer_main(root: &Path, key: &str, ron: &str) -> i32 {

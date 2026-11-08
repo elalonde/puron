@@ -1,4 +1,4 @@
-//! Tests of the liquidctl source, through Start, Read and Stop with
+//! Tests of the liquidctl source, through `start`, `read` and `stop` with
 //! fixture directories of fake `liquidctl` programs as the search path.
 //!
 //! The fakes log to the file named by `PURON_TEST_LQC_LOG` and write a
@@ -381,7 +381,7 @@ fn c_src_liquidctl_1__eintr() {
 
 /// Runner case: `pidfd_open` fails (ENOSYS, as on a kernel before 5.3,
 /// made by a seccomp filter on the reading thread): the run is not
-/// started and the Read returns *failed* at once.
+/// started and the `read` returns *failed* at once.
 #[test]
 fn c_src_liquidctl_1__nopidfd() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -522,8 +522,8 @@ fn c_src_liquidctl_5__event() {
         let j = puron_testkit::jrn::Journal::new("c-lqc-5");
         puron_engine::diag::set_socket(&j.path);
         puron_engine::diag::switch(true);
-        // After a Read, a marker datagram from this thread is queued after
-        // every event of that Read; waiting for the `m`-th marker leaves no
+        // After a `read`, a marker datagram from this thread is queued after
+        // every event of that `read`; waiting for the `m`-th marker leaves no
         // timing bound on the pass path.
         let sock = std::os::unix::net::UnixDatagram::unbound().expect("socket");
         let statuses = |j: &puron_testkit::jrn::Journal, m: usize| -> Vec<String> {
@@ -713,8 +713,8 @@ fn c_src_liquidctl_9() {
 fn c_src_liquidctl_10() {
     puron_testkit::limit("C-src.liquidctl-10", C10, || {
         if is_child() {
-            // Start and Read on a worker thread; the parent kills this
-            // process during the Read.
+            // On a worker thread, `start` and `read`; the parent kills this
+            // process during the `read`.
             let worker = std::thread::spawn(|| {
                 let mut src = started(dir("slow"), TEN);
                 let _ = read(&mut src);
@@ -729,7 +729,7 @@ fn c_src_liquidctl_10() {
             .and_then(|(_, v)| v.map(PathBuf::from))
             .expect("log path");
         let mut child = cmd.stdout(Stdio::null()).spawn().expect("spawn the child");
-        // The Read has started when the fake's line is in the log.
+        // The `read` has started when the fake's line is in the log.
         let pid = loop {
             let text = std::fs::read_to_string(&log_path).unwrap_or_default();
             if let Some(l) = text.lines().next() {
@@ -761,14 +761,15 @@ fn c_src_liquidctl_11() {
         }
         let p = dir("path");
         let (d1, d2, d3, d4) = (p.join("d1"), p.join("d2"), p.join("d3"), p.join("d4"));
-        // Case 1.
+        // d1 holds a liquidctl the user may not run, d2 a directory of that
+        // name, d3 a link to the good fake: the search finds d3's.
         let mut src = started(search(&[&d1, &d2, &d3]), ONE);
         check(&readings(&mut src), &G);
         src.stop();
-        // Case 2.
+        // No entry holds a liquidctl the user may run: start is unavailable.
         let mut src = Liquidctl::new(search(&[&d1, &d2, &d4]), ONE);
         assert_eq!(src.start(), StartOutcome::Unavailable, "case 2");
-        // Case 4, on a copy: d3 holds a link to the good fake, d4 is empty.
+        // On a copy: d3 holds a link to the good fake, d4 is empty.
         let t = temp_dir("lqc-path");
         let (t3, t4) = (t.join("d3"), t.join("d4"));
         std::fs::create_dir(&t3).expect("d3");
@@ -784,8 +785,8 @@ fn c_src_liquidctl_11() {
     });
 }
 
-/// Case 3: in the child, the current directory `d3` and the search path
-/// `d4` then an empty entry.
+/// In the child, the current directory `d3` and the search path `d4` then
+/// an empty entry.
 #[test]
 fn c_src_liquidctl_11__cwd() {
     puron_testkit::limit("C-src.liquidctl-11", SHORT, || {
@@ -842,8 +843,8 @@ fn c_src_liquidctl_13() {
     });
 }
 
-/// Case 2: in the child, the current directory `d3` and the search path
-/// `d4:d2`, no empty entry.
+/// In the child, the current directory `d3` and the search path `d4:d2`,
+/// no empty entry.
 #[test]
 fn c_src_liquidctl_13__cwd() {
     puron_testkit::limit("C-src.liquidctl-13", SHORT, || {

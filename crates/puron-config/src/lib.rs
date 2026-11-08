@@ -94,7 +94,7 @@ pub struct Loaded {
     pub problems: Vec<Problem>,
 }
 
-/// A value of a key's type, for Store.
+/// A value of a key's type, for `Config::store`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Bool(bool),

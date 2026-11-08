@@ -88,8 +88,8 @@ fn p1_plan(icons: bool, o: Orientation) -> Plan {
     plan_of(&core_panel(&capture(), &pinned("P1"), icons), o)
 }
 
-/// What the plan holds, in the notation of the checks: `icon <name>`,
-/// `slot`, `text <text>`, each with its item index.
+/// What the plan holds, one string per element: `icon <name>`, `slot`,
+/// `text <text>`, each after its item index.
 fn kinds(plan: &Plan) -> Vec<String> {
     plan.elements
         .iter()

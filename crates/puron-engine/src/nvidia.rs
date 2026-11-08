@@ -36,7 +36,7 @@
 //! include, in the user documentation and internal comments to the code,
 //! the above Disclaimer and U.S. Government End Users Notice.
 //!
-//! At each Read the adapter lists the NVIDIA GPUs of
+//! At each `read` the adapter lists the NVIDIA GPUs of
 //! `bus/pci/devices/`, reads each one's runtime status without waking
 //! it, and only when one is awake opens NVML, queries the awake GPUs by
 //! PCI address and closes NVML before it returns. Every file is opened
@@ -63,10 +63,12 @@ const NVIDIA: u32 = 0x10de;
 const GPU_CLASS: u32 = 0x03;
 /// The runtime statuses that count as awake.
 const AWAKE: [&[u8]; 2] = [b"active", b"unsupported"];
-/// The default name.
+/// The name of an asleep GPU with no remembered name (it has not been
+/// read awake with a name since the adapter was made): "NVIDIA GPU" for
+/// the first GPU in order, "NVIDIA GPU 2" for the second, and so on.
 const DEFAULT_NAME: &str = "NVIDIA GPU";
 
-/// Why Open gave no session.
+/// Why `open` gave no session.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpenError {
     LibraryMissing,
@@ -84,7 +86,7 @@ pub trait Interface: Send {
     fn open(&mut self) -> Result<Box<dyn Session>, OpenError>;
 }
 
-/// An open NVML, until Close.
+/// An open NVML, until `close`.
 pub trait Session {
     /// Device: a handle by PCI address, the sysfs entry name.
     fn device<'a>(&'a self, pci: &str) -> Result<Box<dyn Gpu + 'a>, String>;
@@ -105,7 +107,7 @@ pub struct Nvidia {
     root: PathBuf,
     nvml: Box<dyn Interface>,
     /// The last trimmed non-empty name per PCI address; kept
-    /// for the adapter's life, through Stop and Start.
+    /// for the adapter's life, through `stop` and `start`.
     names: HashMap<String, String>,
 }
 
@@ -232,7 +234,7 @@ impl Source for Nvidia {
     }
 
     /// Lists the GPUs and queries the awake ones; *unavailable* only when
-    /// Open fails.
+    /// `open` fails.
     fn read(&mut self, _stop: BorrowedFd<'_>) -> ReadOutcome {
         let gpus: Vec<(String, bool)> = gpus(&self.root.join(DEVICES))
             .into_iter()

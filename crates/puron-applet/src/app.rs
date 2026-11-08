@@ -108,7 +108,7 @@ pub enum Output {
     Store(Vec<String>, StoreResult),
     /// The chosen sources of the rows were stored.
     StoreRowSources(Vec<(String, String)>, StoreResult),
-    /// `diag` Switch.
+    /// The diagnostics switch was set to this value (`diag::switch`).
     Switch(bool),
     /// A `diag` event, by its ID.
     Diag(&'static str),
@@ -681,11 +681,11 @@ fn stop_on_sigterm() -> libc::c_int {
     fds[0]
 }
 
-/// The event loop: Start, then the config Watch and the snapshot
+/// The event loop: `Event::Start`, then `Config::watch` and the snapshot
 /// subscription; each event from `rx` (subscription, deliveries, the
 /// stop pipe, the UI through `tx`) is handled in turn and `view` gets
 /// the state and its outputs. At Exit the process exits with status 0.
-/// The end of the channel counts as a Stop (the event loop ended).
+/// The end of the channel counts as `Event::Stop` (the event loop ended).
 pub fn run(
     mut app: App,
     tx: Sender<(Source, Event)>,

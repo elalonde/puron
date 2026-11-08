@@ -34,8 +34,8 @@ const PROVIDERS: [Provider; 5] = [
     Provider::NvmeCli,
 ];
 
-/// An adapter that marks its provider as reported after its first Read
-/// returns, or when its Start is unavailable (it never reads then).
+/// An adapter that marks its provider as reported after its first `read`
+/// returns, or when its `start` is unavailable (it never reads then).
 struct Reported {
     inner: Box<dyn Source>,
     flag: Arc<AtomicBool>,

@@ -1,6 +1,6 @@
 //! Locale fixtures.
 
-/// The four variables Start reads.
+/// The four variables that `i18n::start` reads.
 pub const VARS: [&str; 4] = ["LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"];
 
 /// One environment map: its name and the variables it sets. A variable

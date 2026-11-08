@@ -236,7 +236,7 @@ pub enum CallKind {
 pub struct Call {
     pub provider: Provider,
     pub call: CallKind,
-    /// The number of Start calls up to this call.
+    /// The number of `start` calls up to this call.
     pub generation: u32,
     pub start: f64,
     pub end: Option<f64>,
@@ -274,7 +274,8 @@ fn step<T: Clone>(q: &mut VecDeque<T>) -> T {
 }
 
 impl Fake {
-    /// Start available, every Read empty readings, Stop at once.
+    /// A fake with `start` available, every `read` empty readings, `stop`
+    /// at once.
     pub fn new(clock: Arc<dyn Clock>, provider: Provider) -> Fake {
         let kind = PROVIDERS
             .iter()
@@ -329,13 +330,13 @@ impl Fake {
         self.0.provider
     }
 
-    /// Releases a hung Start (available).
+    /// Releases a hung `start` (available).
     pub fn release_start(&self) {
         self.0.s.lock().unwrap().start_gate = true;
         self.0.clock.wake();
     }
 
-    /// Releases a hung Read with `outcome`.
+    /// Releases a hung `read` with `outcome`.
     pub fn release_read(&self, outcome: ReadOutcome) {
         self.0.s.lock().unwrap().read_gate = Some(outcome);
         self.0.clock.wake();
@@ -530,7 +531,7 @@ pub enum HandleCall {
 }
 
 /// An engine handle that records its calls; the test hands it snapshots
-/// (`deliver`), each of which wakes one subscription wait; Shut down
+/// (`deliver`), each of which wakes one subscription wait; `shutdown`
 /// sleeps the given real time.
 pub struct Handle {
     m: Mutex<(Vec<HandleCall>, Option<puron_engine::engine::Snapshot>)>,

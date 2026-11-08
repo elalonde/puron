@@ -6,7 +6,7 @@
 //!
 //! `<keys>`: a comma list of `lmsensors`, `liquidctl`, `nvidia`,
 //! `udisks2`, `nvme` (default all five). Runs until SIGTERM or for
-//! `<n>` seconds, then Shut down and exit 0.
+//! `<n>` seconds, then shuts the engine down and exits 0.
 //!
 //! `puron-soak --dump <root>`: the rows dump, with the settings of the
 //! configuration root `<root>` (`puron_testkit::d5`).

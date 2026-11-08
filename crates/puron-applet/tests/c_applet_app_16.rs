@@ -1,4 +1,4 @@
-//! Settings link and Homepage link when neither program can be found.
+//! The settings link and the homepage link when neither program can be found.
 //! In its own test binary: `waitpid(-1)` checks that no child is left,
 //! and diag's socket is per process.
 #![allow(non_snake_case)]
