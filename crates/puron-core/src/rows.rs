@@ -316,7 +316,7 @@ pub fn shown_name(row: &Row) -> String {
     };
     let rest = total - row.device_chars;
     match (NAME_LIMIT - 1).checked_sub(rest) {
-        Some(room) if room > 0 && row.device_chars > 0 => {
+        Some(room) if room > 0 => {
             let start = name[..at(room)].trim_end();
             format!("{start}…{}", &name[at(row.device_chars)..])
         }

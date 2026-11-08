@@ -150,6 +150,9 @@ impl Fake {
         let mut cmd = crate::rerun_self(test_name);
         cmd.env(FAKE_ENV, args).stdout(Stdio::piped());
         die_with_parent(&mut cmd);
+        // A fake that ends before ready fails the test below; it has already
+        // exited, and die_with_parent covers one that has not.
+        #[allow(clippy::zombie_processes)]
         let mut child = cmd.spawn().expect("start the fake");
         let out = BufReader::new(child.stdout.take().expect("fake stdout"));
         for line in out.lines() {

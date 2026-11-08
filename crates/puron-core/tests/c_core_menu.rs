@@ -10,7 +10,7 @@ use puron_core::format::{Text, Unit};
 use puron_core::menu::{
     self, Entry, Heading, Item, Key, LineWord, Menu, MessageKind, Report, Section, Update,
 };
-use puron_core::rows::{Class, Provider, RawReading};
+use puron_core::rows::{Provider, RawReading};
 use puron_core::settings::{Settings, TemperatureUnit};
 
 const LIMIT: u64 = 2;
