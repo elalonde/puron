@@ -1,13 +1,17 @@
-//! The lm-sensors source: sensors through libsensors.
+//! The lm-sensors source: temperatures, fans, voltages and power, read
+//! through libsensors.
 //!
-//! Each `read` initializes the library with the configuration, lists
-//! chips and features in library order, reads one subfeature per
-//! feature and releases the library before it returns, on every path:
-//! the handle is a local value, dropped also on unwind. Nothing is
-//! kept between reads. The adapter only reads.
+//! Each `read` initializes the library with its configuration, lists the
+//! chips and their features in the library's order, reads one value for
+//! each temperature, fan, voltage and power feature, and releases the
+//! library before it returns. The library handle is a local value, so it
+//! is released on every path, also when a panic unwinds. The adapter
+//! never writes to a sensor.
 //!
-//! The device part of a row name is the exception: `start` finds it once
-//! for each chip and keeps it until the next start.
+//! The only thing kept between reads is each chip's device name: a
+//! readable name for the hardware the chip belongs to, such as a drive's
+//! model or the CPU's name, which starts each reading's name. `start`
+//! finds it once for each chip and keeps it until the next start.
 
 use std::borrow::Cow;
 use std::ffi::{CStr, OsStr};
@@ -25,9 +29,11 @@ use puron_core::rows::{Kind, Provider, RawReading};
 use crate::diag::{self, lmsensors as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 
-/// Chips that measure the CPU.
+/// The chip names (prefixes) of drivers that measure the CPU. Their
+/// readings are named after the CPU when the chip's own device gives no
+/// name.
 const CPU_CHIPS: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
-/// The file that holds the machine's name.
+/// The file that holds the machine's product name, from the firmware.
 const MACHINE_NAME: &str = "/sys/class/dmi/id/product_name";
 /// Text that firmware leaves in the machine's name when nobody filled it
 /// in, compared without regard to ASCII case.
@@ -45,7 +51,8 @@ const MACHINE_PLACEHOLDERS: [&str; 11] = [
     "Unknown",
 ];
 
-/// The device name that `start` found for one chip.
+/// The device name that `start` found for one chip. A chip is matched
+/// by both its name and its hwmon directory.
 #[derive(Debug)]
 struct Device {
     chip: String,
@@ -53,8 +60,10 @@ struct Device {
     name: String,
 }
 
-/// The lm-sensors adapter. `config` is the configuration file: `None` in
-/// production, a file in tests. `cpuinfo` is the file that names the CPU.
+/// The lm-sensors adapter. `config` is the libsensors configuration
+/// file: `None` in production, for the library's default files, and a
+/// file of the test's own in tests. `cpuinfo` is the file that names the
+/// CPU, `/proc/cpuinfo` in production.
 #[derive(Debug)]
 pub struct LmSensors {
     config: Option<PathBuf>,
@@ -71,20 +80,23 @@ impl LmSensors {
         }
     }
 
-    /// The configuration file, or `None` for the library's default.
+    /// The configuration file, or `None` for the library's default files.
     pub fn config(&self) -> Option<&Path> {
         self.config.as_deref()
     }
 
-    /// The file that names the CPU.
+    /// The file the CPU's name is read from.
     pub fn cpuinfo(&self) -> &Path {
         &self.cpuinfo
     }
 
-    /// The device names of the chips listed now. The configuration plays
-    /// no part in which chips exist, so an empty one stands in for it: one
-    /// that does not parse fails its read, not this list. A list that
-    /// cannot be made is empty, which leaves every chip its chip name.
+    /// Finds the device name of every chip present now, for the chips
+    /// that have one. The library is initialized here with an empty
+    /// configuration (`/dev/null`) instead of the real one, because the
+    /// configuration does not change which chips exist; so a
+    /// configuration that does not parse fails each read, but not this
+    /// list. If the library cannot be initialized, the list is empty and
+    /// every chip goes by the short name that `chip_device` gives.
     fn find_devices(&self) -> Vec<Device> {
         let Ok(sensors) = Initializer::default().config_path("/dev/null").initialize() else {
             return Vec::new();
@@ -114,8 +126,8 @@ impl LmSensors {
     }
 }
 
-/// The trimmed text of a file; none when it cannot be read or holds
-/// nothing else.
+/// The content of a file with surrounding whitespace removed, or `None`
+/// when the file cannot be read or holds only whitespace.
 fn file_text(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     let text = String::from_utf8_lossy(&bytes);
@@ -123,8 +135,10 @@ fn file_text(path: &Path) -> Option<String> {
     (!text.is_empty()).then(|| text.to_string())
 }
 
-/// The CPU's name from the first "model name" line, without the marks,
-/// the word "CPU" and the frequency that say nothing about which CPU it is.
+/// The CPU's name, from the first "model name" line of `cpuinfo`. The
+/// "(R)" and "(TM)" marks, the word "CPU", and an "@" followed by a
+/// frequency are removed, because they say nothing about which CPU it
+/// is. `None` if no such line exists or nothing is left.
 fn cpu_name(cpuinfo: &str) -> Option<String> {
     let line = cpuinfo.lines().find_map(|l| {
         let (key, value) = l.split_once(':')?;
@@ -143,12 +157,14 @@ fn cpu_name(cpuinfo: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join(" "))
 }
 
-/// A number with its unit, such as `2.80GHz`.
+/// Whether `word` looks like a frequency with its unit, such as
+/// `2.80GHz`: it starts with a digit and ends with "Hz".
 fn is_frequency(word: &str) -> bool {
     word.starts_with(|c: char| c.is_ascii_digit()) && word.ends_with("Hz")
 }
 
-/// The machine's name, unless firmware left a placeholder there.
+/// The machine's product name, or `None` when it cannot be read or the
+/// firmware left one of `MACHINE_PLACEHOLDERS` there.
 fn machine_name() -> Option<String> {
     let name = file_text(Path::new(MACHINE_NAME))?;
     (!MACHINE_PLACEHOLDERS
@@ -157,10 +173,16 @@ fn machine_name() -> Option<String> {
     .then_some(name)
 }
 
-/// The device name of the chip in `hwmon`, from the first of its own
-/// device's model or product, the CPU's name, the machine's name.
-/// Only the device that the `device` link names counts: its parent is
-/// often a bridge. A power supply's text is no name (often just "BAT").
+/// The device name of the chip in `hwmon`, or `None` if it has none. The
+/// first that applies wins:
+/// - the `model` or `product` file of the chip's own device (the target
+///   of hwmon's `device` link), unless the device is a power supply;
+/// - the CPU's name, for a CPU chip (see `CPU_CHIPS`);
+/// - the machine's name, for a chip on the platform bus.
+///
+/// Only the device that the `device` link names counts, not its parents,
+/// since a parent is often a bridge. A power supply's model is not used
+/// because it is often just "BAT".
 fn own_device(
     hwmon: &Path,
     prefix: &str,
@@ -185,8 +207,9 @@ fn own_device(
     None
 }
 
-/// A chip's name without a final "_<digits>", which only numbers chips of
-/// one driver.
+/// The name a chip goes by when it has no device name: its prefix
+/// without a final "_<digits>", which only numbers the chips of one
+/// driver.
 fn chip_device(prefix: &str) -> &str {
     match prefix.rsplit_once('_') {
         Some((stem, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => stem,
@@ -194,9 +217,10 @@ fn chip_device(prefix: &str) -> &str {
     }
 }
 
-/// What the library takes from feature `fname`'s label file: the file's
-/// bytes without the last one, up to the first NUL. None when the file
-/// cannot be read or is empty.
+/// The kernel's label for feature `fname`, taken from its `_label` file
+/// the way libsensors takes it: the file's bytes without the last one,
+/// up to the first NUL. `None` when there is no hwmon directory, or the
+/// file cannot be read or is empty.
 fn kernel_label(fname: &str, hwmon: Option<&Path>) -> Option<Vec<u8>> {
     let file = fs::read(hwmon?.join(format!("{fname}_label"))).ok()?;
     let (_, kernel) = file.split_last()?;
@@ -209,21 +233,25 @@ fn kernel_label(fname: &str, hwmon: Option<&Path>) -> Option<Vec<u8>> {
     )
 }
 
-/// True when the library's `label` for feature `fname` can only come from
-/// the configuration: it is neither the raw name nor the kernel's label.
-/// A configured label equal to one of those two cannot be told from it.
+/// Whether the library's `label` for feature `fname` must come from the
+/// configuration file: it is neither the feature's raw name nor the
+/// kernel's label. A configured label equal to one of those two cannot
+/// be told apart from it, and counts as not configured.
 fn configured(label: &[u8], fname: &str, kernel: Option<&[u8]>) -> bool {
     label != fname.as_bytes() && kernel != Some(label)
 }
 
-/// The subsystem that the chip's own device belongs to.
+/// The name of the subsystem (such as `platform` or `power_supply`) that
+/// the chip's own device belongs to, from the `device/subsystem` link.
 fn subsystem(hwmon: &Path) -> Option<std::ffi::OsString> {
     let link = fs::read_link(hwmon.join("device/subsystem")).ok()?;
     link.file_name().map(OsStr::to_os_string)
 }
 
-/// The subfeature read and the kind of a feature type; `None` for every
-/// other type.
+/// For a feature type that is read, the subfeature whose value is used
+/// and the kind of the reading: the input of a temperature, fan or
+/// voltage, and the average of a power feature. `None` for every other
+/// type, which gives no reading.
 fn selected(kind: Option<FeatureKind>) -> Option<(SubKind, Kind)> {
     match kind? {
         FeatureKind::Temperature => Some((SubKind::TemperatureInput, Kind::Temperature)),
@@ -234,12 +262,13 @@ fn selected(kind: Option<FeatureKind>) -> Option<(SubKind, Kind)> {
     }
 }
 
-/// Text that is not valid UTF-8 gets U+FFFD per invalid sequence.
+/// A library string as text, with U+FFFD for each invalid UTF-8
+/// sequence.
 fn text(s: &CStr) -> Cow<'_, str> {
     s.to_string_lossy()
 }
 
-/// Gives the library's configuration errors to `diag`.
+/// Logs the library's configuration errors as diagnostic events.
 #[derive(Debug)]
 struct Log;
 
@@ -252,11 +281,14 @@ impl Listener for Log {
         diag::event(ev::config_error(&file, &line.to_string(), error));
     }
 
-    /// The library ends the process after this; nothing to add.
+    /// Does nothing: the library ends the process after a fatal error,
+    /// so there is nothing useful to do here.
     fn on_lm_sensors_fatal_error(&self, _error: &str, _procedure: &str) {}
 }
 
-/// What the readings of one chip share.
+/// What every reading of one chip shares. `device` is the chip's device
+/// name, or the name from `chip_device` when it has none; `platform` is
+/// whether the chip's device is on the platform bus.
 struct ChipInfo<'a> {
     name: &'a str,
     device: &'a str,
@@ -264,15 +296,16 @@ struct ChipInfo<'a> {
     platform: bool,
 }
 
-/// The reading of one feature, or none when its type is not read or it
-/// lacks the selected subfeature.
+/// The reading of one feature at `position`, or `None` when its type is
+/// not read (see `selected`) or it lacks the subfeature to read.
 fn reading(info: &ChipInfo<'_>, feature: FeatureRef<'_>, position: u32) -> Option<RawReading> {
     let chip = info.name;
     let (sub_kind, kind) = selected(feature.kind())?;
     let sub = feature.sub_feature_by_kind(sub_kind).ok()?;
     let fname = feature.raw_name().map(text).unwrap_or_default();
-    // A configured label stands alone; every other name follows the
-    // device. A label the library cannot give is the raw name.
+    // A label from the configuration file is the whole name. Any other
+    // name is the device name followed by the label, or by the raw
+    // feature name when the library gives no label.
     let kernel = kernel_label(&fname, info.hwmon);
     let device_chars = info.device.chars().count();
     let (name, device_chars) = match feature.raw_label() {
@@ -280,8 +313,8 @@ fn reading(info: &ChipInfo<'_>, feature: FeatureRef<'_>, position: u32) -> Optio
         Ok(l) => (format!("{} {}", info.device, text(&l)), device_chars),
         Err(_) => (format!("{} {fname}", info.device), device_chars),
     };
-    // A failed or not readable value is "no value" for this reading
-    // only.
+    // A subfeature that is not readable, or whose read fails, leaves this
+    // reading without a value; the other readings are not affected.
     let value = if sub.flags().is_some_and(|f| f.contains(Flags::READABLE)) {
         match sub.raw_value() {
             Ok(v) => Some(v),
@@ -313,9 +346,10 @@ fn reading(info: &ChipInfo<'_>, feature: FeatureRef<'_>, position: u32) -> Optio
     })
 }
 
-/// The readings of one chip, appended to `out`; a chip whose name the
-/// library cannot give is left out. A chip that `start` did not find goes by
-/// its chip name, as one that appeared later has no device name yet.
+/// Appends the readings of one chip to `out`. A chip whose name the
+/// library cannot give is left out and logged. A chip that `start` did
+/// not find, such as one that appeared later, has no device name yet and
+/// goes by the short name that `chip_device` gives.
 fn chip_readings(chip: ChipRef<'_>, devices: &[Device], out: &mut Vec<RawReading>) {
     let Ok(name) = chip.raw_name() else {
         diag::event(ev::chip_name());
@@ -343,7 +377,7 @@ fn chip_readings(chip: ChipRef<'_>, devices: &[Device], out: &mut Vec<RawReading
 }
 
 impl Source for LmSensors {
-    /// Finds the device names; always available.
+    /// Finds the chips' device names, and always returns `Available`.
     fn start(&mut self) -> StartOutcome {
         self.devices = self.find_devices();
         StartOutcome::Available
@@ -354,7 +388,9 @@ impl Source for LmSensors {
         if let Some(c) = &self.config {
             init = init.config_path(c);
         }
-        // Initialized at every read, so a failure affects this read only.
+        // The library is initialized at every read, so a failed init (for
+        // example a configuration that does not parse) fails this read only;
+        // a later read tries again.
         let sensors = match init.initialize() {
             Ok(s) => s,
             Err(e) => {
@@ -372,7 +408,8 @@ impl Source for LmSensors {
         ReadOutcome::Readings(out)
     }
 
-    /// No library state exists between reads.
+    /// Forgets the device names. The library holds nothing between
+    /// reads, so there is nothing else to release.
     fn stop(&mut self) {
         self.devices.clear();
     }

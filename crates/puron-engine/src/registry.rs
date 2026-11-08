@@ -1,27 +1,43 @@
-//! The provider registry: the providers that exist.
+//! The list of providers and the interface their adapters implement.
+//!
+//! A provider is one source of sensor readings, such as lm-sensors or
+//! NVIDIA. Its adapter is the type that implements `Source` for it. The
+//! settings switch each provider on or off, and the engine starts and
+//! stops the adapters to match.
 
 use std::os::fd::BorrowedFd;
 
 use puron_core::rows::{Provider, RawReading};
 use puron_core::settings::Settings;
 
-/// What a provider's kind decides in the engine.
+/// How a provider reads its sensors, which decides how the engine
+/// treats a slow or failed read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderKind {
+    /// The adapter reads inside this process, through a library, sysfs or
+    /// D-Bus. The engine marks such a read late when it runs past its
+    /// deadline, and after a failed read it keeps showing the provider's
+    /// last readings without values.
     InProcess,
+    /// The adapter runs an external program for each read and enforces
+    /// its own time limit. The program is ended early when the provider
+    /// is stopped, and read requests that queued up while it ran are
+    /// dropped.
     ChildRun,
 }
 
-/// One entry of the provider table.
+/// One provider in `PROVIDERS`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Entry {
     pub provider: Provider,
-    /// The switch key in the settings.
+    /// The name of the provider's on/off switch in the settings.
     pub key: &'static str,
     pub kind: ProviderKind,
 }
 
-/// The provider table, in provider order.
+/// Every provider, in a fixed order. The engine keeps its per-provider
+/// state in this order and lists readings in it. lm-sensors must stay
+/// first: the engine looks it up by index 0.
 pub const PROVIDERS: &[Entry] = &[
     Entry {
         provider: Provider::LmSensors,
@@ -50,44 +66,55 @@ pub const PROVIDERS: &[Entry] = &[
     },
 ];
 
-/// The outcome of a `start`.
+/// What `Source::start` returns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartOutcome {
+    /// The source is ready to be read.
     Available,
-    /// Carries no text for the user.
+    /// The source cannot run. It carries no message for the user. The
+    /// worker reads it no further until the provider is started again.
     Unavailable,
 }
 
-/// The outcome of a `read`.
+/// What `Source::read` returns, and what a worker reports to the engine.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReadOutcome {
+    /// The read succeeded with these readings, which may be none.
     Readings(Vec<RawReading>),
+    /// The read failed. A panic in `read` is also reported as `Failed`.
     Failed,
-    /// A read returns it only in the lm-sensors and NVIDIA sources; the
-    /// worker also reports it for a provider whose start was unavailable
-    /// or panicked.
+    /// The source cannot run. Only the lm-sensors and NVIDIA sources
+    /// return it from a read; the worker also reports it when `start`
+    /// returned `Unavailable` or panicked.
     Unavailable,
 }
 
-/// The provider contract: what every adapter offers to its
-/// worker. None is called on the UI or the scheduler thread.
+/// The interface every adapter implements. The engine calls these methods
+/// only on the provider's own worker thread, never on the UI thread or
+/// the scheduler thread, so a slow call delays only that provider.
 pub trait Source: Send {
+    /// Prepares the source for reading. Called each time the provider is
+    /// switched on.
     fn start(&mut self) -> StartOutcome;
-    /// `stop` is the worker's stop signal; only a child-run read waits
-    /// on it.
+    /// Reads the sensors once. `stop` is the worker's stop signal, an
+    /// eventfd that becomes readable when the provider is stopped or the
+    /// engine shuts down. Only a child-run source waits on it, to end its
+    /// program early; the in-process sources ignore it.
     fn read(&mut self, stop: BorrowedFd<'_>) -> ReadOutcome;
-    /// Releases everything; called after any start.
+    /// Releases everything the source holds. The worker calls it when the
+    /// provider is stopped or the engine shuts down, if the provider was
+    /// started, whether that start returned `Available` or not.
     fn stop(&mut self);
 }
 
-/// One action of a switch change.
+/// What `actions` asks the engine to do for one provider.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
     Start(Provider),
     Stop(Provider),
 }
 
-/// The value of a provider's switch in a settings record.
+/// Whether `settings` switches `provider` on.
 pub fn switch(settings: &Settings, provider: Provider) -> bool {
     match provider {
         Provider::LmSensors => settings.provider_lm_sensors,
@@ -98,8 +125,10 @@ pub fn switch(settings: &Settings, provider: Provider) -> bool {
     }
 }
 
-/// The actions from `previous` (`None` at engine start) to `new`, in
-/// provider order. Only the five switch keys are read.
+/// The providers to start and to stop when the settings change from
+/// `previous` to `new`, in `PROVIDERS` order. `previous` is `None` at
+/// engine start, when every provider counts as off. Only the provider
+/// switches are compared; other settings produce no action.
 pub fn actions(previous: Option<&Settings>, new: &Settings) -> Vec<Action> {
     PROVIDERS
         .iter()
@@ -114,26 +143,25 @@ pub fn actions(previous: Option<&Settings>, new: &Settings) -> Vec<Action> {
         .collect()
 }
 
-/// The lm-sensors adapter with its production values: the library's
-/// default configuration files and the kernel's CPU list.
+/// The lm-sensors adapter as used in production: the library's default
+/// configuration files, and `/proc/cpuinfo` for the CPU's name.
 pub fn lm_sensors() -> crate::lmsensors::LmSensors {
     crate::lmsensors::LmSensors::new(None, "/proc/cpuinfo")
 }
 
-/// The nvme-cli adapter with its production values: the sysfs root
-/// `/sys`.
+/// The NVMe adapter as used in production, reading sysfs at `/sys`.
 pub fn nvme() -> crate::nvme::Nvme {
     crate::nvme::Nvme::new("/sys")
 }
 
-/// The NVIDIA adapter with its production values: the sysfs root `/sys`
-/// and the `nvml-wrapper` interface.
+/// The NVIDIA adapter as used in production: sysfs at `/sys`, and NVML
+/// through the `nvml-wrapper` crate.
 pub fn nvidia() -> crate::nvidia::Nvidia {
     crate::nvidia::Nvidia::new("/sys", Box::new(crate::nvml::NvmlWrapper))
 }
 
-/// The udisks2 adapter with its production values: the system bus and
-/// a bus time limit of 5 s.
+/// The udisks2 adapter as used in production: the system D-Bus, with a
+/// time limit of 5 s for each bus call.
 pub fn udisks2() -> crate::udisks2::Udisks2 {
     crate::udisks2::Udisks2::new(
         crate::udisks2::Bus::System,
@@ -141,9 +169,9 @@ pub fn udisks2() -> crate::udisks2::Udisks2 {
     )
 }
 
-/// The liquidctl adapter with its production values: the applet's
-/// `PATH`, or `/bin:/usr/bin` when it is not set, and a time limit of
-/// 10 s.
+/// The liquidctl adapter as used in production. It searches for the
+/// program in this process's `PATH`, or in `DEFAULT_SEARCH_PATH` when
+/// `PATH` is not set, with the time limit `liquidctl::LIMIT`.
 pub fn liquidctl() -> crate::liquidctl::Liquidctl {
     crate::liquidctl::Liquidctl::new(
         std::env::var_os("PATH").unwrap_or_else(|| crate::liquidctl::DEFAULT_SEARCH_PATH.into()),

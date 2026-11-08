@@ -1,8 +1,11 @@
-//! The production NVML interface of the NVIDIA source, over
-//! `nvml-wrapper`, which loads `libnvidia-ml.so` at each `open`.
-//! This file holds only the thin calls into NVML. The test suite cannot
-//! run them without an NVIDIA GPU, so they are checked by hand on a
-//! machine that has one.
+//! The NVIDIA source's access to NVML (NVIDIA's management library) in
+//! production, through the `nvml-wrapper` crate, which loads
+//! `libnvidia-ml.so` at each `open`.
+//!
+//! This file holds only thin calls into NVML; the logic is in `nvidia`,
+//! behind the `Interface` trait, where the tests replace NVML with a
+//! fake. The test suite cannot run the calls in this file without an
+//! NVIDIA GPU.
 
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::error::NvmlError;
@@ -11,7 +14,7 @@ use nvml_wrapper::{Device, Nvml};
 use crate::diag;
 use crate::nvidia::{Gpu, Interface, OpenError, Session};
 
-/// The `nvml-wrapper` interface.
+/// The `Interface` that calls the real NVML through `nvml-wrapper`.
 #[derive(Debug, Default)]
 pub struct NvmlWrapper;
 
@@ -20,9 +23,10 @@ impl Interface for NvmlWrapper {
         "nvml-wrapper"
     }
 
-    /// The source's one NVML start, the plain init with no flag: it
-    /// initializes no GPU; the lookup by PCI address of an awake GPU
-    /// initializes that GPU.
+    /// Loads and initializes NVML with the plain init call, without
+    /// flags. The init itself sets up no GPU; NVML sets up a GPU only when
+    /// `Session::device` looks it up by PCI address. A missing library or
+    /// symbol becomes `LibraryMissing`; any other error `InitFailed`.
     fn open(&mut self) -> Result<Box<dyn Session>, OpenError> {
         match Nvml::init() {
             Ok(nvml) => Ok(Box::new(Open(nvml))),
@@ -63,8 +67,9 @@ impl Gpu for Handle<'_> {
     }
 }
 
-/// The library's error text for the init-failed and call-failed events,
-/// formed only when diag is on; else empty.
+/// The library's error text, for the diagnostic log. It is built only
+/// when diagnostics are switched on (`diag::on`); otherwise the text is
+/// empty.
 fn text(e: NvmlError) -> String {
     if diag::on() {
         e.to_string()
@@ -77,8 +82,9 @@ fn text(e: NvmlError) -> String {
 mod tests {
     use super::*;
 
-    // The library's text only when diag is on. This is the only test in
-    // this binary that sets the diag switch.
+    // `text` returns the library's message while diagnostics are on and
+    // an empty string once they are off. No other test in this binary
+    // switches diagnostics, because the switch is process-wide.
     #[test]
     fn text_only_with_diag() {
         puron_testkit::limit("p4z1-nvml-text", 2, || {

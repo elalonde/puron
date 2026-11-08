@@ -1,5 +1,5 @@
-//! One liquidctl run and how it ends. The only place in `puron-engine`
-//! that starts a process.
+//! One run of liquidctl and how it ended. This is the only place in
+//! `puron-engine` that starts a process.
 
 use std::io::Read;
 use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd, RawFd};
@@ -11,26 +11,37 @@ use std::time::{Duration, Instant};
 /// How a run ended.
 #[derive(Debug)]
 pub enum End {
-    /// End of file and exit, both before the time limit, at most the cap
-    /// read.
+    /// The program closed its output and exited, both before the time
+    /// limit, and wrote no more than the cap.
     Complete {
+        /// Everything the program wrote to standard output.
         output: Vec<u8>,
+        /// The program's exit status, which may be non-zero.
         status: ExitStatus,
     },
+    /// The time limit passed first.
     TimeLimit,
+    /// The program wrote more than the cap.
     OverCap,
+    /// The stop signal was raised.
     Stopped,
-    /// The program could not be started; the system error.
+    /// The program could not be started, with the system error. Also used
+    /// when the process descriptor cannot be opened, and when reaping a
+    /// completed run fails.
     NotStarted(std::io::Error),
-    /// A `poll(2)` or `read(2)` of the output pipe failed; the system
-    /// error.
+    /// A `poll(2)`, or a `read(2)` of the output pipe, failed with this
+    /// system error.
     WaitError(std::io::Error),
 }
 
-/// Runs `program status --json` until end of output and exit, the time
-/// limit, the output cap or the stop signal. However the run ends, the
-/// child's process group is killed while the child is not yet reaped,
-/// then the child is reaped, before this returns.
+/// Runs `program status --json` until it has closed its output and
+/// exited, or until the time limit, the output cap or the stop signal
+/// ends the run. Standard input and standard error are `/dev/null`.
+///
+/// The child runs in a process group of its own, and gets SIGKILL if its
+/// parent dies first. However the run ends, the whole group is killed before
+/// this returns, and then the child is reaped. A descendant that has
+/// moved to another process group escapes this kill.
 pub fn run(program: &Path, limit: Duration, cap: usize, stop: BorrowedFd<'_>) -> End {
     let start = Instant::now();
     let deadline = start + limit;
@@ -42,7 +53,8 @@ pub fn run(program: &Path, limit: Duration, cap: usize, stop: BorrowedFd<'_>) ->
         .process_group(0);
     // SAFETY: prctl and getppid are async-signal-safe; the closure only
     // sets the parent-death signal of the child and checks that the
-    // parent has not ended before it was set.
+    // parent has not ended before it was set. If it had, the child would
+    // never get the signal, so it exits at once instead.
     let parent = std::process::id() as libc::pid_t;
     unsafe {
         cmd.pre_exec(move || {
@@ -60,8 +72,9 @@ pub fn run(program: &Path, limit: Duration, cap: usize, stop: BorrowedFd<'_>) ->
         Err(e) => return End::NotStarted(e),
     };
     let end = wait(&mut child, deadline, cap, stop);
-    // Kill the group while the child is not reaped (its number cannot be
-    // reused yet), then reap it.
+    // Kill the group while the child is not yet reaped, so that its
+    // process ID cannot have been reused by another process; then reap
+    // it.
     // SAFETY: kill only sends a signal.
     unsafe { libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL) };
     let status = child.wait();
@@ -76,16 +89,20 @@ pub fn run(program: &Path, limit: Duration, cap: usize, stop: BorrowedFd<'_>) ->
     }
 }
 
+/// How `wait` ended. `run` turns it into an `End`.
 enum Waited {
     Complete(Vec<u8>),
     TimeLimit,
     OverCap,
     Stopped,
+    /// The child's process descriptor could not be opened.
     NoPidfd(std::io::Error),
     WaitError(std::io::Error),
 }
 
-/// The child's process descriptor (`pidfd_open`).
+/// Opens a process descriptor for the child with `pidfd_open(2)`. It
+/// becomes readable when the child exits, so that `wait` can poll for
+/// the exit together with the output.
 fn pidfd(child: &Child) -> std::io::Result<OwnedFd> {
     // SAFETY: pidfd_open returns a new descriptor or -1.
     let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, child.id() as libc::pid_t, 0) };
@@ -96,9 +113,11 @@ fn pidfd(child: &Child) -> std::io::Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(fd as RawFd) })
 }
 
-/// One `poll(2)` loop on the output pipe, the child's process descriptor
-/// and the stop signal, with the end of the time limit as the deadline.
-/// Never reaps the child.
+/// Waits for the run to end with one `poll(2)` loop on the output pipe,
+/// the child's process descriptor and the stop signal, until `deadline`.
+/// It collects the output on the way. The stop signal is checked first,
+/// so it wins over output that is ready at the same time. It never reaps
+/// the child; `run` does that.
 fn wait(child: &mut Child, deadline: Instant, cap: usize, stop: BorrowedFd<'_>) -> Waited {
     let process = match pidfd(child) {
         Ok(fd) => fd,
@@ -117,7 +136,8 @@ fn wait(child: &mut Child, deadline: Instant, cap: usize, stop: BorrowedFd<'_>) 
             return Waited::TimeLimit;
         }
         let left = deadline - now;
-        // Round up, so that the wait does not end just before the limit.
+        // Round up to whole milliseconds, so that the wait does not end just
+        // before the limit.
         let ms = left.as_micros().div_ceil(1000).min(i32::MAX as u128) as i32;
         let mut fds = [
             pollfd(if eof { -1 } else { out.as_raw_fd() }),
@@ -144,8 +164,8 @@ fn wait(child: &mut Child, deadline: Instant, cap: usize, stop: BorrowedFd<'_>) 
                     }
                     output.extend_from_slice(&buf[..k]);
                 }
-                // An error is not end of file: the run is not complete,
-                // and it ends as a failed poll(2) does.
+                // A read error is not end of output: the run is not
+                // complete, and it ends the same way as a failed poll(2).
                 Err(e) => {
                     if let Some(end) = failed(e) {
                         return end;
@@ -159,8 +179,9 @@ fn wait(child: &mut Child, deadline: Instant, cap: usize, stop: BorrowedFd<'_>) 
     }
 }
 
-/// A failed `poll(2)` or `read(2)`: none for EINTR (the call is made
-/// again), else the run ends with the system error.
+/// Decides what a failed `poll(2)` or `read(2)` means: `None` for EINTR,
+/// after which the loop makes the call again; for any other error, the
+/// run ends with it.
 fn failed(e: std::io::Error) -> Option<Waited> {
     if e.kind() == std::io::ErrorKind::Interrupted {
         None
@@ -169,6 +190,8 @@ fn failed(e: std::io::Error) -> Option<Waited> {
     }
 }
 
+/// A `pollfd` that waits for `fd` to become readable. A negative `fd`
+/// makes `poll(2)` skip the entry.
 fn pollfd(fd: RawFd) -> libc::pollfd {
     libc::pollfd {
         fd,
@@ -181,8 +204,8 @@ fn pollfd(fd: RawFd) -> libc::pollfd {
 mod tests {
     use super::*;
 
-    // EINTR is retried; any other error is wait-error with the system
-    // error.
+    // EINTR gives `None`, so the call is retried; EIO gives `WaitError`
+    // with the same system error.
     #[test]
     fn failed_call_is_wait_error() {
         puron_testkit::limit("p4z1-wait-error", 2, || {
