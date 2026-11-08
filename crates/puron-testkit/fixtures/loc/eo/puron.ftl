@@ -11,6 +11,7 @@ cpu-default = EO (default)
 line-composite = EO composite
 line-package = EO package
 line-temperature = EO temperature
+line-waiting = EO waiting for lm-sensors
 section-fan = EO Fan
 class-temperature = EO Temperature
 class-rotation = EO Rotation Rate

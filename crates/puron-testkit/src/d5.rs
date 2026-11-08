@@ -254,6 +254,7 @@ fn label(i: &Item) -> String {
         Some(LineWord::Package) => "package",
         Some(LineWord::Temperature) => "temperature",
         Some(LineWord::Maximum) => "Maximum",
+        Some(LineWord::Waiting) => "CPU: waiting for lm-sensors",
     };
     let parts = [
         i.name.as_str(),

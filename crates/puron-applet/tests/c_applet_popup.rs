@@ -20,7 +20,7 @@ use puron_applet::panel;
 use puron_applet::popup::{self, Clicked, Drawn, Event, Plan, Reply};
 use puron_core::menu::{self, Key, Menu, Report, Update};
 use puron_core::panel::State;
-use puron_core::rows::{RawReading, ShownClasses};
+use puron_core::rows::{Kind, RawReading, ShownClasses};
 use puron_core::settings::{Settings, TemperatureUnit};
 
 const LIMIT: u64 = 5;
@@ -661,6 +661,20 @@ fn c_applet_popup_18() {
         let want = format!("coretemp: {}… (default)", "x".repeat(23));
         assert_eq!(line.as_deref(), Some(want.as_str()));
         assert_eq!(want.chars().count(), 44);
+        // A fan line whose device is too long is cut inside the device, so
+        // the reading's own label stays.
+        let mut raw = cpu_set("example");
+        let fan = raw.iter_mut().find(|r| r.kind == Some(Kind::Fan)).unwrap();
+        fan.name = Some(format!("{} CPU fan", "f".repeat(60)));
+        fan.device_chars = 60;
+        let plan = plan_of(&lay_with(&raw), &[]);
+        let line = plan.entries.iter().find_map(|e| match e {
+            Drawn::Line(l) if l.text.starts_with("fff") => Some(l.text.clone()),
+            _ => None,
+        });
+        let want = format!("{}… CPU fan", "f".repeat(35));
+        assert_eq!(line.as_deref(), Some(want.as_str()));
+        assert_eq!(want.chars().count(), 44);
         // A heading has the same limit.
         let mut raw = cpu_set("no-cpu");
         raw[0].name = Some(format!("{} temp1", "d".repeat(60)));
@@ -814,13 +828,17 @@ fn c_applet_popup_22() {
         setup();
         let (_, plan) = capture_plan(&pinned("P1"));
         let i = line_index(&plan, CPU_LINE);
-        // Through the simulator, on each part of the line: one message each.
+        let Drawn::Line(cpu) = &plan.entries[i] else {
+            unreachable!()
+        };
+        // Through the simulator, on each part of the line: one message each,
+        // naming the line by its identity.
         for part in ["check", "name", "value"] {
             let mut sim = simulate(&plan);
             sim.click(selector::id(popup::element_id(i, part)))
                 .unwrap_or_else(|e| panic!("click {part}: {e:?}"));
             let got: Vec<Clicked> = sim.into_messages().collect();
-            assert_eq!(got, [Clicked(i)], "{part}");
+            assert_eq!(got, [Clicked::Line(cpu.identity.clone())], "{part}");
         }
         // A heading: no message, and no reply.
         let none = Reply {
@@ -841,12 +859,51 @@ fn c_applet_popup_22() {
             .collect();
         assert!(labels.len() >= 6);
         for i in labels {
-            assert_eq!(popup::clicked(&plan, Clicked(i)), none, "entry {i}");
             let mut sim = simulate(&plan);
             sim.click(selector::id(popup::entry_id(i)))
                 .unwrap_or_else(|e| panic!("click {i}: {e:?}"));
             assert_eq!(sim.into_messages().count(), 0, "entry {i}");
         }
-        assert_eq!(popup::clicked(&plan, Clicked(plan.entries.len())), none);
+        let gone = Clicked::Line("temperature/lm-sensors/no-such-chip/temp1".into());
+        assert_eq!(popup::clicked(&plan, gone), none);
+    });
+}
+
+/// A click names its line, so it means the line that was drawn when a newer
+/// view comes in between the draw and the click.
+#[test]
+fn c_applet_popup_24() {
+    puron_testkit::limit("C-applet.popup-24", LIMIT, || {
+        setup();
+        let plan = |set: &str| plan_of(&lay(&cpu_set(set), None), &[]);
+        let drawn = plan("no-cpu");
+        let i = line_index(&drawn, "temp1");
+        let Drawn::Line(wifi) = &drawn.entries[i] else {
+            unreachable!()
+        };
+        let mut sim = simulate(&drawn);
+        sim.click(selector::id(popup::element_id(i, "name")))
+            .unwrap_or_else(|e| panic!("click: {e:?}"));
+        let got: Vec<Clicked> = sim.into_messages().collect();
+        assert_eq!(got.len(), 1);
+        // A newer view with the CPU's lines before it: the same line.
+        let newer = plan("example");
+        assert!(matches!(&newer.entries[i], Drawn::Line(l) if l.identity != wifi.identity));
+        let pin = Reply {
+            event: Some(Event::PinClick(wifi.identity.clone())),
+            close: false,
+        };
+        assert_eq!(popup::clicked(&newer, got[0].clone()), pin);
+        // A newer view without that line: nothing.
+        let none = Reply {
+            event: None,
+            close: false,
+        };
+        let gone = plan("monolith");
+        assert!(!gone
+            .entries
+            .iter()
+            .any(|e| matches!(e, Drawn::Line(l) if l.identity == wifi.identity)));
+        assert_eq!(popup::clicked(&gone, got[0].clone()), none);
     });
 }

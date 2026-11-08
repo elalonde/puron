@@ -107,19 +107,32 @@ pub struct Reply {
     pub close: bool,
 }
 
-/// The widget message of a click: drawn entry `.0` of the plan.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Clicked(pub usize);
+/// The widget message of a click: what was clicked, not where. A line is
+/// named by its identity, so a click still means the line the user saw when
+/// a newer view has come in between the draw and the click.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Clicked {
+    Line(String),
+    Message,
+    HomepageLink,
+    SettingsLink,
+}
 
-/// A widget's click on `plan`.
+/// A widget's click on `plan`, the view at the time of the click. A line
+/// that `plan` no longer has does nothing.
 pub fn clicked(plan: &Plan, clicked: Clicked) -> Reply {
-    match plan.entries.get(clicked.0) {
-        Some(entry) => click(entry),
-        None => Reply {
-            event: None,
-            close: false,
-        },
-    }
+    let (event, close) = match clicked {
+        Clicked::Line(id) => {
+            let shown = plan
+                .entries
+                .iter()
+                .any(|e| matches!(e, Drawn::Line(l) if l.identity == id));
+            (shown.then_some(Event::PinClick(id)), false)
+        }
+        Clicked::Message | Clicked::HomepageLink => (Some(Event::HomepageLink), true),
+        Clicked::SettingsLink => (Some(Event::SettingsLink), true),
+    };
+    Reply { event, close }
 }
 
 /// A click on a drawn entry. A line sends `Event::PinClick` and leaves the
@@ -177,6 +190,7 @@ fn line_name(item: &Item) -> String {
         Some(LineWord::Package) => fl!("line-package"),
         Some(LineWord::Temperature) => fl!("line-temperature"),
         Some(LineWord::Maximum) => fl!("row-maximum"),
+        Some(LineWord::Waiting) => format!("{}: {}", fl!("row-cpu"), fl!("line-waiting")),
     };
     if item.name.is_empty() {
         word
@@ -196,7 +210,11 @@ fn line_of(item: &Item, pinned: &[String]) -> Line {
         identity: item.identity.clone(),
         pinned: pins::is_pinned(pinned, &item.identity),
         text: format!("{}{suffix}", core_rows::cut_at_end(&line_name(item), room)),
-        value: i18n::value_text(item.value.as_ref()),
+        value: if item.word == Some(LineWord::Waiting) {
+            fl!("missing-value")
+        } else {
+            i18n::value_text(item.value.as_ref())
+        },
     }
 }
 
@@ -337,7 +355,8 @@ pub fn view<'a>(plan: &Plan) -> cosmic::Element<'a, Clicked> {
                             .into(),
                     ])
                     .align_y(Alignment::Center);
-                    let entry = applet::menu_button(content).on_press(Clicked(i));
+                    let entry =
+                        applet::menu_button(content).on_press(Clicked::Line(l.identity.clone()));
                     container(container(entry).id(entry_id(i)))
                         .padding([0.0, 0.0, 0.0, LINE_INDENT])
                         .into()
@@ -371,7 +390,12 @@ pub fn view<'a>(plan: &Plan) -> cosmic::Element<'a, Clicked> {
                 Drawn::Message { text: t }
                 | Drawn::HomepageLink { text: t }
                 | Drawn::SettingsLink { text: t } => {
-                    container(applet::menu_button(text(t.clone())).on_press(Clicked(i)))
+                    let message = match e {
+                        Drawn::Message { .. } => Clicked::Message,
+                        Drawn::HomepageLink { .. } => Clicked::HomepageLink,
+                        _ => Clicked::SettingsLink,
+                    };
+                    container(applet::menu_button(text(t.clone())).on_press(message))
                         .id(entry_id(i))
                         .into()
                 }
