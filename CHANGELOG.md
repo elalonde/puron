@@ -4,6 +4,19 @@ The notable changes of each Puron release. Versions follow
 [Semantic Versioning](https://semver.org/), and the format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-11-08
+
+### Fixed
+
+- A Maximum or CPU pin kept from version 1.0.0 that waits for lm-sensors now has a line in the popup, "CPU: waiting
+  for lm-sensors"; click it to remove the pin.
+- A click in the popup no longer checks another line when the readings change just before the click.
+
+Changes to the repository only, not to the shipped program:
+
+- The checks now include clippy.
+- Publishing a release retries reading back its new draft.
+
 ## [1.1.0] - 2026-11-07
 
 ### Changed
