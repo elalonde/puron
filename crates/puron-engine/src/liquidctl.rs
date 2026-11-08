@@ -1,8 +1,11 @@
-//! The liquidctl source: liquidctl status runs.
+//! The liquidctl source: readings of liquid coolers, fan controllers and
+//! the other devices that the external `liquidctl` program supports.
 //!
-//! Start looks for the program on the search path once. Each `read` is
-//! one run of `liquidctl status --json` in the runner, then the checks
-//! on a complete run's output.
+//! `start` looks for the program on the search path, once per start.
+//! Each `read` runs `liquidctl status --json` once (see `runner`), then
+//! checks the output of a run that completed and turns it into readings.
+//! This is the engine's only child-run provider: the run ends early when
+//! the worker's stop signal is raised.
 
 mod runner;
 
@@ -20,21 +23,26 @@ use crate::diag::{self, liquidctl as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 use runner::End;
 
-/// The program name looked up on the search path.
+/// The program's file name, looked up on the search path.
 pub const PROGRAM: &str = "liquidctl";
-/// Time limit in production.
+/// The time limit of one run in production. A run that takes longer is
+/// killed and the read fails.
 pub const LIMIT: Duration = Duration::from_secs(10);
-/// The most output a run may produce; a run that writes more ends as
-/// `End::OverCap`, and the read fails.
+/// The most output, in bytes, that a run may write; a run that writes
+/// more ends as `End::OverCap`, and the read fails.
 pub const CAP: usize = 1_048_576;
-/// Search path when `PATH` is not set.
+/// The search path used when `PATH` is not set.
 pub const DEFAULT_SEARCH_PATH: &str = "/bin:/usr/bin";
 
 /// The liquidctl adapter.
 #[derive(Debug)]
 pub struct Liquidctl {
+    /// Directories separated by ':', searched in order for `PROGRAM`.
     search_path: OsString,
+    /// The time limit of one run.
     limit: Duration,
+    /// The absolute path of the program that `start` found, or `None`
+    /// before a start, after a stop, or when it was not found.
     program: Option<PathBuf>,
 }
 
@@ -81,8 +89,10 @@ impl Source for Liquidctl {
             End::Complete { output, status } => (output, status),
             End::TimeLimit => return failed("time-limit"),
             End::OverCap => return failed("over-cap"),
-            // A stopped run belongs to an old generation; the engine ignores
-            // its result.
+            // The stop signal ended the run, which happens only when the
+            // provider is stopped or the engine shuts down. The engine
+            // drops the results of reads from before a stop, so this one
+            // is never used.
             End::Stopped => return ReadOutcome::Failed,
             End::NotStarted(e) => {
                 if diag::on() {
@@ -123,15 +133,18 @@ impl Source for Liquidctl {
     }
 }
 
+/// Logs a failed run with `reason` and no further detail, and returns
+/// `Failed`.
 fn failed(reason: &str) -> ReadOutcome {
     diag::event(ev::run_failed(reason, "", ""));
     ReadOutcome::Failed
 }
 
-/// The program search: the entries in order, an empty one being
-/// the current directory; the first `<entry>/liquidctl` that is a
-/// regular file after symbolic links and that the user may run, made
-/// absolute.
+/// Searches `search_path` for the program the way a shell does: the
+/// entries in order, an empty entry meaning the current directory.
+/// Returns the first `<entry>/liquidctl` that is a regular file (after
+/// following symbolic links) and that this process may execute, made
+/// absolute. `None` when no entry has one.
 fn find(search_path: &OsStr) -> Option<PathBuf> {
     search_path
         .as_bytes()
@@ -145,6 +158,8 @@ fn find(search_path: &OsStr) -> Option<PathBuf> {
         .and_then(|found| std::path::absolute(found).ok())
 }
 
+/// Whether `path` is a regular file, after following symbolic links,
+/// that this process may execute.
 fn runnable(path: &Path) -> bool {
     if !std::fs::metadata(path).is_ok_and(|m| m.is_file()) {
         return false;
@@ -156,23 +171,36 @@ fn runnable(path: &Path) -> bool {
     unsafe { libc::access(c.as_ptr(), libc::X_OK) == 0 }
 }
 
-/// Why a complete run's output fails.
+/// Why the output of a completed run gives no readings.
 enum Check {
+    /// The run wrote nothing.
     Empty,
+    /// The output is not valid JSON.
     NotJson(serde_json::Error),
+    /// The output is JSON but not in the expected form (see `readings`).
     Shape,
 }
 
-/// One device of the output: its "description", "status" and the
-/// object (for the "address").
+/// One device in the output: its "description", its "status" list, and
+/// the whole JSON object, from which "address" is taken when needed.
 struct Device<'a> {
     description: &'a str,
     status: &'a [Value],
     object: &'a Map<String, Value>,
 }
 
-/// The output checks in order, then one raw reading per status element
-/// with a string "unit" and a string "key".
+/// Turns a completed run's output into readings.
+///
+/// The output must be a JSON array of objects, each with a string
+/// "description" and an array "status"; and every status element whose
+/// "unit" is one of `LIQUIDCTL_UNITS` must have a string "key". Any
+/// other form fails the whole output with `Check::Shape`.
+///
+/// Each status element with a string "unit" and a string "key" then
+/// gives one reading; other elements are skipped. A reading's key is the
+/// device's description and the element's key, joined by '/'. When
+/// several devices share a description, the device's "address" is added
+/// after the description to keep the keys apart.
 fn readings(output: &[u8]) -> Result<Vec<RawReading>, Check> {
     if output.is_empty() {
         return Err(Check::Empty);

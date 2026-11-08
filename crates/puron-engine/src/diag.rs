@@ -1,51 +1,65 @@
-//! Diagnostics, `puron-engine` side: the switch, the events and the
-//! journal writer. One datagram per event in the journal's native
-//! protocol, sent without waiting; any error drops it.
+//! Diagnostic logging to the systemd journal: a process-wide on/off
+//! switch, the events the engine, the sources and the applet can log,
+//! and the writer.
+//!
+//! Each event is sent as one datagram in the journal's native protocol,
+//! without waiting. Any error drops the event silently, so logging can
+//! never block or fail the caller.
 
 use std::os::unix::net::UnixDatagram;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
-/// The journal socket, priority, identifier, field prefix and value cap.
+/// The journal's socket, used unless `set_socket` names another one.
 pub const JOURNAL_SOCKET: &str = "/run/systemd/journal/socket";
+/// The syslog priority of every entry: 7, debug.
 pub const PRIORITY: &str = "7";
+/// The `SYSLOG_IDENTIFIER` of every entry.
 pub const IDENTIFIER: &str = "puron-applet";
+/// The prefix of the journal field name of each event field.
 pub const FIELD_PREFIX: &str = "PURON_";
+/// The longest field value, in bytes; a longer value is cut.
 pub const VALUE_CAP: usize = 1024;
 
 static ON: AtomicBool = AtomicBool::new(false);
 static SOCKET: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-/// One event: its source, ID, text and fields in a fixed order.
+/// One diagnostic event, built by the functions of the submodules below.
+/// `source` names the part of the program that logs it, `id` is a short
+/// stable name for the event, and `text` is its message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Event<'a> {
     pub source: &'static str,
     pub id: &'static str,
     pub text: &'static str,
-    /// (name without `PURON_`, upper case; value)
+    /// The event's fields in the order they are written: (name, value).
+    /// Each name is upper case and without `FIELD_PREFIX`.
     pub fields: Vec<(&'static str, &'a str)>,
 }
 
-/// Sets the diagnostics switch; it is off until the first call.
+/// Switches diagnostics on or off for the whole process. They are off
+/// until the first call.
 pub fn switch(on: bool) {
     ON.store(on, Ordering::SeqCst);
 }
 
-/// Whether the switch is on: a caller whose event fields need
-/// formatting tests it first, so nothing is formatted when off.
+/// Whether diagnostics are on. A caller whose event fields must be
+/// formatted checks this first, so that nothing is formatted while
+/// diagnostics are off.
 pub fn on() -> bool {
     ON.load(Ordering::SeqCst)
 }
 
-/// Sets the journal socket (the production path, or a test's socket).
+/// Sets the socket that events are sent to, instead of
+/// `JOURNAL_SOCKET`. Tests use it to receive the events themselves.
 pub fn set_socket(path: impl Into<PathBuf>) {
     let mut g = SOCKET.write().unwrap_or_else(|e| e.into_inner());
     *g = Some(path.into());
 }
 
-/// Sends an event; when the switch is off it is dropped and nothing is
-/// formatted.
+/// Sends `e` to the journal. While diagnostics are off, the event is
+/// dropped before anything is formatted.
 pub fn event(e: Event<'_>) {
     if !ON.load(Ordering::SeqCst) {
         return;
@@ -53,7 +67,9 @@ pub fn event(e: Event<'_>) {
     write(&e);
 }
 
-/// Builds the journal entry and sends it as one datagram.
+/// Builds the journal entry for `e` and sends it as one datagram. The
+/// `MESSAGE` field repeats the source, the text and every field, after
+/// which each field is also written as a journal field of its own.
 fn write(e: &Event<'_>) {
     let values: Vec<&str> = e.fields.iter().map(|(_, v)| cut(v)).collect();
     let mut message = format!("{}: {}", e.source, e.text);
@@ -75,7 +91,8 @@ fn write(e: &Event<'_>) {
     send(&buf);
 }
 
-/// `v` cut to at most `VALUE_CAP` bytes at a character boundary.
+/// Returns `v` cut to at most `VALUE_CAP` bytes, at a character
+/// boundary so that the result stays valid UTF-8.
 fn cut(v: &str) -> &str {
     if v.len() <= VALUE_CAP {
         return v;
@@ -87,8 +104,9 @@ fn cut(v: &str) -> &str {
     &v[..end]
 }
 
-/// One field: `NAME=value\n`, or with a newline in the value the binary
-/// form `NAME\n`, the length (u64 little-endian), the bytes, `\n`.
+/// Appends one field in the journal's native format: `NAME=value\n`. A
+/// value that contains a newline needs the binary form instead: `NAME\n`,
+/// the value's length as a little-endian u64, the value, and `\n`.
 fn put(buf: &mut Vec<u8>, name: &str, value: &str) {
     buf.extend_from_slice(name.as_bytes());
     if value.contains('\n') {
@@ -101,7 +119,8 @@ fn put(buf: &mut Vec<u8>, name: &str, value: &str) {
     buf.push(b'\n');
 }
 
-/// Sends without waiting; any error drops the entry.
+/// Sends one entry from a non-blocking socket. Any error, including a
+/// full socket buffer, drops the entry.
 fn send(buf: &[u8]) {
     let path = match SOCKET.read() {
         Ok(g) => g.clone(),
@@ -129,7 +148,7 @@ fn ev<'a>(
     }
 }
 
-/// The events of source `engine`.
+/// The events the engine logs (source `engine`).
 pub mod engine {
     use super::{ev, Event};
     const S: &str = "engine";
@@ -159,7 +178,7 @@ pub mod engine {
     }
 }
 
-/// The events of source `src.lmsensors`.
+/// The events the lm-sensors source logs (source `src.lmsensors`).
 pub mod lmsensors {
     use super::{ev, Event};
     const S: &str = "src.lmsensors";
@@ -188,7 +207,7 @@ pub mod lmsensors {
     }
 }
 
-/// The events of source `src.nvidia`.
+/// The events the NVIDIA source logs (source `src.nvidia`).
 pub mod nvidia {
     use super::{ev, Event};
     const S: &str = "src.nvidia";
@@ -215,7 +234,7 @@ pub mod nvidia {
     }
 }
 
-/// The events of source `src.udisks2`.
+/// The events the udisks2 source logs (source `src.udisks2`).
 pub mod udisks2 {
     use super::{ev, Event};
     const S: &str = "src.udisks2";
@@ -256,7 +275,7 @@ pub mod udisks2 {
     }
 }
 
-/// The events of source `src.liquidctl`.
+/// The events the liquidctl source logs (source `src.liquidctl`).
 pub mod liquidctl {
     use super::{ev, Event};
     const S: &str = "src.liquidctl";
@@ -274,8 +293,9 @@ pub mod liquidctl {
         ev(S, "not-started", "run not started", vec![("TEXT", text)])
     }
 
-    /// `text` is empty unless `reason` is `not-json` or `wait-error`;
-    /// `position` is empty unless `reason` is `not-json`.
+    /// `text` is empty unless `reason` is `not-json` or `wait-error`, and
+    /// `position` is empty unless `reason` is `not-json`. The caller
+    /// passes them that way; this function does not check it.
     pub fn run_failed<'a>(reason: &'a str, text: &'a str, position: &'a str) -> Event<'a> {
         let f = vec![("REASON", reason), ("TEXT", text), ("POSITION", position)];
         ev(S, "run-failed", "run failed", f)
@@ -291,12 +311,13 @@ pub mod liquidctl {
     }
 }
 
-/// The events of source `applet.app`.
+/// The events the applet logs (source `applet.app`).
 pub mod applet {
     use super::{ev, Event};
     const S: &str = "applet.app";
 
-    /// `key` is empty for the directory.
+    /// `key` names the setting that could not be used, or is empty when
+    /// the problem is with the settings directory itself.
     pub fn config_problem<'a>(key: &'a str, kind: &'a str) -> Event<'a> {
         let f = vec![("KEY", key), ("KIND", kind)];
         ev(S, "config-problem", "stored setting not usable", f)

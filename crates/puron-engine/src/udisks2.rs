@@ -1,12 +1,14 @@
-//! The udisks2 source: ATA drive temperatures from udisks2.
+//! The udisks2 source: the temperatures of ATA drives, as the udisks2
+//! service reports them over D-Bus.
 //!
-//! Start connects to the bus, lists the service's objects once and keeps
-//! the drives with both the Drive and the Drive.Ata interface and a
-//! string `Model`, in object path order; the list stays fixed until the
-//! next start. Each `read` asks for each kept drive's stored
-//! `SmartTemperature` with one property call. No other call is made to
-//! the service. The crate's async calls run on the worker thread through
-//! `zbus::block_on`.
+//! `start` connects to the bus, lists the service's objects once, and
+//! keeps the drives that have both the `Drive` and the `Drive.Ata`
+//! interface and a string `Model`, sorted by object path. The list stays
+//! fixed until the next start. Each `read` asks for each kept drive's
+//! `SmartTemperature` property, the value udisks2 has stored, with one
+//! property call per drive. The adapter makes no other call to the
+//! service. zbus is asynchronous; every call runs to completion on the
+//! worker thread through `zbus::block_on`.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -23,35 +25,43 @@ use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 use crate::diag::{self, udisks2 as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 
-/// The udisks2 bus name; every call goes to it.
+/// The udisks2 service's bus name; every call goes to it.
 pub const SERVICE: &str = "org.freedesktop.UDisks2";
 /// The path of udisks2's object manager, whose `GetManagedObjects` lists
 /// the drives at start.
 pub const MANAGER_PATH: &str = "/org/freedesktop/UDisks2";
-/// The interfaces of a listed drive.
+/// The interfaces a drive must have to be kept. `SmartTemperature` is a
+/// property of `ATA`.
 const DRIVE: &str = "org.freedesktop.UDisks2.Drive";
 const ATA: &str = "org.freedesktop.UDisks2.Drive.Ata";
-/// Kelvin offset.
+/// 0 °C in kelvin. udisks2 reports temperatures in kelvin.
 const KELVIN: f64 = 273.15;
 
-/// The bus address parameter.
+/// Which D-Bus bus the adapter connects to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Bus {
+    /// The system bus, where udisks2 runs.
     System,
+    /// The bus at a D-Bus address, such as a test's private bus.
     Address(String),
 }
 
-/// One kept drive.
+/// A drive kept at start.
 #[derive(Debug)]
 struct Drive {
+    /// The drive's object path, which keys its reading.
     path: String,
+    /// The drive's `Model` property, which names its reading.
     model: String,
 }
 
-/// The udisks2 adapter. `limit` is the bus time limit.
+/// The udisks2 adapter.
 pub struct Udisks2 {
     bus: Bus,
+    /// The longest wait for connecting and for each call on the bus.
     limit: Duration,
+    /// The connection, or `None` before the first start and after it was
+    /// closed or lost.
     conn: Option<zbus::Connection>,
     drives: Vec<Drive>,
 }
@@ -66,20 +76,19 @@ impl Udisks2 {
         }
     }
 
-    /// The bus address parameter.
+    /// The bus the adapter was created with.
     pub fn bus(&self) -> &Bus {
         &self.bus
     }
 
-    /// The bus time limit parameter.
+    /// The time limit the adapter was created with.
     pub fn limit(&self) -> Duration {
         self.limit
     }
 
-    /// Connects within the bus time limit; the connection's calls wait at
-    /// most the same limit.
-    /// The error is `None` when the time limit passed first; its text is
-    /// formed only for `diag`.
+    /// Connects to the bus within `limit`, and sets the same limit on
+    /// every method call made through the connection. The error is
+    /// `None` when the time limit passed before the connection was made.
     fn connect(&self) -> Result<zbus::Connection, Option<zbus::Error>> {
         let builder = match &self.bus {
             Bus::System => zbus::connection::Builder::system(),
@@ -93,7 +102,8 @@ impl Udisks2 {
         }
     }
 
-    /// Closes the connection, if any.
+    /// Closes the connection, if there is one, waiting at most `limit`.
+    /// An error while closing is ignored.
     fn close(&mut self) {
         if let Some(c) = self.conn.take() {
             let _ = zbus::block_on(Within::new(self.limit, c.close()));
@@ -101,24 +111,29 @@ impl Udisks2 {
     }
 }
 
-/// Waits for a future at most a time limit: `None` when the limit
-/// passes first. The limit is kept by a thread that wakes the future;
-/// it waits on a condition variable, so it ends as soon as the future is
-/// done or dropped, not when the limit passes.
+/// A future that waits for `fut` for at most a time limit. It yields
+/// `Some` with the result, or `None` when the limit passes first.
+///
+/// The first time `fut` is pending, a timer thread is started that wakes
+/// the task when the limit passes. The thread waits on a condition
+/// variable, so it ends as soon as the `Within` is dropped instead of
+/// sleeping until the limit.
 struct Within<F> {
     fut: Pin<Box<F>>,
     shared: Arc<(Mutex<Timer>, Condvar)>,
-    /// The limit, until the timer thread is started.
+    /// The time limit. It is taken when the timer thread starts, so the
+    /// thread starts only once.
     limit: Option<Duration>,
 }
 
+/// The state that `Within` shares with its timer thread.
 #[derive(Default)]
 struct Timer {
-    /// The limit passed.
+    /// Set by the thread when the limit has passed.
     passed: bool,
-    /// The future is done or dropped: the thread ends.
+    /// Set when the `Within` is dropped; the thread then ends.
     done: bool,
-    /// The waker to wake when the limit passes.
+    /// The waker of the last poll, woken when the limit passes.
     waker: Option<Waker>,
 }
 
@@ -179,8 +194,10 @@ impl<F: Future> Future for Within<F> {
 type Interfaces = HashMap<String, HashMap<String, OwnedValue>>;
 type Managed = HashMap<OwnedObjectPath, Interfaces>;
 
-/// The drive listing: the objects with both interfaces and a string
-/// `Model`, in code point order of their paths.
+/// The drives to keep from the listing of the service's objects: those
+/// with both the `Drive` and the `Drive.Ata` interface and a string
+/// `Model`, sorted by object path. An object with `Drive` that is left
+/// out is logged with the reason.
 fn drives(objects: Managed) -> Vec<Drive> {
     let mut objects: Vec<(String, Interfaces)> = objects
         .into_iter()
@@ -208,20 +225,24 @@ fn drives(objects: Managed) -> Vec<Drive> {
     out
 }
 
-/// Why a temperature call gave no value.
+/// Why `temperature` gave no value.
 enum Fault {
-    /// This drive only: an error reply, the time limit, another type.
+    /// A problem with this drive only: the reading has no value and the
+    /// read goes on with the next drive.
     Drive(Reason),
-    /// The connection is lost.
+    /// Any other call error, taken to mean that the connection is lost:
+    /// the read stops and fails.
     Lost,
 }
 
-/// A drive fault, kept unformatted until `diag` takes it.
+/// The cause of a `Fault::Drive`. It is turned into text by `text` only
+/// when diagnostics are on.
 enum Reason {
-    /// The call's error: an error reply or the time limit.
+    /// The call failed with an error reply or reached the time limit.
     Call(zbus::Error),
-    /// The reply's body could not be read.
+    /// The reply's body could not be decoded.
     Body(zbus::Error),
+    /// The property's value is not a double.
     NotDouble,
 }
 
@@ -238,7 +259,9 @@ impl Reason {
     }
 }
 
-/// The stored temperature of `path`, in kelvin.
+/// The `SmartTemperature` property of the drive at `path`, in kelvin.
+/// An error reply or a timeout is a fault of this drive; any other call
+/// error counts as a lost connection.
 fn temperature(conn: &zbus::Connection, path: &str) -> Result<f64, Fault> {
     let reply = zbus::block_on(conn.call_method(
         Some(SERVICE),
@@ -268,8 +291,8 @@ fn temperature(conn: &zbus::Connection, path: &str) -> Result<f64, Fault> {
 }
 
 impl Source for Udisks2 {
-    /// Connects and lists the drives; *unavailable* when the bus cannot
-    /// be reached, the listing fails or no drive is kept.
+    /// Connects and lists the drives. Returns `Unavailable` when the bus
+    /// cannot be reached, the listing fails, or no drive is kept.
     fn start(&mut self) -> StartOutcome {
         self.close();
         self.drives.clear();
@@ -309,9 +332,12 @@ impl Source for Udisks2 {
         StartOutcome::Available
     }
 
-    /// One reading per kept drive at more than 0 K, in list order; a call
-    /// that fails gives that drive no value; a lost connection fails the
-    /// read, and the next read connects again once.
+    /// Returns one reading per kept drive, in list order. A drive whose
+    /// temperature is 0 K or less is left out, and a drive whose call
+    /// fails gets a reading without a value. A lost connection fails the
+    /// whole read and closes the connection; each later read then tries
+    /// once to connect again, and fails if it cannot. The drive list is
+    /// not refreshed when the adapter connects again.
     fn read(&mut self, _stop: BorrowedFd<'_>) -> ReadOutcome {
         if self.conn.is_none() {
             match self.connect() {
@@ -364,7 +390,7 @@ impl Source for Udisks2 {
         ReadOutcome::Readings(out)
     }
 
-    /// Closes the connection and drops the list.
+    /// Closes the connection and forgets the drives.
     fn stop(&mut self) {
         self.close();
         self.drives.clear();
@@ -375,7 +401,8 @@ impl Source for Udisks2 {
 mod tests {
     use super::*;
 
-    // The timer still ends a future that never completes.
+    // A future that never completes: `Within` gives `None` once the
+    // limit has passed.
     #[test]
     fn within_limit_passes() {
         puron_testkit::limit("p4f3-within", 2, || {
@@ -387,7 +414,8 @@ mod tests {
         });
     }
 
-    // The read-failed texts, formed only for diag.
+    // `Reason::text` gives "name: message" for an error reply and a fixed
+    // text for a value that is not a double.
     #[test]
     fn reason_texts() {
         puron_testkit::limit("p4f3-reason", 2, || {

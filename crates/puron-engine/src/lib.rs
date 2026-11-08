@@ -1,4 +1,6 @@
-//! puron-engine: the sensor sources and the engine that polls them.
+//! The sensor sources (one adapter per provider, such as lm-sensors or
+//! NVIDIA) and the engine that runs them on their own threads and
+//! publishes their readings.
 
 pub mod clock;
 pub mod diag;

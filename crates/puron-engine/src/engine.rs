@@ -10,10 +10,13 @@
 //!
 //! The scheduler handles the commands sent through the `Engine` handle,
 //! asks each worker for a read once per poll interval, collects the
-//! results, and stores a new `Snapshot` after every worker result,
+//! results, and stores a new `Snapshot` after every result it accepts,
 //! every provider switched off, and every read that runs past its
-//! deadline. It never waits for a worker, so a slow provider delays only
-//! itself.
+//! deadline. It accepts a worker's result only if the provider is still
+//! switched on and the result belongs to the provider's current start
+//! (see `Prov::generation`); any other result is dropped and stores
+//! nothing. The scheduler never waits for a worker, so a slow provider
+//! delays only itself.
 //!
 //! All threads share one `Mutex<State>`. Every blocking wait goes through
 //! `Clock::wait_until`, so that tests can run the engine on a virtual
@@ -527,6 +530,10 @@ impl Scheduler {
     ///   successful read, with the values removed;
     /// - otherwise (before its first result, after an `Unavailable`
     ///   result, or after a failed child-run read): nothing.
+    ///
+    /// So a failed child-run read removes the provider's lines from the
+    /// snapshot until a later read succeeds, while a failed in-process
+    /// read keeps them without values.
     fn snapshot(&self) -> Snapshot {
         let mut readings = vec![];
         for (p, e) in self.provs.iter().zip(PROVIDERS) {

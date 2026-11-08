@@ -1,9 +1,13 @@
-//! The nvme source: NVMe drive temperatures from sysfs.
+//! The NVMe source: the temperatures of NVMe drives, read from the
+//! kernel's hwmon files in sysfs. The provider is called `NvmeCli`, but
+//! this adapter does not run the `nvme` program.
 //!
-//! Start lists the controllers of `class/nvme/` with their model,
-//! address, hwmon directory and sensor set; the list stays fixed until
-//! the next start. Each `read` reads the input files of the listed
-//! controllers. Every file is opened for reading only.
+//! `start` lists the controllers under sysfs `class/nvme/`, with each
+//! one's model, address, hwmon directory and sensors. The list stays
+//! fixed until the next start, so a drive added later appears only after
+//! the provider is started again. Each `read` reads the
+//! temperature files of the listed controllers. Every file is opened for
+//! reading only.
 
 use std::os::fd::BorrowedFd;
 use std::path::{Path, PathBuf};
@@ -12,20 +16,27 @@ use puron_core::rows::{Kind, Provider, RawReading};
 
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 
-/// The controller directory.
+/// The NVMe controller directory, relative to the sysfs root.
 const CONTROLLERS: &str = "class/nvme";
 
-/// One kept controller.
+/// A controller found at start that has everything a reading needs.
 #[derive(Debug)]
 struct Controller {
+    /// The drive's model, which names its readings.
     model: String,
+    /// The controller's `address` attribute (its PCI address), which
+    /// keys its readings.
     address: String,
+    /// The controller's first hwmon directory, which holds the
+    /// temperature files.
     hwmon: PathBuf,
-    /// `temp3_input` existed at start: the controller has "S1" and "S2".
+    /// Whether `temp3_input` existed at start. If it did, the controller
+    /// gives two readings, "S1" from `temp2` and "S2" from `temp3`;
+    /// otherwise one, from `temp1`.
     pair: bool,
 }
 
-/// The nvme-cli adapter. `root` is the sysfs root.
+/// The NVMe adapter. `root` is the sysfs root, `/sys` in production.
 #[derive(Debug)]
 pub struct Nvme {
     root: PathBuf,
@@ -40,24 +51,26 @@ impl Nvme {
         }
     }
 
-    /// The sysfs root parameter.
+    /// The sysfs root the adapter was created with.
     pub fn root(&self) -> &Path {
         &self.root
     }
 }
 
-/// The number of an entry named `prefix` and decimal digits.
+/// The number in a directory entry name made of `prefix` followed by
+/// decimal digits, such as `hwmon3`. `None` for any other name.
 fn number(name: &std::ffi::OsStr, prefix: &str) -> Option<u64> {
     let digits = name.to_str()?.strip_prefix(prefix)?;
-    // Digits only: `parse` alone would also take a leading "+"; an
-    // empty string does not parse.
+    // Check for digits first, because `parse` alone would also accept a
+    // leading "+". An empty string fails to parse, so it needs no check.
     if !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
     digits.parse().ok()
 }
 
-/// The entries of `dir` named `prefix` and a number, by number.
+/// The entries of `dir` whose names are `prefix` followed by a number,
+/// sorted by that number. An unreadable directory gives none.
 fn numbered(dir: &Path, prefix: &str) -> Vec<(u64, PathBuf)> {
     let Ok(list) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -70,8 +83,9 @@ fn numbered(dir: &Path, prefix: &str) -> Vec<(u64, PathBuf)> {
     out
 }
 
-/// Trims one final 0x0A, then every final 0x20; decodes as UTF-8 with
-/// U+FFFD for each invalid sequence.
+/// Removes one final newline and then every trailing space, and decodes
+/// the rest as UTF-8, with U+FFFD for each invalid sequence. Leading
+/// spaces are kept.
 fn trim(mut bytes: &[u8]) -> String {
     if let [rest @ .., b'\n'] = bytes {
         bytes = rest;
@@ -82,13 +96,15 @@ fn trim(mut bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// A trimmed attribute file, or `None` when it cannot be read.
+/// The content of an attribute file, trimmed by `trim`, or `None` when
+/// the file cannot be read.
 fn attribute(path: &Path) -> Option<String> {
     std::fs::read(path).ok().map(|b| trim(&b))
 }
 
-/// The controller at `dir`, when it is kept: it has a readable model and
-/// address and a hwmon directory.
+/// The controller in `dir`, or `None` to skip it: it is kept only if its
+/// model and address are readable and it has a hwmon directory. The
+/// lowest-numbered hwmon directory is used.
 fn controller(dir: &Path) -> Option<Controller> {
     let model = attribute(&dir.join("model"))?;
     let address = attribute(&dir.join("address"))?;
@@ -104,9 +120,10 @@ fn controller(dir: &Path) -> Option<Controller> {
     })
 }
 
-/// The value of an input file: a decimal integer with an
-/// optional leading "-" and one optional final newline, divided by
-/// 1000; anything else, or a file that cannot be read, is no value.
+/// The temperature in a hwmon input file, which holds millidegrees
+/// Celsius: a decimal integer with an optional leading "-" and one
+/// optional final newline, divided by 1000. Any other content, or a file
+/// that cannot be read, gives no value.
 fn value(path: &Path) -> Option<f64> {
     let bytes = std::fs::read(path).ok()?;
     let bytes = bytes.strip_suffix(b"\n").unwrap_or(&bytes);
@@ -119,7 +136,8 @@ fn value(path: &Path) -> Option<f64> {
 }
 
 impl Source for Nvme {
-    /// Lists the controllers; *unavailable* when none is kept.
+    /// Lists the controllers, and returns `Unavailable` when none is
+    /// kept.
     fn start(&mut self) -> StartOutcome {
         self.controllers = numbered(&self.root.join(CONTROLLERS), "nvme")
             .into_iter()
@@ -132,8 +150,9 @@ impl Source for Nvme {
         }
     }
 
-    /// One reading per sensor of each listed controller, in controller
-    /// order; a file that gives no value affects only its reading.
+    /// Returns one reading per sensor of each listed controller, in
+    /// controller order. A file that gives no value leaves only its own
+    /// reading without a value; the read itself never fails.
     fn read(&mut self, _stop: BorrowedFd<'_>) -> ReadOutcome {
         let mut out = Vec::new();
         for c in &self.controllers {
@@ -167,7 +186,7 @@ impl Source for Nvme {
         ReadOutcome::Readings(out)
     }
 
-    /// Drops the list.
+    /// Forgets the controllers listed at start.
     fn stop(&mut self) {
         self.controllers.clear();
     }

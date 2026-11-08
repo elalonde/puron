@@ -1,4 +1,5 @@
-//! The NVIDIA source: NVIDIA GPU temperatures through NVML.
+//! The NVIDIA source: the temperatures of NVIDIA GPUs, read through NVML
+//! (NVIDIA's management library).
 //!
 //! The NVIDIA notice of the NVML header, as the header of
 //! nvml-wrapper-sys carries it:
@@ -36,15 +37,19 @@
 //! include, in the user documentation and internal comments to the code,
 //! the above Disclaimer and U.S. Government End Users Notice.
 //!
-//! At each `read` the adapter lists the NVIDIA GPUs of
-//! `bus/pci/devices/`, reads each one's runtime status without waking
-//! it, and only when one is awake opens NVML, queries the awake GPUs by
-//! PCI address and closes NVML before it returns. Every file is opened
-//! for reading only. The adapter reads only the device list and each
-//! device's vendor, class and runtime status, which the kernel keeps
-//! without touching the device; it never opens a device's config or
-//! resource files, since an access to the PCI configuration space
-//! resumes a suspended GPU.
+//! The adapter must not wake a GPU that the kernel has suspended. At each
+//! `read` it lists the NVIDIA GPUs under sysfs `bus/pci/devices/` and
+//! reads each one's runtime power status. Only if at least one GPU is
+//! awake does it open NVML; it then queries the awake GPUs by PCI
+//! address and closes NVML before it returns. A suspended GPU is listed
+//! without a value.
+//!
+//! From sysfs the adapter reads only the device list and each device's
+//! `vendor`, `class` and `power/runtime_status` files, which the kernel
+//! answers without touching the device, and it opens every file for
+//! reading only. It never opens a device's `config` or `resource`
+//! files, because an access to the PCI configuration space resumes a
+//! suspended GPU.
 
 use std::collections::HashMap;
 use std::os::fd::BorrowedFd;
@@ -55,59 +60,68 @@ use puron_core::rows::{Kind, Provider, RawReading};
 use crate::diag;
 use crate::registry::{ReadOutcome, Source, StartOutcome};
 
-/// The device directory.
+/// The PCI device directory, relative to the sysfs root.
 const DEVICES: &str = "bus/pci/devices";
-/// The NVIDIA vendor.
+/// NVIDIA's PCI vendor ID.
 const NVIDIA: u32 = 0x10de;
-/// The GPU base class, display controller.
+/// The PCI base class of a display controller, which every GPU has.
 const GPU_CLASS: u32 = 0x03;
-/// The runtime statuses that count as awake.
+/// The values of `power/runtime_status` that count as awake.
+/// `unsupported` means the device has no runtime power management, so it
+/// is never suspended.
 const AWAKE: [&[u8]; 2] = [b"active", b"unsupported"];
-/// The name of an asleep GPU with no remembered name (it has not been
-/// read awake with a name since the adapter was made): "NVIDIA GPU" for
-/// the first GPU in order, "NVIDIA GPU 2" for the second, and so on.
+/// The name shown for a suspended GPU whose name is unknown because it
+/// has not been read awake since the adapter was created: "NVIDIA GPU"
+/// for the first NVIDIA GPU by PCI address, "NVIDIA GPU 2" for the
+/// second, and so on.
 const DEFAULT_NAME: &str = "NVIDIA GPU";
 
-/// Why `open` gave no session.
+/// Why `Interface::open` failed. Either way the read reports the
+/// provider unavailable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OpenError {
+    /// The NVML library, or a symbol in it, could not be loaded.
     LibraryMissing,
-    /// The library's error text.
+    /// NVML loaded but its init failed. Holds the library's error text;
+    /// the production interface leaves it empty unless diagnostics are
+    /// on.
     InitFailed(String),
 }
 
-/// The NVML interface: production over `nvml-wrapper` (`crate::nvml`),
-/// a fake in tests.
+/// Access to NVML, so that tests can replace the library with a fake.
+/// The production implementation is `crate::nvml::NvmlWrapper`.
 pub trait Interface: Send {
-    /// `"nvml-wrapper"` for the production interface.
+    /// A name for the implementation: `"nvml-wrapper"` in production.
     fn kind(&self) -> &'static str;
-    /// Open: loads the library and initializes NVML with its plain
-    /// init, no flag and no argument.
+    /// Loads the library and initializes NVML with its plain init call,
+    /// without flags or arguments.
     fn open(&mut self) -> Result<Box<dyn Session>, OpenError>;
 }
 
-/// An open NVML, until `close`.
+/// An initialized NVML, from `Interface::open` until `close`.
 pub trait Session {
-    /// Device: a handle by PCI address, the sysfs entry name.
+    /// Returns the GPU at PCI address `pci`, written as its sysfs
+    /// directory name (`DDDD:BB:DD.F`).
     fn device<'a>(&'a self, pci: &str) -> Result<Box<dyn Gpu + 'a>, String>;
-    /// Close: shuts NVML down and releases the library.
+    /// Shuts NVML down and releases the library.
     fn close(self: Box<Self>) -> Result<(), String>;
 }
 
-/// A handle of one GPU.
+/// One GPU, as NVML reports it.
 pub trait Gpu {
-    /// Name: the product name.
+    /// The GPU's product name.
     fn name(&self) -> Result<String, String>;
-    /// Temperature: the GPU core temperature, whole °C.
+    /// The GPU core temperature in whole degrees Celsius.
     fn temperature(&self) -> Result<u32, String>;
 }
 
-/// The NVIDIA adapter. `root` is the sysfs root.
+/// The NVIDIA adapter. `root` is the sysfs root, `/sys` in production.
 pub struct Nvidia {
     root: PathBuf,
     nvml: Box<dyn Interface>,
-    /// The last trimmed non-empty name per PCI address; kept
-    /// for the adapter's life, through `stop` and `start`.
+    /// The last non-empty name NVML gave for each PCI address, trimmed.
+    /// It names a GPU while it is suspended. It is kept for the adapter's
+    /// whole life, through `stop` and `start`.
     names: HashMap<String, String>,
 }
 
@@ -120,18 +134,19 @@ impl Nvidia {
         }
     }
 
-    /// The sysfs root parameter.
+    /// The sysfs root the adapter was created with.
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// The NVML interface parameter.
+    /// The NVML interface the adapter was created with.
     pub fn interface(&self) -> &dyn Interface {
         self.nvml.as_ref()
     }
 }
 
-/// A PCI address `DDDD:BB:DD.F`, lower-case hexadecimal.
+/// Whether `name` is a PCI address as sysfs writes it: `DDDD:BB:DD.F`
+/// in lower-case hexadecimal, with a function number from 0 to 7.
 fn is_address(name: &str) -> bool {
     let b = name.as_bytes();
     let hex = |r: std::ops::Range<usize>| {
@@ -148,9 +163,10 @@ fn is_address(name: &str) -> bool {
         && (b'0'..=b'7').contains(&b[11])
 }
 
-/// The digits of an attribute `0x` and exactly `digits` hexadecimal
-/// digits, with one optional final newline; `None` otherwise or when
-/// the file cannot be read.
+/// Reads a sysfs attribute of the form `0x` followed by exactly `digits`
+/// hexadecimal digits and an optional final newline, and returns the
+/// digits. Returns `None` when the file cannot be read or has any other
+/// form.
 fn hex_attribute(path: &Path, digits: usize) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
     let bytes = bytes.strip_suffix(b"\n").unwrap_or(&bytes);
@@ -161,8 +177,10 @@ fn hex_attribute(path: &Path, digits: usize) -> Option<String> {
     String::from_utf8(hex.to_vec()).ok()
 }
 
-/// An NVIDIA GPU: vendor 0x10de and base class 0x03, the first two of
-/// the six class digits.
+/// Whether the PCI device in `dir` is an NVIDIA GPU: NVIDIA's vendor ID
+/// and the display-controller base class, which is the first two of the
+/// six digits of `class`. `None` when either file is unreadable or
+/// malformed.
 fn is_gpu(dir: &Path) -> Option<bool> {
     let vendor = u32::from_str_radix(&hex_attribute(&dir.join("vendor"), 4)?, 16).ok()?;
     let class = hex_attribute(&dir.join("class"), 6)?;
@@ -170,8 +188,10 @@ fn is_gpu(dir: &Path) -> Option<bool> {
     Some(vendor == NVIDIA && base == GPU_CLASS)
 }
 
-/// The NVIDIA GPUs of the device directory, by PCI address; an
-/// unreadable directory gives none.
+/// The NVIDIA GPUs in the PCI device directory, as (PCI address,
+/// directory), sorted by address. Entries that are not PCI addresses, or
+/// whose vendor or class cannot be read, are skipped. An unreadable
+/// directory gives no GPUs and logs an event.
 fn gpus(devices: &Path) -> Vec<(String, PathBuf)> {
     let list = match std::fs::read_dir(devices) {
         Ok(list) => list,
@@ -195,8 +215,9 @@ fn gpus(devices: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
-/// The runtime status: `active` or `unsupported`, with one optional final
-/// newline; anything else, a missing file or a read error is asleep.
+/// Whether the GPU in `dir` is awake: its `power/runtime_status` is one
+/// of `AWAKE`, with an optional final newline. Any other value, a
+/// missing file or a read error counts as suspended.
 fn awake(dir: &Path) -> bool {
     let Ok(bytes) = std::fs::read(dir.join("power/runtime_status")) else {
         return false;
@@ -205,9 +226,11 @@ fn awake(dir: &Path) -> bool {
     AWAKE.contains(&bytes)
 }
 
-/// Device, Name and Temperature of one awake GPU: the trimmed name and
-/// the temperature, or `None` when the GPU is left out (a failed call,
-/// an empty name, 0 °C). A non-empty name is remembered, also at 0 °C.
+/// Asks NVML for the name and temperature of the awake GPU at `pci`.
+/// Returns the trimmed name and the temperature, or `None` to leave the
+/// GPU out of the readings: when a call fails (each failure is logged),
+/// the name is empty, or the temperature is 0 °C. A non-empty name is
+/// stored in `names` even when the GPU is then left out.
 fn query(
     session: &dyn Session,
     pci: &str,
@@ -228,13 +251,16 @@ fn query(
 }
 
 impl Source for Nvidia {
-    /// Nothing; always *available*.
+    /// Does nothing: NVML is opened only during a read, and only while a
+    /// GPU is awake. Always returns `Available`.
     fn start(&mut self) -> StartOutcome {
         StartOutcome::Available
     }
 
-    /// Lists the GPUs and queries the awake ones; *unavailable* only when
-    /// `open` fails.
+    /// Returns one reading per NVIDIA GPU, in PCI address order: an awake
+    /// GPU with its name and temperature, unless `query` leaves it out; a
+    /// suspended GPU with its stored or default name and no value. The
+    /// result is `Unavailable` only when NVML cannot be opened.
     fn read(&mut self, _stop: BorrowedFd<'_>) -> ReadOutcome {
         let gpus: Vec<(String, bool)> = gpus(&self.root.join(DEVICES))
             .into_iter()
@@ -298,6 +324,7 @@ impl Source for Nvidia {
         ReadOutcome::Readings(out)
     }
 
-    /// Nothing to release; the name memory is kept.
+    /// Does nothing: NVML is never left open between reads, and the
+    /// stored names are kept on purpose.
     fn stop(&mut self) {}
 }
