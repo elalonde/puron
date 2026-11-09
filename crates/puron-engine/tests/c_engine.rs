@@ -1,9 +1,24 @@
-//! Engine tests and the registry's switch-change tests, with fake
-//! providers on the virtual clock, 5 s each. `c_engine_20`,
-//! `c_engine_1__b` and `c_engine_21__c` run on the system clock; the
-//! last two time the fakes on a `RealClock` of their own. One engine
-//! check is the script `tools/c_engine_15.sh`; the logging test is in
+//! Tests of the engine (`puron_engine::engine`): when it reads each
+//! provider, what its snapshots show, and how it starts, stops and shuts
+//! down providers as the settings change.
+//!
+//! Most tests run the engine on the virtual clock of `puron_testkit::eng`
+//! with fake providers (`Fake`), so that every time is exact. Three tests
+//! run on the system clock instead: `c_engine_20`, `c_engine_1__b` and
+//! `c_engine_21__c`; the last two let their fakes record times on a
+//! `RealClock` of their own. One more engine test is the script
+//! `tools/c_engine_15.sh`, and the test of the engine's diagnostics is in
 //! `c_engine_25.rs`.
+//!
+//! Words used below. Liquidctl is the only child-run provider: its
+//! adapter runs a program for each read, the engine sets no read deadline
+//! for it, and its read ends early when the engine raises the stop
+//! signal, which it does when it switches the provider off or shuts
+//! down. Every other provider is in-process, and the engine shows its
+//! readings without values while a read runs past `READ_DEADLINE`
+//! (10 s). Each start of a provider begins a new generation, and the
+//! engine drops a result that belongs to an earlier one. `r1` gives the
+//! readings `a` = 40 and `b` = 50, `r2` gives 41 and 51.
 
 #![allow(non_snake_case)] // test names with a case suffix
 
@@ -19,9 +34,11 @@ use puron_testkit::eng::{
     adapters, r1, r2, CallKind, Fake, ReadStep, StartStep, StopStep, VirtualClock,
 };
 
+/// The time limit of most tests here, in seconds.
 const LIMIT: u64 = 5;
 
-/// Settings with only `ps` switched on and interval `n`.
+/// Settings with the providers in `ps` switched on, every other provider
+/// switched off, and a poll interval of `n` seconds.
 fn on(ps: &[Provider], n: u32) -> Settings {
     Settings {
         provider_lm_sensors: ps.contains(&LmSensors),
@@ -34,8 +51,12 @@ fn on(ps: &[Provider], n: u32) -> Settings {
     }
 }
 
+/// Every provider, in the engine's order.
 const ALL: [Provider; 5] = [LmSensors, Liquidctl, Nvidia, Udisks2, NvmeCli];
 
+/// An engine on a virtual clock, with the steps most tests take.
+/// `Engine::try_next` returns each snapshot only once, so `last` keeps
+/// the most recent one that the test has taken.
 struct Run {
     clock: Arc<VirtualClock>,
     e: Arc<Engine>,
@@ -43,6 +64,8 @@ struct Run {
 }
 
 impl Run {
+    /// A virtual clock at time 0, an engine on it that has not been
+    /// started yet, and an empty snapshot as the last one seen.
     fn new() -> Run {
         let clock = VirtualClock::new();
         let e = Arc::new(Engine::new(clock.dyn_clock()));
@@ -56,25 +79,35 @@ impl Run {
         }
     }
 
+    /// A fake for provider `p` that records its calls on this run's
+    /// clock.
     fn fake(&self, p: Provider) -> Fake {
         Fake::new(self.clock.dyn_clock(), p)
     }
 
+    /// Starts the engine with `settings` and these fakes, then waits
+    /// until every engine thread waits on the clock again, so that
+    /// everything the start does at the current time has happened.
     fn start(&self, settings: &Settings, fakes: &[Fake]) {
         self.e.start(settings, adapters(fakes));
         self.clock.settle();
     }
 
+    /// Moves the clock to `t` seconds and returns once the engine has
+    /// handled everything that was due up to then.
     fn to(&self, t: f64) {
         self.clock.advance_to(t);
     }
 
+    /// Sends new provider switches and waits until the engine has
+    /// handled them, without moving the clock.
     fn set(&self, s: &Settings) {
         self.e.set_providers(s);
         self.clock.settle();
     }
 
-    /// The latest snapshot published so far.
+    /// The latest snapshot the engine has published: a new one if there
+    /// is one, otherwise the last one seen.
     fn snap(&mut self) -> Snapshot {
         if let Some(s) = self.e.try_next() {
             self.last = s;
@@ -82,7 +115,8 @@ impl Run {
         self.last.clone()
     }
 
-    /// `p`'s readings in the latest snapshot: (name, position, value).
+    /// The readings of provider `p` in the latest snapshot, as (name,
+    /// position, value), in snapshot order.
     fn of(&mut self, p: Provider) -> Vec<(String, u32, Option<f64>)> {
         self.snap()
             .readings
@@ -93,18 +127,24 @@ impl Run {
     }
 }
 
+/// The readings `a` at position 0 and `b` at position 1, with these
+/// values, in the form `Run::of` returns.
 fn vals(a: f64, b: f64) -> Vec<(String, u32, Option<f64>)> {
     vec![("a".into(), 0, Some(a)), ("b".into(), 1, Some(b))]
 }
 
+/// What `Run::of` returns for a provider that shows the readings of `r1`.
 fn r1v() -> Vec<(String, u32, Option<f64>)> {
     vals(40.0, 50.0)
 }
 
+/// What `Run::of` returns for a provider that shows the readings of `r2`.
 fn r2v() -> Vec<(String, u32, Option<f64>)> {
     vals(41.0, 51.0)
 }
 
+/// What `Run::of` returns for a provider that shows the lines `a` and `b`
+/// without values.
 fn novalue() -> Vec<(String, u32, Option<f64>)> {
     vec![("a".into(), 0, None), ("b".into(), 1, None)]
 }
@@ -113,8 +153,11 @@ fn gives(o: ReadOutcome) -> ReadStep {
     ReadStep::Gives(o)
 }
 
-/// Real time measured by the test, apart from the engine's clock: the
-/// fakes of the system-clock cases record their calls on it.
+/// A clock on real time, separate from the engine's `SystemClock`, for
+/// the fakes of the tests that run on the system clock. A fake records
+/// its call times on it, in seconds since the `RealClock` was created,
+/// so that the test can compare them with the times it sleeps to. A wait
+/// checks `ready` again at least every 10 ms.
 struct RealClock {
     origin: Instant,
     lock: Mutex<()>,
@@ -157,7 +200,8 @@ impl Clock for RealClock {
     }
 }
 
-/// Sleeps until `t` seconds of real time since `origin`.
+/// Sleeps until `t` seconds of real time have passed since `origin`, or
+/// returns at once if they already have.
 fn sleep_to(origin: Instant, t: f64) {
     let left = t - origin.elapsed().as_secs_f64();
     if left > 0.0 {
@@ -165,6 +209,9 @@ fn sleep_to(origin: Instant, t: f64) {
     }
 }
 
+/// lm-sensors reads take 1 s each, at a 5 s interval. Expects reads to
+/// start at 0, 5, 10 and 15 s: the interval counts from the start of a
+/// read, not from its end.
 #[test]
 fn c_engine_1__a() {
     puron_testkit::limit("C-engine-1", LIMIT, || {
@@ -178,6 +225,9 @@ fn c_engine_1__a() {
     });
 }
 
+/// The same on the system clock: lm-sensors reads return at once, at a
+/// 1 s interval. Expects exactly 4 reads in the first 3.6 s, read `i`
+/// starting between `i` and `i` + 0.5 s.
 #[test]
 fn c_engine_1__b() {
     puron_testkit::limit("C-engine-1", 15, || {
@@ -202,6 +252,10 @@ fn c_engine_1__b() {
     });
 }
 
+/// lm-sensors reads take 3 s and NVIDIA reads return at once. Expects
+/// the snapshot at 0.5 s to show NVIDIA's readings and no lm-sensors
+/// lines, and the one at 3 s to show both: a slow provider does not
+/// delay another one.
 #[test]
 fn c_engine_2() {
     puron_testkit::limit("C-engine-2", LIMIT, || {
@@ -220,6 +274,11 @@ fn c_engine_2() {
     });
 }
 
+/// lm-sensors reads take 12.25 s at a 1 s interval; at 25.5 s the
+/// interval becomes 60 s. Expects reads at 0, 12.25, 24.5 and 36.75 s:
+/// while a read runs, the polls queue at most one more read, which
+/// starts as soon as the running one ends. The read queued before the
+/// interval change still runs; the next poll comes only at 85.5 s.
 #[test]
 fn c_engine_3() {
     puron_testkit::limit("C-engine-3", LIMIT, || {
@@ -236,6 +295,9 @@ fn c_engine_3() {
     });
 }
 
+/// Liquidctl reads take 2.5 s at a 1 s interval. Expects reads at 0, 3
+/// and 6 s: for a child-run provider, the polls that arrive while its
+/// program runs are dropped, so the next read waits for the next poll.
 #[test]
 fn c_engine_4() {
     puron_testkit::limit("C-engine-4", LIMIT, || {
@@ -249,6 +311,9 @@ fn c_engine_4() {
     });
 }
 
+/// lm-sensors at a 5 s interval; at 6 s the interval becomes 3 s.
+/// Expects reads at 0, 5, 9 and 12 s: the new interval counts from the
+/// change.
 #[test]
 fn c_engine_5() {
     puron_testkit::limit("C-engine-5", LIMIT, || {
@@ -262,6 +327,10 @@ fn c_engine_5() {
     });
 }
 
+/// A thread calls `Engine::next` twice, starting before the engine is
+/// started. Expects the first call not to return before the start, then
+/// to return at 0 s with lm-sensors' first readings; the second call
+/// returns at 5 s, after the second read, and not before.
 #[test]
 fn c_engine_7() {
     puron_testkit::limit("C-engine-7", LIMIT, || {
@@ -301,6 +370,8 @@ fn c_engine_7() {
     });
 }
 
+/// The readings of a `ReadOutcome::Readings`, to compare with those of a
+/// snapshot. Panics on any other outcome.
 trait Readings {
     fn readings(self) -> Vec<puron_core::rows::RawReading>;
 }
@@ -314,6 +385,11 @@ impl Readings for ReadOutcome {
     }
 }
 
+/// lm-sensors gives `r1`, `r2` and `r1` at 0, 5 and 10 s, and nobody
+/// takes a snapshot until 11 s. Expects `Engine::next` then to return the
+/// snapshot of 10 s at once, since only the latest one is kept, and a
+/// second `next` to keep waiting: a snapshot already returned does not
+/// end a wait again.
 #[test]
 fn c_engine_8() {
     puron_testkit::limit("C-engine-8", LIMIT, || {
@@ -345,6 +421,10 @@ fn c_engine_8() {
     });
 }
 
+/// One case of the read deadline: lm-sensors' first read is `read1`,
+/// which gives `r1`, and its second read never returns. Expects the
+/// lines with values at `before` and without values at `at`, the time
+/// when the second read's deadline passes.
 fn c_engine_9_case(read1: ReadStep, before: f64, at: f64) {
     let mut r = Run::new();
     let lm = r.fake(LmSensors).reads([read1, ReadStep::Hangs]);
@@ -355,6 +435,8 @@ fn c_engine_9_case(read1: ReadStep, before: f64, at: f64) {
     assert_eq!(r.of(LmSensors), novalue(), "no value at {at}");
 }
 
+/// The first read returns at once, so the second starts at 5 s and its
+/// deadline passes at 15 s.
 #[test]
 fn c_engine_9__a() {
     puron_testkit::limit("C-engine-9", LIMIT, || {
@@ -362,6 +444,9 @@ fn c_engine_9__a() {
     });
 }
 
+/// The first read takes 7 s, so the second read, asked for at 5 s,
+/// starts at 7 s, and its deadline passes at 17 s: the deadline counts
+/// from the start of the read, not from the poll.
 #[test]
 fn c_engine_9__b() {
     puron_testkit::limit("C-engine-9", LIMIT, || {
@@ -369,6 +454,9 @@ fn c_engine_9__b() {
     });
 }
 
+/// lm-sensors' second read hangs past its deadline and then gives `r2`.
+/// Expects the lines without values at 20 s, and `r2`'s values once the
+/// read returns: a late result is still used.
 #[test]
 fn c_engine_10() {
     puron_testkit::limit("C-engine-10", LIMIT, || {
@@ -385,6 +473,11 @@ fn c_engine_10() {
     });
 }
 
+/// lm-sensors reads give `r1`, a failure, `r2`, then failures. Expects
+/// the lines with values, then without values after the failure, then
+/// `r2`'s values. After lm-sensors is switched off and on again at 16 s,
+/// its next read fails and it shows no lines at all: the restart has
+/// forgotten the earlier readings.
 #[test]
 fn c_engine_11() {
     puron_testkit::limit("C-engine-11", LIMIT, || {
@@ -408,6 +501,9 @@ fn c_engine_11() {
     });
 }
 
+/// Liquidctl reads give readings, a failure, then readings again.
+/// Expects its lines at 0 s, no lines after the failed read at 5 s, and
+/// its lines again at 10 s: a failed child-run read removes the lines.
 #[test]
 fn c_engine_12__a() {
     puron_testkit::limit("C-engine-12", LIMIT, || {
@@ -426,6 +522,9 @@ fn c_engine_12__a() {
     });
 }
 
+/// Liquidctl's second read never returns. Expects its lines to keep
+/// their values at 15 and 30 s: the engine sets no read deadline for a
+/// child-run provider.
 #[test]
 fn c_engine_12__b() {
     puron_testkit::limit("C-engine-12", LIMIT, || {
@@ -441,6 +540,10 @@ fn c_engine_12__b() {
     });
 }
 
+/// udisks2's start hangs while lm-sensors is read normally. Expects
+/// lm-sensors to be read at 0, 5 and 10 s, and udisks2 to show no lines
+/// and get no read until its start returns at 11 s; it is then read at
+/// once.
 #[test]
 fn c_engine_13() {
     puron_testkit::limit("C-engine-13", LIMIT, || {
@@ -461,6 +564,10 @@ fn c_engine_13() {
     });
 }
 
+/// lm-sensors' second read panics. Expects the lines without values
+/// after it (a panic counts as a failed read), NVIDIA's readings
+/// unchanged, both worker threads still running, and the values back
+/// after the next read at 10 s.
 #[test]
 fn c_engine_14__read() {
     puron_testkit::limit("C-engine-14", LIMIT, || {
@@ -482,6 +589,10 @@ fn c_engine_14__read() {
     });
 }
 
+/// lm-sensors' first start panics. Expects no lines and no read up to
+/// 11 s, with the lm-sensors state `Unavailable`. After lm-sensors is
+/// switched off and on again, it starts, is read at once and shows its
+/// values, on the same worker thread (2 in all).
 #[test]
 fn c_engine_14__start() {
     puron_testkit::limit("C-engine-14", LIMIT, || {
@@ -504,6 +615,11 @@ fn c_engine_14__start() {
     });
 }
 
+/// lm-sensors' first stop panics, at 1 s. Expects its lines to be gone,
+/// and a new start and read at 1 s when it is switched on again, on the
+/// one worker thread. After it is switched off and the engine shuts
+/// down, `stop` has been called twice: shutdown does not stop an adapter
+/// that is already stopped.
 #[test]
 fn c_engine_14__stop() {
     puron_testkit::limit("C-engine-14", LIMIT, || {
@@ -521,13 +637,19 @@ fn c_engine_14__stop() {
         assert_eq!(lm.times(CallKind::Read), [0.0, 1.0]);
         assert_eq!(r.of(LmSensors), r1v());
         assert_eq!(r.e.workers(), 1);
-        // Stop only after a start: not again at shut down.
+        // The adapter is stopped now, so shutdown must not stop it again.
         r.set(&on(&[], 5));
         r.e.shutdown();
         assert_eq!(lm.count(CallKind::Stop), 2);
     });
 }
 
+/// lm-sensors' first read hangs while it is switched off at 2 s, on at
+/// 3 s, off at 4 s and on at 5 s. When the read returns `r1` at 6 s,
+/// expects it to be dropped, since it belongs to an earlier generation,
+/// and the worker then to handle in order: stop, start, stop, start and
+/// one read. That read's `r2` is shown, and there is still one worker
+/// thread.
 #[test]
 fn c_engine_16() {
     puron_testkit::limit("C-engine-16", LIMIT, || {
@@ -557,6 +679,10 @@ fn c_engine_16() {
     });
 }
 
+/// lm-sensors' first read hangs; it is switched off at 3 s and on at
+/// 4 s, and the hung read returns `r1` at 6 s. Expects the snapshot at
+/// 10 s to show `r2`, from the reads of the new start, and not the
+/// dropped `r1`.
 #[test]
 fn c_engine_17() {
     puron_testkit::limit("C-engine-17", LIMIT, || {
@@ -576,6 +702,8 @@ fn c_engine_17() {
     });
 }
 
+/// lm-sensors is switched off at 2 s. Expects its lines to be gone and
+/// its state to be `NoneYet` at once, without the clock moving.
 #[test]
 fn c_engine_18() {
     puron_testkit::limit("C-engine-18", LIMIT, || {
@@ -591,6 +719,13 @@ fn c_engine_18() {
     });
 }
 
+/// The lm-sensors state of the snapshot (`LmReport`). lm-sensors reads
+/// give unavailable, `r1`, a failure, then hang; NVIDIA is unavailable.
+/// Expects `NoneYet` before the start, `Unavailable` after the first
+/// read, `Answered` after the successful read and still after the failed
+/// one, `Answered` when the hung read's deadline has passed at 25 s (the
+/// lines shown without values), and `NoneYet` once lm-sensors is
+/// switched off.
 #[test]
 fn c_engine_19() {
     puron_testkit::limit("C-engine-19", LIMIT, || {
@@ -617,6 +752,13 @@ fn c_engine_19() {
     });
 }
 
+/// On the system clock, every provider's first start and first read
+/// hang. Expects `start`, `poll_now`, `set_interval` and two
+/// `set_providers` calls each to return within 0.25 s; a thread waiting
+/// in `Engine::next` not to return within 100 ms of the start; and,
+/// after every provider is switched off, that wait to return an empty
+/// snapshot within 1 s. At the end the fakes are released and the
+/// engine is shut down.
 #[test]
 fn c_engine_20() {
     puron_testkit::limit("C-engine-20", LIMIT, || {
@@ -666,6 +808,8 @@ fn c_engine_20() {
     });
 }
 
+/// Shutdown with two providers that are not reading. Expects it to
+/// return without the clock moving, after one `stop` call for each.
 #[test]
 fn c_engine_21__a() {
     puron_testkit::limit("C-engine-21", LIMIT, || {
@@ -680,6 +824,9 @@ fn c_engine_21__a() {
     });
 }
 
+/// Shutdown while lm-sensors' read hangs. Expects it to return at
+/// exactly 1 s of clock time (`SHUTDOWN_WAIT`), not before, and no read
+/// after the first.
 #[test]
 fn c_engine_21__b() {
     puron_testkit::limit("C-engine-21", LIMIT, || {
@@ -700,6 +847,8 @@ fn c_engine_21__b() {
     });
 }
 
+/// The same on the system clock: shutdown at 2 s while lm-sensors' read
+/// hangs. Expects it to take between 1 and 1.5 s.
 #[test]
 fn c_engine_21__c() {
     puron_testkit::limit("C-engine-21", 8, || {
@@ -718,6 +867,9 @@ fn c_engine_21__c() {
     });
 }
 
+/// Liquidctl's read hangs, and liquidctl is switched off at 2 s.
+/// Expects that read to see the stop signal at 2 s. After it is switched
+/// on again, expects the read of the new start not to see the signal.
 #[test]
 fn c_engine_22__stop() {
     puron_testkit::limit("C-engine-22", LIMIT, || {
@@ -728,13 +880,16 @@ fn c_engine_22__stop() {
         r.set(&on(&[], 5));
         assert_eq!(lq.calls()[1].call, CallKind::Read);
         assert_eq!(lq.calls()[1].stop_seen, Some(2.0));
-        // The next start clears the signal.
+        // After this start, the fake's calls are: start, read, stop,
+        // start, read.
         r.set(&on(&[Liquidctl], 5));
         assert_eq!(lq.calls()[4].call, CallKind::Read);
         assert_eq!(lq.calls()[4].stop_seen, None);
     });
 }
 
+/// Liquidctl's read hangs, and the engine shuts down at 2 s. Expects
+/// that read to see the stop signal at 2 s.
 #[test]
 fn c_engine_22__shutdown() {
     puron_testkit::limit("C-engine-22", LIMIT, || {
@@ -753,6 +908,12 @@ fn c_engine_22__shutdown() {
     });
 }
 
+/// `poll_now`, `set_interval` and `set_providers` before the first
+/// `start`. Expects them to have no effect: no read up to 10 s, no
+/// worker thread and no snapshot. After a start with the default
+/// settings, expects one worker thread (lm-sensors); after every
+/// provider is switched on, 5; and still 5 after 100 more switches off
+/// and on, since a provider's worker thread is reused.
 #[test]
 fn c_engine_24() {
     puron_testkit::limit("C-engine-24", LIMIT, || {
@@ -780,6 +941,9 @@ fn c_engine_24() {
     });
 }
 
+/// `poll_now` at 2 and 4 s, at a 5 s interval. Expects reads at 0, 2,
+/// 4, 9 and 14 s: each `poll_now` reads at once and restarts the
+/// interval.
 #[test]
 fn c_engine_26__a() {
     puron_testkit::limit("C-engine-26", LIMIT, || {
@@ -795,6 +959,10 @@ fn c_engine_26__a() {
     });
 }
 
+/// NVIDIA is switched on at 2 s next to lm-sensors. Expects NVIDIA to be
+/// started and read at 2 s, lm-sensors to be read at 2 s too, and both
+/// to be read again at 7 s: a change of the switches polls every
+/// provider and restarts the interval.
 #[test]
 fn c_engine_26__b() {
     puron_testkit::limit("C-engine-26", LIMIT, || {
@@ -811,6 +979,9 @@ fn c_engine_26__b() {
     });
 }
 
+/// `poll_now` at 1 s while a 2 s lm-sensors read runs. Expects reads at
+/// 0, 2 and 6 s: the asked-for read runs when the running one ends, and
+/// the interval restarts from the `poll_now`.
 #[test]
 fn c_engine_26__c() {
     puron_testkit::limit("C-engine-26", LIMIT, || {
@@ -826,6 +997,8 @@ fn c_engine_26__c() {
     });
 }
 
+/// udisks2 switched on. Expects one start at 0 s and reads every 5 s;
+/// switched off and on again at 12 s, it is started again.
 #[test]
 fn c_src_registry_3() {
     puron_testkit::limit("C-src.registry-3", LIMIT, || {
@@ -842,6 +1015,10 @@ fn c_src_registry_3() {
     });
 }
 
+/// NVMe reports unavailable at start. Expects empty snapshots, no read
+/// and no other start up to 11 s: the engine does not retry by itself.
+/// After NVMe is switched off and on again at 12 s, it is started again,
+/// read at once, and shows its readings.
 #[test]
 fn c_src_registry_4() {
     puron_testkit::limit("C-src.registry-4", LIMIT, || {
@@ -870,6 +1047,9 @@ fn c_src_registry_4() {
     });
 }
 
+/// lm-sensors' second read reports unavailable. Expects its lines at
+/// 0 s, no lines at 5 s, its lines again at 10 s, and only one start:
+/// an unavailable read does not restart the provider.
 #[test]
 fn c_src_registry_5() {
     puron_testkit::limit("C-src.registry-5", LIMIT, || {
@@ -889,7 +1069,9 @@ fn c_src_registry_5() {
     });
 }
 
-// A handle dropped without a `shutdown` call still stops the workers.
+/// Liquidctl's read hangs, and at 2 s the only `Engine` handle is
+/// dropped without a `shutdown` call. Expects the read to see the stop
+/// signal at 2 s: dropping the handle shuts the engine down.
 #[test]
 fn engine_drop_sends_shutdown() {
     puron_testkit::limit("p4f3-drop", LIMIT, || {
@@ -905,8 +1087,9 @@ fn engine_drop_sends_shutdown() {
     });
 }
 
-// A stop drops the stopped provider's read deadline only; another
-// provider's hung read still passes its deadline.
+/// udisks2's read at 5 s hangs, and lm-sensors is switched off at 6 s.
+/// Expects udisks2's lines without values at 15.5 s: switching off one
+/// provider removes only that provider's read deadline.
 #[test]
 fn stop_keeps_other_deadlines() {
     puron_testkit::limit("p4f3-deadlines", LIMIT, || {

@@ -1,8 +1,7 @@
-//! The aggregator logs `provider-updated` at each accepted report with
-//! readings, to a test journal socket with diag switched on; fake
-//! providers run on the virtual clock. Also checks the
-//! start-unavailable and panic entries.
-//! Own test binary: diag's switch and socket are per process.
+//! Diagnostics: the entries the engine logs for its providers.
+//!
+//! This test has a test binary of its own because the diagnostics switch
+//! and socket are set for the whole process.
 
 use std::time::Duration;
 
@@ -14,6 +13,17 @@ use puron_engine::registry::ReadOutcome;
 use puron_testkit::eng::{adapters, r1, Fake, ReadStep, StartStep, VirtualClock};
 use puron_testkit::jrn::{self, Journal};
 
+/// Runs the engine on the virtual clock with two fake providers switched
+/// on and diagnostics sent to a test journal socket. At its successive
+/// reads, lm-sensors gives readings, a failed read, an empty list of
+/// readings, unavailable, a panic with the text `boom`, and a panic with
+/// a payload that is not text; NVIDIA reports unavailable at start.
+/// After 26 s of clock time, lm-sensors has been read 6 times, and the
+/// journal holds: one `provider-updated` entry for lm-sensors for each
+/// result with readings that the engine accepted (the first read and the
+/// empty list, not the failed or unavailable read), one engine
+/// `start-unavailable` entry for NVIDIA, and one `panic` entry for each
+/// read that panicked, with the text `boom` and with an empty text.
 #[test]
 fn c_engine_25() {
     puron_testkit::limit("C-engine-25", 5, || {
@@ -42,7 +52,9 @@ fn c_engine_25() {
         e.start(&settings, adapters(&[lm.clone(), nv]));
         clock.settle();
         clock.advance_to(26.0);
-        // Every send is done when advance_to returns; the reader may lag.
+        // The engine has sent every event when `advance_to` returns, but
+        // the journal's reader thread may still be receiving them, so
+        // take whatever has arrived within 500 ms.
         let all = j.wait(usize::MAX, Duration::from_millis(500));
         let updated: Vec<_> = all
             .iter()

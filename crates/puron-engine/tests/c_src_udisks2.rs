@@ -1,5 +1,13 @@
-//! Tests of the udisks2 source, through `start`, `read` and `stop` with a
-//! private fixture bus as the bus address and a bus time limit of 1 s.
+//! Tests of the udisks2 adapter (`puron_engine::udisks2`), through its
+//! `start`, `read` and `stop`.
+//!
+//! Each test starts a private D-Bus daemon and, on it, a fake udisks2
+//! service (`puron_testkit::dbus::Fake`) that plays a script from
+//! `fixtures/dbus/`. The fake is the same test binary run again, so
+//! every test calls `dbus::child()` first: in the fake's process that
+//! call runs the fake and never returns. The adapter connects to the
+//! private bus with a time limit of 1 s for the connection and for each
+//! call. udisks2 reports temperatures in kelvin; the adapter gives °C.
 
 use std::os::fd::AsFd;
 use std::time::{Duration, Instant};
@@ -10,29 +18,39 @@ use puron_engine::udisks2::{Bus as Addr, Udisks2, MANAGER_PATH, SERVICE};
 use puron_testkit::dbus::{self, drive, Bus, Fake, Owners};
 use puron_testkit::{temp_dir, umd};
 
-/// Test time limit: 5 s.
+/// The time limit of each test here, in seconds.
 const LIMIT: u64 = 5;
-/// The bus time limit of the tests.
+/// The adapter's time limit in these tests, for connecting and for each
+/// call on the bus.
 const BUS_LIMIT: Duration = Duration::from_secs(1);
 
-/// One expected reading: name, value, key; the Position is its index.
+/// One expected reading: its name, value and key (the drive's object
+/// path). Its position is its index in the list of expected readings.
 type Exp = (&'static str, Option<f64>, String);
 
+/// An adapter for the bus at `address`, with the time limit `BUS_LIMIT`.
 fn adapter(address: &str) -> Udisks2 {
     Udisks2::new(Addr::Address(address.to_string()), BUS_LIMIT)
 }
 
+/// Starts a private bus in a fresh temporary directory, and on it the
+/// fake udisks2 service with the script `fixtures/dbus/<script>.json`.
+/// `test` is the name of the calling test, which the fake's process
+/// runs.
 fn setup(test: &str, script: &str) -> (Bus, Fake) {
     let bus = Bus::start(&temp_dir("udisks2"));
     let fake = Fake::start(test, &bus, script);
     (bus, fake)
 }
 
+/// Reads once, with a stop descriptor that is never raised.
 fn read_outcome(src: &mut Udisks2) -> ReadOutcome {
     let stop = umd::stop_fd();
     src.read(stop.as_fd())
 }
 
+/// Reads once and returns the readings; panics if the read gives
+/// anything else.
 fn read(src: &mut Udisks2) -> Vec<RawReading> {
     match read_outcome(src) {
         ReadOutcome::Readings(r) => r,
@@ -40,8 +58,9 @@ fn read(src: &mut Udisks2) -> Vec<RawReading> {
     }
 }
 
-/// Every field: udisks2, Positions 0, 1, ..., kind temperature, no chip,
-/// device, item or unit, and the expected name, value and key.
+/// Checks every field of `readings`: name, value and key as in `exp`, in
+/// that order; provider `Udisks2`; positions 0, 1, 2 and so on; kind
+/// temperature; and no chip, device, item or unit.
 fn check(readings: &[RawReading], exp: &[Exp]) {
     let got: Vec<(String, Option<f64>, String)> = readings
         .iter()
@@ -64,20 +83,25 @@ fn check(readings: &[RawReading], exp: &[Exp]) {
     }
 }
 
-/// The log holds only the calls the adapter may make.
+/// Checks that the fake's call log holds only calls the adapter is
+/// allowed to make (see `dbus::allowed`).
 fn only_allowed(fake: &Fake) {
     for line in fake.log() {
         assert!(dbus::allowed(&line), "call not allowed: {line}");
     }
 }
 
+/// The number of lines of the fake's call log that start with `prefix`.
 fn count(fake: &Fake, prefix: &str) -> usize {
     fake.log().iter().filter(|l| l.starts_with(prefix)).count()
 }
 
+/// The start of a call-log line for the listing of the drives.
 const LIST: &str = "org.freedesktop.DBus.ObjectManager GetManagedObjects";
+/// The start of a call-log line for a property read.
 const GET: &str = "org.freedesktop.DBus.Properties Get";
 
+/// The readings of the `ata` script: two drives at 305 K and 310.15 K.
 fn ata() -> Vec<Exp> {
     vec![
         ("ST2000DM008-2FR102", Some(305.0 - 273.15), drive("ST_1")),
@@ -89,6 +113,9 @@ fn ata() -> Vec<Exp> {
     ]
 }
 
+/// Two ATA drives. Expects a start that reports available, one reading
+/// per drive named by its model, keyed by its object path and with its
+/// temperature in °C, and no call outside the allowed ones.
 #[test]
 fn c_src_udisks2_1() {
     puron_testkit::limit("C-src.udisks2-1", LIMIT, || {
@@ -102,6 +129,10 @@ fn c_src_udisks2_1() {
     });
 }
 
+/// Drives whose `Model` is " Spaced  Model ", "Disque ÉTÉ", the empty
+/// string, an integer, or missing, listed out of path order. Expects
+/// readings for the three string models only, named exactly as given,
+/// in object path order.
 #[test]
 fn c_src_udisks2_2() {
     puron_testkit::limit("C-src.udisks2-2", LIMIT, || {
@@ -123,6 +154,10 @@ fn c_src_udisks2_2() {
     });
 }
 
+/// Drive A's `SmartTemperature` set in turn to 0, -1, NaN, 0.5, 273.15
+/// and 400.0 K, with drive B at 310.15 K. Expects no reading for A at
+/// all for the first three values, which are not above 0 K, and A's
+/// value in °C for the others; B's reading is the same every time.
 #[test]
 fn c_src_udisks2_3() {
     puron_testkit::limit("C-src.udisks2-3", LIMIT, || {
@@ -153,6 +188,9 @@ fn c_src_udisks2_3() {
     });
 }
 
+/// Three buses on which `start` must report unavailable: one whose
+/// udisks2 has a drive without the `Drive.Ata` interface, one where no
+/// udisks2 runs, and an address where no bus exists.
 #[test]
 fn c_src_udisks2_4() {
     puron_testkit::limit("C-src.udisks2-4", LIMIT, || {
@@ -169,6 +207,11 @@ fn c_src_udisks2_4() {
     });
 }
 
+/// After a start, a drive is added, the first drive's model changes and
+/// the second drive is removed. Expects the read to keep the drives and
+/// names found at start: no reading for the new drive, the old name for
+/// the first, the removed one without a value, and the drives listed
+/// only once, at start.
 #[test]
 fn c_src_udisks2_5() {
     puron_testkit::limit("C-src.udisks2-5", LIMIT, || {
@@ -193,6 +236,12 @@ fn c_src_udisks2_5() {
     });
 }
 
+/// Calls that fail for one drive. In the first read, A's call gets an
+/// error reply and B's gets a string instead of a number; in the second,
+/// B's call does not answer. Expects only the drive concerned without a
+/// value each time, the others with theirs; the second read to take
+/// between 1 and 1.5 s, since B's call runs to the time limit; and every
+/// value back in the third read.
 #[test]
 fn c_src_udisks2_6() {
     puron_testkit::limit("C-src.udisks2-6", LIMIT, || {
@@ -237,6 +286,11 @@ fn c_src_udisks2_6() {
     });
 }
 
+/// The bus and the fake stop after a read, and a new bus and fake start
+/// at the same address. Expects the read while the bus is gone to fail,
+/// and the next one to connect again and give the same readings, with
+/// one property call per drive and no new listing: the drives found at
+/// start are kept.
 #[test]
 fn c_src_udisks2_7() {
     puron_testkit::limit("C-src.udisks2-7", LIMIT, || {
@@ -261,6 +315,8 @@ fn c_src_udisks2_7() {
     });
 }
 
+/// A udisks2 that never answers the listing. Expects `start` to report
+/// unavailable after 1 to 1.5 s, the time limit.
 #[test]
 fn c_src_udisks2_8() {
     puron_testkit::limit("C-src.udisks2-8", LIMIT, || {
@@ -279,6 +335,10 @@ fn c_src_udisks2_8() {
     });
 }
 
+/// The first drive's temperature changes between two reads. Expects each
+/// read to make one property call per drive, and the second read to show
+/// the new value; the call log then holds the listing and four property
+/// calls, nothing else.
 #[test]
 fn c_src_udisks2_9() {
     puron_testkit::limit("C-src.udisks2-9", LIMIT, || {
@@ -308,6 +368,10 @@ fn c_src_udisks2_9() {
     });
 }
 
+/// Watches the bus's name owners while the adapter starts, reads three
+/// times and stops. Expects exactly one new connection at start, kept
+/// for every read and closed after `stop`, and a call log of exactly the
+/// one listing and one `SmartTemperature` read per drive per read.
 #[test]
 fn c_src_udisks2_10() {
     puron_testkit::limit("C-src.udisks2-10", LIMIT, || {
@@ -350,6 +414,9 @@ fn c_src_udisks2_10() {
     });
 }
 
+/// Expects the adapter that the registry builds for production to use
+/// the system bus with a 5 s time limit, and the udisks2 service name
+/// and object manager path to be the real ones.
 #[test]
 fn c_src_udisks2_11() {
     puron_testkit::limit("C-src.udisks2-11", LIMIT, || {

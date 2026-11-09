@@ -1,12 +1,17 @@
-//! Tests of the liquidctl source, through `start`, `read` and `stop` with
-//! fixture directories of fake `liquidctl` programs as the search path.
+//! Tests of the liquidctl adapter (`puron_engine::liquidctl`), through
+//! its `start`, `read` and `stop`. Each test gives the adapter, as its
+//! search path, a directory of `fixtures/lqc/` that holds a fake
+//! `liquidctl` shell script.
 //!
-//! The fakes log to the file named by `PURON_TEST_LQC_LOG` and write a
-//! grandchild's number to `PURON_TEST_LQC_CHILD`. The adapter passes the
-//! applet's environment on unchanged, so each test runs its body in a
-//! re-executed child of the test binary (as the libsensors tests do,
-//! without `umockdev-run`) whose environment names its own files; the
-//! parent test process never changes its own environment or directory.
+//! Each fake appends one line per run to the file named by
+//! `PURON_TEST_LQC_LOG` (its arguments, process ID, process group,
+//! whether its standard input was at end of file, and where its standard
+//! error went), and some write the process ID of a background child, the
+//! test's grandchild, to the file named by `PURON_TEST_LQC_CHILD`. The
+//! adapter passes its own environment on to the program unchanged, so
+//! each test runs its body in a child process, the test binary run again
+//! with an environment that names files of its own. The parent test
+//! process never changes its own environment or directory.
 
 #![allow(non_snake_case)]
 
@@ -22,22 +27,27 @@ use puron_engine::liquidctl::{self, Liquidctl};
 use puron_engine::registry::{self, ReadOutcome, Source, StartOutcome};
 use puron_testkit::{fixture, rerun_self, temp_dir, umd};
 
-/// Test time limit: the runner's time limit plus 5 s.
+/// The time limit, in seconds, of a test whose adapter limits each run
+/// to `ONE`: that limit plus 5 s.
 const SHORT: u64 = 6;
+/// The same for a test whose adapter limits each run to `TEN`.
 const LONG: u64 = 15;
-/// Time limit of `c_src_liquidctl_10`: 5 s.
+/// The time limit of `c_src_liquidctl_10`, in seconds.
 const C10: u64 = 5;
 
+/// The run time limits given to the adapter in these tests.
 const ONE: Duration = Duration::from_secs(1);
 const TEN: Duration = Duration::from_secs(10);
 
-/// Set in the re-executed child.
+/// Set in the child process that runs a test's body.
 const CHILD_ENV: &str = "PURON_LQC_CHILD";
+/// Names the file each fake appends its log line to.
 const LOG_ENV: &str = "PURON_TEST_LQC_LOG";
+/// Names the file a fake writes its background child's process ID to.
 const GRANDCHILD_ENV: &str = "PURON_TEST_LQC_CHILD";
 
-/// The tools the fake programs need on the test machine; checked on the
-/// parent side before any child.
+/// Checks, in the parent before any child starts, that the host has the
+/// tools the fakes and these tests use.
 fn need() {
     puron_testkit::host_need(
         "/bin/sh, mkfifo, setsid, pgrep, ps, /proc",
@@ -45,12 +55,15 @@ fn need() {
     );
 }
 
+/// Whether this process is the child that runs a test's body.
 fn is_child() -> bool {
     std::env::var_os(CHILD_ENV).is_some()
 }
 
-/// Parent: the command that runs test `test` again as a child, with a
-/// fresh log file and grandchild file, killed if the parent ends.
+/// In the parent: the command that runs test `test` again as a child,
+/// with standard input from /dev/null, its own log and grandchild files
+/// in a fresh temporary directory, and SIGKILL sent to it if the parent
+/// dies.
 fn child_command(test: &str) -> Command {
     need();
     let dir = temp_dir("lqc");
@@ -69,8 +82,8 @@ fn child_command(test: &str) -> Command {
     cmd
 }
 
-/// Parent: runs the child with `setup` applied; panics unless it exits
-/// 0; returns its standard output.
+/// In the parent: runs the child of `test` with `setup` applied to its
+/// command, panics unless it exits 0, and returns its standard output.
 fn run_child(test: &str, setup: impl FnOnce(&mut Command)) -> String {
     let mut cmd = child_command(test);
     setup(&mut cmd);
@@ -85,25 +98,28 @@ fn run_child(test: &str, setup: impl FnOnce(&mut Command)) -> String {
     text
 }
 
-/// The `RESULT ` lines of the child's output (the harness may print
-/// the test name first on the same line).
+/// The `RESULT ` lines of the child's output, each from `RESULT ` on: the
+/// test harness may print the test name before it on the same line.
 fn results(out: &str) -> Vec<&str> {
     out.lines()
         .filter_map(|l| l.find("RESULT ").map(|i| &l[i..]))
         .collect()
 }
 
+/// The fixture directory `fixtures/lqc/<name>`.
 fn dir(name: &str) -> PathBuf {
     fixture("lqc", name)
 }
 
-/// A search path from directories, joined with `:`.
+/// A search path made of `dirs`, joined with `:`.
 fn search(dirs: &[&Path]) -> OsString {
     let parts: Vec<&std::ffi::OsStr> = dirs.iter().map(|d| d.as_os_str()).collect();
     parts.join(std::ffi::OsStr::new(":"))
 }
 
-/// One log line of a fake.
+/// One log line of a fake: its arguments, process ID, process group ID,
+/// `yes` if its standard input was at end of file, and the target of its
+/// standard error.
 #[derive(Debug)]
 struct Line {
     args: String,
@@ -113,12 +129,14 @@ struct Line {
     fd2: String,
 }
 
+/// The fakes' log lines so far, in run order; none if no fake has run.
 fn log() -> Vec<Line> {
     let path = std::env::var_os(LOG_ENV).expect("log file named");
     let text = std::fs::read_to_string(path).unwrap_or_default();
     text.lines().map(parse_line).collect()
 }
 
+/// Parses one log line; panics if it is not in the fakes' form.
 fn parse_line(l: &str) -> Line {
     let rest = l.strip_prefix("args=").expect("args=");
     let (args, rest) = rest.split_once(" pid=").expect("pid=");
@@ -134,12 +152,12 @@ fn parse_line(l: &str) -> Line {
     }
 }
 
-/// The process number of the last fake run.
+/// The process ID of the last fake that ran.
 fn fake_pid() -> i32 {
     log().last().expect("a fake ran").pid
 }
 
-/// The grandchild's process number.
+/// The process ID that the fake wrote for its background child.
 fn grandchild_pid() -> i32 {
     let path = std::env::var_os(GRANDCHILD_ENV).expect("grandchild file named");
     std::fs::read_to_string(path)
@@ -149,25 +167,30 @@ fn grandchild_pid() -> i32 {
         .expect("grandchild number")
 }
 
-/// "Gone": `kill -0` fails and `/proc/<n>` does not exist.
+/// Whether process `pid` has ended and been reaped: `kill -0` fails and
+/// `/proc/<pid>` does not exist.
 fn gone(pid: i32) -> bool {
     // SAFETY: signal 0 only checks the process.
     let alive = unsafe { libc::kill(pid, 0) } == 0;
     !alive && !Path::new(&format!("/proc/{pid}")).exists()
 }
 
-/// Start; it must be available.
+/// An adapter with this search path and run time limit, started; panics
+/// unless the start reports it available.
 fn started(search_path: impl Into<OsString>, limit: Duration) -> Liquidctl {
     let mut src = Liquidctl::new(search_path, limit);
     assert_eq!(src.start(), StartOutcome::Available);
     src
 }
 
+/// Reads once, with a stop descriptor that is never raised.
 fn read(src: &mut Liquidctl) -> ReadOutcome {
     let stop = umd::stop_fd();
     src.read(stop.as_fd())
 }
 
+/// Reads once and returns the readings; panics if the read gives
+/// anything else.
 fn readings(src: &mut Liquidctl) -> Vec<RawReading> {
     match read(src) {
         ReadOutcome::Readings(r) => r,
@@ -175,7 +198,8 @@ fn readings(src: &mut Liquidctl) -> Vec<RawReading> {
     }
 }
 
-/// Device, Item, Unit, Value, Key of one reading.
+/// One expected reading: its device, item, unit, value and key. Its
+/// position is its index in the list of expected readings.
 type Exp = (
     &'static str,
     &'static str,
@@ -184,9 +208,12 @@ type Exp = (
     &'static str,
 );
 
+/// The two device descriptions of `G.json`.
 const KRAKEN: &str = "NZXT Kraken X (X42, X52, X62 or X72)";
 const PRO: &str = "Corsair Commander Pro";
 
+/// The readings of `fixtures/lqc/G.json`, the output that most fakes
+/// print: two devices, seven status entries.
 const G: [Exp; 7] = [
     (
         KRAKEN,
@@ -239,8 +266,9 @@ const G: [Exp; 7] = [
     ),
 ];
 
-/// Every field of the readings: liquidctl, Positions 0, 1, ..., no
-/// kind, chip or name, and the expected Device, Item, Unit, Value, Key.
+/// Checks every field of `readings`: device, item, unit, value and key as
+/// in `exp`, in that order; provider `Liquidctl`; positions 0, 1, 2 and
+/// so on; and no kind, chip or name.
 fn check(readings: &[RawReading], exp: &[Exp]) {
     type Got = (String, String, String, Option<f64>, String);
     let got: Vec<Got> = readings
@@ -276,10 +304,14 @@ fn check(readings: &[RawReading], exp: &[Exp]) {
     }
 }
 
+/// Seconds since `t0`.
 fn elapsed(t0: Instant) -> f64 {
     t0.elapsed().as_secs_f64()
 }
 
+/// A fake that prints `G.json`. Expects the seven readings of `G`, and
+/// the rows built from them for display (`rows::rows`) to be the five
+/// with values that are not a duty, under their short names.
 #[test]
 fn c_src_liquidctl_1() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -310,8 +342,9 @@ fn c_src_liquidctl_1() {
     });
 }
 
-/// Runner case: standard input closed in the reading process, so
-/// `pidfd_open` may return descriptor 0, which is a valid descriptor.
+/// A read with standard input closed in the process, so that the
+/// descriptor the adapter opens to watch its run may be number 0.
+/// Expects the readings of `G`: descriptor 0 is a valid descriptor.
 #[test]
 fn c_src_liquidctl_1__stdin_closed() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -320,7 +353,8 @@ fn c_src_liquidctl_1__stdin_closed() {
             return;
         }
         let mut src = started(dir("good"), ONE);
-        // The stop signal first, so that it does not take descriptor 0.
+        // Make the stop descriptor first, so that it cannot be the one
+        // that takes number 0.
         let stop = umd::stop_fd();
         // SAFETY: closes this child process's standard input only.
         unsafe { libc::close(0) };
@@ -331,9 +365,10 @@ fn c_src_liquidctl_1__stdin_closed() {
     });
 }
 
-/// Runner case: signals to the reading thread interrupt `poll(2)`
-/// (EINTR), sent as often as the signal thread runs; the run still
-/// completes. One EINTR is enough to show a mishandled EINTR.
+/// A read while another thread sends signals to the reading thread as
+/// fast as it can, so that the adapter's poll(2) returns EINTR. Expects
+/// at least one signal sent and the readings of `G`: an interrupted wait
+/// does not end the run.
 #[test]
 fn c_src_liquidctl_1__eintr() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -379,9 +414,9 @@ fn c_src_liquidctl_1__eintr() {
     });
 }
 
-/// Runner case: `pidfd_open` fails (ENOSYS, as on a kernel before 5.3,
-/// made by a seccomp filter on the reading thread): the run is not
-/// started and the `read` returns *failed* at once.
+/// A read on a thread where `pidfd_open` fails with ENOSYS, as on a
+/// kernel older than 5.3; a seccomp filter makes it fail. Expects the
+/// read to fail within 0.5 s, without starting the program.
 #[test]
 fn c_src_liquidctl_1__nopidfd() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -398,7 +433,8 @@ fn c_src_liquidctl_1__nopidfd() {
     });
 }
 
-/// A seccomp filter on this thread: `pidfd_open` fails with ENOSYS.
+/// Installs a seccomp filter on this thread that makes `pidfd_open` fail
+/// with ENOSYS and allows every other system call.
 fn deny_pidfd_open() {
     const LD_W_ABS: u16 = 0x20; // BPF_LD | BPF_W | BPF_ABS
     const JEQ_K: u16 = 0x15; // BPF_JMP | BPF_JEQ | BPF_K
@@ -430,6 +466,10 @@ fn deny_pidfd_open() {
     }
 }
 
+/// Three reads with the fake that prints `G.json`. Expects no run at
+/// start, and one run per read, each with the arguments `status --json`,
+/// in a process group of its own, with standard input at end of file and
+/// standard error going to /dev/null.
 #[test]
 fn c_src_liquidctl_2() {
     puron_testkit::limit("C-src.liquidctl-2", SHORT, || {
@@ -454,6 +494,10 @@ fn c_src_liquidctl_2() {
     });
 }
 
+/// Outputs that cannot be used: none, cut-off JSON, text that is not
+/// JSON, an invalid UTF-8 byte, a top level that is not an array, a
+/// description that is not a string, a status that is not an array, and
+/// a sensor entry (unit °C) without a key. Expects each read to fail.
 #[test]
 fn c_src_liquidctl_3() {
     puron_testkit::limit("C-src.liquidctl-3", SHORT, || {
@@ -479,6 +523,11 @@ fn c_src_liquidctl_3() {
     });
 }
 
+/// Status entries of odd shapes: a number, entries without a key whose
+/// unit is not a sensor unit, a null value, a value given as a string,
+/// and an entry with an extra field. Expects the entries that are not
+/// objects or have no key to be skipped, the null and string values to
+/// give readings without values, and the extra field to be ignored.
 #[test]
 fn c_src_liquidctl_4() {
     puron_testkit::limit("C-src.liquidctl-4", SHORT, || {
@@ -498,6 +547,8 @@ fn c_src_liquidctl_4() {
     });
 }
 
+/// A fake that prints `G.json` and exits with status 1. Expects the
+/// readings of `G`: the exit status does not decide the result.
 #[test]
 fn c_src_liquidctl_5() {
     puron_testkit::limit("C-src.liquidctl-5", SHORT, || {
@@ -510,8 +561,10 @@ fn c_src_liquidctl_5() {
     });
 }
 
-/// Log case: with debug logging on, the exit status 1 is logged once; a
-/// run with status 0 logs no exit-status event.
+/// With diagnostics on and sent to a test journal socket: a run that
+/// exits with status 0 and then one that exits with status 1. Expects no
+/// `exit-status` entry for the first, and one, with status 1, for the
+/// second.
 #[test]
 fn c_src_liquidctl_5__event() {
     puron_testkit::limit("C-src.liquidctl-5", SHORT, || {
@@ -522,9 +575,10 @@ fn c_src_liquidctl_5__event() {
         let j = puron_testkit::jrn::Journal::new("c-lqc-5");
         puron_engine::diag::set_socket(&j.path);
         puron_engine::diag::switch(true);
-        // After a `read`, a marker datagram from this thread is queued after
-        // every event of that `read`; waiting for the `m`-th marker leaves no
-        // timing bound on the pass path.
+        // The events of a `read` are sent before it returns, so a marker
+        // datagram sent after it arrives after all of them. Waiting for
+        // the `m`-th marker therefore waits for every event of the `m`
+        // reads so far, with no guess at a time.
         let sock = std::os::unix::net::UnixDatagram::unbound().expect("socket");
         let statuses = |j: &puron_testkit::jrn::Journal, m: usize| -> Vec<String> {
             sock.send_to(b"MESSAGE=marker\n", &j.path)
@@ -561,6 +615,10 @@ fn c_src_liquidctl_5__event() {
     });
 }
 
+/// Runs that do not end within the 1 s limit: a fake that prints part of
+/// its output and sleeps, and one that prints all of it, closes its
+/// output and sleeps. Expects each read to fail after 1 to 1.5 s, and
+/// the fake to be killed and reaped.
 #[test]
 fn c_src_liquidctl_6() {
     puron_testkit::limit("C-src.liquidctl-6", SHORT, || {
@@ -568,8 +626,9 @@ fn c_src_liquidctl_6() {
             run_child("c_src_liquidctl_6", |_| {});
             return;
         }
-        // The slow fake, then the one that closes its output early: end of
-        // file before the child has exited does not complete the run.
+        // A fake that never ends, then one that closes its output and
+        // then sleeps: end of output before the program has exited does
+        // not complete the run.
         for name in ["slow", "closed"] {
             let mut src = started(dir(name), ONE);
             let t0 = Instant::now();
@@ -583,10 +642,11 @@ fn c_src_liquidctl_6() {
     });
 }
 
-/// "Gone" for a grandchild: killed, that is `kill -0` fails, or its
-/// `/proc/<n>/stat` state is `Z`, or SIGKILL is pending for it (bit 0x100
-/// of `SigPnd` or `ShdPnd` in `/proc/<n>/status`). A failed read means it
-/// was reaped meanwhile.
+/// Whether the grandchild `pid` has been killed. The test cannot reap it,
+/// so any of these counts: `kill -0` fails, its state in
+/// `/proc/<pid>/stat` is `Z`, or SIGKILL is pending for it (bit 0x100 of
+/// `SigPnd` or `ShdPnd` in `/proc/<pid>/status`). A `/proc` file that
+/// cannot be read means it has been reaped meanwhile.
 fn grandchild_gone(pid: i32) -> bool {
     // SAFETY: signal 0 only checks the process.
     if unsafe { libc::kill(pid, 0) } != 0 {
@@ -621,6 +681,11 @@ fn kill_grandchild(pid: i32) {
     unsafe { libc::kill(pid, libc::SIGKILL) };
 }
 
+/// Background children of the fake. First a fake that leaves a `sleep
+/// 100` behind that keeps its output open: expects the read to fail after
+/// 1 to 1.5 s, with the fake and that child both killed. Then a fake whose
+/// background child has closed its output: expects the readings of `G`
+/// within 1 s, and the child killed too.
 #[test]
 fn c_src_liquidctl_7() {
     puron_testkit::limit("C-src.liquidctl-7", SHORT, || {
@@ -654,6 +719,10 @@ fn c_src_liquidctl_7() {
     });
 }
 
+/// The output size limit of 1 MiB. Expects the fakes to print exactly
+/// 1 048 576 and 1 048 577 bytes. With the run limit at 10 s, expects
+/// the first to give the readings of `G`, and the second to fail within
+/// 1 s, with the fake killed and reaped.
 #[test]
 fn c_src_liquidctl_8() {
     puron_testkit::limit("C-src.liquidctl-8", LONG, || {
@@ -682,6 +751,9 @@ fn c_src_liquidctl_8() {
     });
 }
 
+/// A fake that never ends, with the run limit at 10 s; another thread
+/// raises the stop descriptor after 0.5 s. Expects the read to fail
+/// within 1 s, with the fake killed and reaped.
 #[test]
 fn c_src_liquidctl_9() {
     puron_testkit::limit("C-src.liquidctl-9", LONG, || {
@@ -709,12 +781,15 @@ fn c_src_liquidctl_9() {
     });
 }
 
+/// The process that reads is killed with SIGKILL during a run of a fake
+/// that never ends. Expects the fake to be gone within 1.5 s: it does not
+/// outlive the process that started it.
 #[test]
 fn c_src_liquidctl_10() {
     puron_testkit::limit("C-src.liquidctl-10", C10, || {
         if is_child() {
-            // On a worker thread, `start` and `read`; the parent kills this
-            // process during the `read`.
+            // On a worker thread, start and read with a fake that never
+            // ends; the parent kills this process during the read.
             let worker = std::thread::spawn(|| {
                 let mut src = started(dir("slow"), TEN);
                 let _ = read(&mut src);
@@ -729,7 +804,7 @@ fn c_src_liquidctl_10() {
             .and_then(|(_, v)| v.map(PathBuf::from))
             .expect("log path");
         let mut child = cmd.stdout(Stdio::null()).spawn().expect("spawn the child");
-        // The `read` has started when the fake's line is in the log.
+        // The read has started the fake once the fake's line is in the log.
         let pid = loop {
             let text = std::fs::read_to_string(&log_path).unwrap_or_default();
             if let Some(l) = text.lines().next() {
@@ -752,6 +827,14 @@ fn c_src_liquidctl_10() {
     });
 }
 
+/// The search for the program. Search path `d1:d2:d3`, where `d1` holds a
+/// `liquidctl` the user may not run, `d2` a directory named `liquidctl`,
+/// and `d3` a link to the fake that prints `G.json`: expects `d3`'s to
+/// be found. With `d4`, an empty directory, in place of `d3`: expects
+/// `start` to report unavailable. Then in a temporary copy: started with
+/// `d4:d3`, a program copied into `d4` afterwards is not used, and once
+/// `d3`'s link is removed the read fails: the program found at start is
+/// kept.
 #[test]
 fn c_src_liquidctl_11() {
     puron_testkit::limit("C-src.liquidctl-11", SHORT, || {
@@ -762,14 +845,15 @@ fn c_src_liquidctl_11() {
         let p = dir("path");
         let (d1, d2, d3, d4) = (p.join("d1"), p.join("d2"), p.join("d3"), p.join("d4"));
         // d1 holds a liquidctl the user may not run, d2 a directory of that
-        // name, d3 a link to the good fake: the search finds d3's.
+        // name, d3 a link to the fake that prints G.json.
         let mut src = started(search(&[&d1, &d2, &d3]), ONE);
         check(&readings(&mut src), &G);
         src.stop();
-        // No entry holds a liquidctl the user may run: start is unavailable.
+        // No entry holds a liquidctl the user may run.
         let mut src = Liquidctl::new(search(&[&d1, &d2, &d4]), ONE);
         assert_eq!(src.start(), StartOutcome::Unavailable, "case 2");
-        // On a copy: d3 holds a link to the good fake, d4 is empty.
+        // In a temporary directory: d3 holds a link to the fake that
+        // prints G.json, d4 is empty until after the start.
         let t = temp_dir("lqc-path");
         let (t3, t4) = (t.join("d3"), t.join("d4"));
         std::fs::create_dir(&t3).expect("d3");
@@ -785,8 +869,10 @@ fn c_src_liquidctl_11() {
     });
 }
 
-/// In the child, the current directory `d3` and the search path `d4` then
-/// an empty entry.
+/// With the current directory `d3`, which holds the fake, and the search
+/// path `d4:` (an empty entry last). Expects the empty entry to stand for
+/// the current directory: the start reports available and the read
+/// gives the 7 readings of `G`.
 #[test]
 fn c_src_liquidctl_11__cwd() {
     puron_testkit::limit("C-src.liquidctl-11", SHORT, || {
@@ -807,6 +893,9 @@ fn c_src_liquidctl_11__cwd() {
     });
 }
 
+/// The adapter that the registry builds for production. Expects its
+/// search path to be `PATH`, or `/bin:/usr/bin` when `PATH` is not set,
+/// its run limit 10 s and its output limit 1 MiB.
 #[test]
 fn c_src_liquidctl_12() {
     puron_testkit::limit("C-src.liquidctl-12", SHORT, || {
@@ -834,6 +923,8 @@ fn c_src_liquidctl_12() {
     });
 }
 
+/// Expects the default search path to be `/bin:/usr/bin`, with no empty
+/// entry and so no search of the current directory.
 #[test]
 fn c_src_liquidctl_13() {
     puron_testkit::limit("C-src.liquidctl-13", SHORT, || {
@@ -843,8 +934,9 @@ fn c_src_liquidctl_13() {
     });
 }
 
-/// In the child, the current directory `d3` and the search path `d4:d2`,
-/// no empty entry.
+/// With the current directory `d3`, which holds the fake, and the search
+/// path `d4:d2`, without an empty entry. Expects `start` to report
+/// unavailable: the current directory is not searched.
 #[test]
 fn c_src_liquidctl_13__cwd() {
     puron_testkit::limit("C-src.liquidctl-13", SHORT, || {
@@ -860,6 +952,11 @@ fn c_src_liquidctl_13__cwd() {
     });
 }
 
+/// The keys of the readings. Expects `<description>/<status key>` for
+/// devices with a description of their own. When devices share a
+/// description, expects the device's address between the two, as in
+/// `Corsair Commander Pro//dev/hidraw1/Fan 1 speed`, and an empty address
+/// when the device has none, so that two such devices get the same key.
 #[test]
 fn c_src_liquidctl_14() {
     puron_testkit::limit("C-src.liquidctl-14", SHORT, || {
