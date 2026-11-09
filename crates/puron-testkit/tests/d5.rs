@@ -1,8 +1,7 @@
-//! Tests of the rows dump: the captured raw readings through the fake
-//! provider, with the two settings roots under `fixtures/d5/` (the
-//! captured one and an empty one), and the readings that give no row
-//! with a pin that is never found; the dump equals the fixture written
-//! by hand from the rules (`cmp` exit 0).
+//! Tests of the text dump of `puron_testkit::d5`. Most of them give
+//! readings to the dump through fake providers and compare its output
+//! byte for byte, with `cmp`, against an expected file under
+//! `fixtures/d5/` that was written by hand.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -24,6 +23,8 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// The settings stored under `fixtures/d5/<settings>`; asserts that
+/// loading them finds no problem.
 fn loaded(settings: &str) -> Settings {
     let loaded = Config::new(
         root()
@@ -35,8 +36,9 @@ fn loaded(settings: &str) -> Settings {
     loaded.settings
 }
 
-/// The dump of the captured raw readings with the settings of
-/// `settings`, compared with `fixtures/d5/<fixture>` by `cmp`.
+/// Dumps the captured readings of `fixtures/raw/capture.json`, given by a
+/// fake lm-sensors, under the settings stored in `fixtures/d5/<settings>`,
+/// and asserts that the dump equals `fixtures/d5/<fixture>`.
 fn check(settings: &str, fixture: &str) {
     compare(
         &loaded(settings),
@@ -45,8 +47,10 @@ fn check(settings: &str, fixture: &str) {
     );
 }
 
-/// The dump of `readings` (one fake provider each) with `settings`,
-/// compared with `fixtures/d5/<fixture>` by `cmp`.
+/// Dumps `readings` under `settings`, each list given by a fake of its
+/// provider, and asserts that the dump equals `fixtures/d5/<fixture>`
+/// byte for byte. On a mismatch the dump is left in the temporary
+/// directory and the message names both files.
 fn compare(settings: &Settings, readings: &[(Provider, Vec<RawReading>)], fixture: &str) {
     let root = root();
     let clock = SystemClock::new();
@@ -77,16 +81,21 @@ fn compare(settings: &Settings, readings: &[(Provider, Vec<RawReading>)], fixtur
     );
 }
 
+/// The captured readings under the captured settings, which pin four
+/// sensors: the dump equals `capture.txt`.
 #[test]
 fn d5_capture() {
     puron_testkit::limit("D5", 5, || check("X-p5-capture", "capture.txt"));
 }
 
+/// The captured readings under an empty settings root, so every setting
+/// has its default: the dump equals `empty.txt`.
 #[test]
 fn d5_empty() {
     puron_testkit::limit("D5", 5, || check("X-p5-empty", "empty.txt"));
 }
 
+/// An lm-sensors reading of `chip`, with the key `<chip>/<key>`.
 fn lm(chip: &str, kind: Kind, name: &str, key: &str, value: f64) -> RawReading {
     RawReading {
         provider: Provider::LmSensors,
@@ -105,6 +114,8 @@ fn lm(chip: &str, kind: Kind, name: &str, key: &str, value: f64) -> RawReading {
     }
 }
 
+/// A liquidctl reading of one device, with the key `kraken/<item>`. Like
+/// a real liquidctl reading it has a unit and no kind.
 fn lqc(item: &str, unit: &str, value: Option<f64>) -> RawReading {
     RawReading {
         provider: Provider::Liquidctl,
@@ -123,9 +134,13 @@ fn lqc(item: &str, unit: &str, value: Option<f64>) -> RawReading {
     }
 }
 
-/// Each reading that gives no row (one for each reason, and a hidden
-/// class for both forms of the class word) has its `raw` line, and a pin
-/// that is never found has the `slot` icon. Voltage hidden; liquidctl on.
+/// Settings: voltages hidden, liquidctl on, and two pins, one of them
+/// for a sensor that no reading gives. The readings include several that
+/// give no row, among them a voltage from lm-sensors and one from
+/// liquidctl (whose class comes from its unit) and a liquidctl reading
+/// whose unit has no class. Expected: every reading still has its `raw`
+/// line, the pin that is never found shows the `slot` icon in the panel,
+/// and the dump equals `norow.txt`.
 #[test]
 fn d5_norow() {
     puron_testkit::limit("D5", 5, || {
@@ -158,8 +173,9 @@ fn d5_norow() {
     });
 }
 
-/// The class word of a liquidctl reading from its unit, for each unit;
-/// every class hidden, so no reading gives a row.
+/// Each liquidctl unit gives its class word on the `raw` line: `°C`
+/// temperature, `rpm` fan, `V` voltage, and `-` for `%`, which has no
+/// class. Every class is hidden, so no reading gives a row.
 #[test]
 fn d5_liquidctl_units() {
     puron_testkit::limit("D5", 5, || {
@@ -192,8 +208,11 @@ fn d5_liquidctl_units() {
     });
 }
 
-/// Each provider's Stop reaches the adapter; an unavailable Start counts
-/// as reported (no wait to the limit), and the dump shows the message.
+/// An lm-sensors whose `start` returns `Unavailable` counts as reported:
+/// the dump, with a limit of 3 s, returns within 2 s, and its menu shows
+/// one message, `sensors-detect` or `install`. A second dump, with an
+/// lm-sensors that reads, calls the adapter's `stop` exactly once before
+/// it returns.
 #[test]
 fn d5_unavailable() {
     puron_testkit::limit("D5", 5, || {
@@ -231,6 +250,7 @@ fn d5_unavailable() {
     });
 }
 
+/// `d5::settings` loads the captured settings root, with its four pins.
 #[test]
 fn d5_settings() {
     puron_testkit::limit("D5", 5, || {

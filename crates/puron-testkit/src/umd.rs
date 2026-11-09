@@ -1,37 +1,48 @@
-//! The re-executed child of the libsensors tests.
+//! Runs a test under umockdev, which gives the test process a fake sysfs
+//! tree (the testbed) in place of the machine's devices. The tests that
+//! read sensors through libsensors use it.
 //!
-//! Under plain `cargo test` a libsensors test calls [`run`], which runs
-//! `umockdev-run -d <testbed> -- <current test binary> --exact <its name>
-//! --test-threads=1 --nocapture` with `PURON_UMD_CHILD=1` and the
-//! configuration path in `PURON_UMD_CONF`, and passes when the child exits
-//! 0. In the child the same call runs the test body. The child calls the
-//! same `puron_testkit::limit` as the parent, so the parent's limit applies
-//! to it; the `umockdev-run` process is killed when the parent ends.
+//! The test body cannot run in the `cargo test` process itself, because
+//! umockdev works by preloading a library into a process it starts. So
+//! a test calls [`run`] twice over: in the `cargo test` process, `run`
+//! starts `umockdev-run -d <testbed> -- <current test binary> --exact
+//! <test name> --test-threads=1 --nocapture` with `PURON_UMD_CHILD=1`
+//! and the configuration path in `PURON_UMD_CONF`, and passes when that
+//! child exits 0. In the child, the same call to `run` runs the body.
+//!
+//! The test wraps its call in `puron_testkit::limit`, in the parent as in
+//! the child, so the time limit applies to both. The `umockdev-run`
+//! process is killed when the parent process ends.
 
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Set to `1` in the child.
+/// The variable that marks the child: set to `1` there.
 pub const CHILD_ENV: &str = "PURON_UMD_CHILD";
-/// The configuration file passed to the child.
+/// The variable that passes the configuration file's path to the child.
 pub const CONF_ENV: &str = "PURON_UMD_CONF";
 
-/// True in the re-executed child.
+/// True in the child that `run` started under `umockdev-run`.
 pub fn is_child() -> bool {
     std::env::var_os(CHILD_ENV).is_some_and(|v| v == "1")
 }
 
-/// The configuration path, in the child.
+/// The configuration file's path that the parent passed; only in the
+/// child (panics elsewhere).
 pub fn conf() -> PathBuf {
     std::env::var_os(CONF_ENV)
         .map(PathBuf::from)
         .expect("PURON_UMD_CONF set by the parent")
 }
 
-/// Parent: runs test `test_name` of the current binary under
-/// `umockdev-run` on `testbed`, with `conf` as the configuration, and
-/// panics unless the child exits 0. Child: runs `body`.
+/// In the parent, runs the test `test_name` of the current binary again
+/// under `umockdev-run` on the testbed file `testbed`, passes `conf` as
+/// the configuration path, and panics unless that child exits 0. `body`
+/// does not run in the parent. In the child, runs `body` and nothing else.
+///
+/// The parent first checks that libsensors, `sensors` and umockdev are
+/// installed; a missing one ends the process (see `host_need`).
 pub fn run<F: FnOnce()>(test_name: &str, testbed: &Path, conf: &Path, body: F) {
     if is_child() {
         body();
@@ -65,21 +76,23 @@ pub fn run<F: FnOnce()>(test_name: &str, testbed: &Path, conf: &Path, body: F) {
     assert!(status.success(), "child of {test_name}: {status}");
 }
 
-/// The testbed directory `$UMOCKDEV_DIR`, in the child.
+/// The directory of the fake sysfs tree, which `umockdev-run` sets in
+/// `$UMOCKDEV_DIR`; only in the child.
 pub fn dir() -> PathBuf {
     std::env::var_os("UMOCKDEV_DIR")
         .map(PathBuf::from)
         .expect("UMOCKDEV_DIR set by umockdev-run")
 }
 
-/// Child: writes `bytes` to `rel` under `$UMOCKDEV_DIR`, to change the
-/// fixture between reads.
+/// In the child, writes `bytes` to the file `rel` of the fake sysfs
+/// tree, so that a test can change a sensor's value between two reads.
 pub fn write(rel: &str, bytes: &[u8]) {
     let path = dir().join(rel);
     std::fs::write(&path, bytes).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
 }
 
-/// A stop descriptor that never fires, for an adapter's Read.
+/// A new eventfd that nothing writes, to pass as the stop descriptor of
+/// an adapter's `read`: the read is never asked to stop.
 pub fn stop_fd() -> std::os::fd::OwnedFd {
     use std::os::fd::FromRawFd;
     // SAFETY: eventfd returns a new descriptor or -1.

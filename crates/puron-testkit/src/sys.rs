@@ -1,39 +1,46 @@
-//! Builder of the sysfs Sensor tree fixtures.
+//! Builds fake sysfs trees, such as `class/nvme` or `bus/pci/devices`
+//! with their files, for the tests of the code that reads sysfs.
 //!
-//! A fixture is built at test time into a fresh temporary directory
-//! from its description `fixtures/sys/<name>.txt`, because git keeps no
-//! read-only directory and no named pipe. The sysfs root
-//! is `<tmp>/root`. Description lines, created in file order (`#`
-//! starts a comment; parents are made as needed):
-//! - `f <path> "<bytes>"`: a file holding the bytes, written with the
-//!   escapes `\n`, `\t`, `\\`, `\"` and `\xHH`;
+//! A fixture is built at test time, into a fresh temporary directory
+//! `<tmp>`, from its description `fixtures/sys/<name>.txt`, because git
+//! cannot keep a read-only directory or a named pipe. The tree's root is
+//! `<tmp>/root`. A description has one item per line, created in file
+//! order; blank lines and lines that start with `#` are skipped, and
+//! missing parent directories are created. A path is relative to the
+//! root and cannot hold a space.
+//! - `f <path> "<bytes>"`: a file holding the bytes between the quotes,
+//!   which may use the escapes `\n`, `\t`, `\\`, `\"` and `\xHH`;
 //! - `d <path>`: a directory;
 //! - `p <path>`: a named pipe;
-//! - `l <path> <target>`: a symbolic link;
-//! - `m <path> <octal mode>`: the mode, set after every other line.
+//! - `l <path> <target>`: a symbolic link to `<target>`, written as it
+//!   is;
+//! - `m <path> <octal mode>`: the mode of the path, set after every other
+//!   line is done, so that a read-only directory can still be filled.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// A built tree; dropping it makes everything under `tmp` writable and
-/// removes it.
+/// A built tree. Dropping it makes everything under `tmp` writable again
+/// and removes it.
 pub struct Sys {
+    /// The temporary directory that holds the tree and its copies.
     pub tmp: PathBuf,
-    /// The sysfs root, `<tmp>/root`.
+    /// The root of the tree, `<tmp>/root`; it stands for `/sys`.
     pub root: PathBuf,
 }
 
 impl Sys {
-    /// `<root>/<rel>`.
+    /// The path of `rel` inside the tree.
     pub fn path(&self, rel: &str) -> PathBuf {
         self.root.join(rel)
     }
 
-    /// The read-only copy and the untouched copy of the tree:
-    /// `cp -a` of the root to `<tmp>/copy`, then
-    /// `cp -a` to `<tmp>/readonly` and `chmod -R a-w` on it. Returns
-    /// (read-only copy, untouched copy).
+    /// Makes two copies of the tree with `cp -a`: `<tmp>/readonly`, made
+    /// read-only with `chmod -R a-w`, for a test that must not be able
+    /// to write, and `<tmp>/copy`, left as it is, to compare with after
+    /// the test (see `compare`). Returns `(readonly, copy)`. Call it once
+    /// per tree.
     pub fn copies(&self) -> (PathBuf, PathBuf) {
         let copy = self.tmp.join("copy");
         let ro = self.tmp.join("readonly");
@@ -50,6 +57,7 @@ impl Sys {
     }
 }
 
+/// Runs a program and panics unless it exits 0.
 fn run(program: &str, args: &[&std::ffi::OsStr]) {
     let status = Command::new(program)
         .args(args)
@@ -58,9 +66,12 @@ fn run(program: &str, args: &[&std::ffi::OsStr]) {
     assert!(status.success(), "{program} {args:?}: {status}");
 }
 
-/// The check that a sysfs tree is unchanged: the exit
-/// codes of `diff -r -x config "$TREE" "$COPY"` and of the `cmp` of the
-/// two lists of named pipes. Both are 0 when the tree is unchanged.
+/// Compares a tree with its copy, to check that the code under test
+/// changed nothing. Returns two exit codes, both 0 when nothing changed:
+/// that of `diff -r -x config <tree> <copy>` (files and their contents;
+/// any path named `config` is skipped), and that of a `cmp` of the two
+/// sorted lists of named pipes, which `diff` does not compare. Their
+/// output goes to standard error.
 pub fn compare(tree: &Path, copy: &Path) -> (i32, i32) {
     let script = r#"diff -r -x config "$1" "$2" >&2; echo diff_rc=$?
 cmp <(cd "$1" && find . -type p | sort) <(cd "$2" && find . -type p | sort) >&2; echo pipes_rc=$?"#;
@@ -87,6 +98,8 @@ impl Drop for Sys {
     }
 }
 
+/// Gives every directory under `path` mode 700 and every file mode 600,
+/// without following symbolic links, so that the tree can be removed.
 fn make_writable(path: &Path) {
     let Ok(meta) = std::fs::symlink_metadata(path) else {
         return;
@@ -105,7 +118,9 @@ fn make_writable(path: &Path) {
     }
 }
 
-/// The bytes of a quoted string of a description line.
+/// The bytes of a quoted string of a description line, with its escapes
+/// decoded; panics, naming `line`, on a string without quotes or a bad
+/// escape.
 fn unquote(text: &str, line: &str) -> Vec<u8> {
     let inner = text
         .strip_prefix('"')
@@ -136,13 +151,15 @@ fn unquote(text: &str, line: &str) -> Vec<u8> {
     out
 }
 
+/// Creates the missing parent directories of `path`.
 fn parent(path: &Path) {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).expect("create parent");
     }
 }
 
-/// Builds the tree described by `fixtures/sys/<name>.txt`.
+/// Builds the tree described by `fixtures/sys/<name>.txt` into a new
+/// temporary directory. Panics on a malformed line.
 pub fn build(name: &str) -> Sys {
     let desc = crate::fixture("sys", &format!("{name}.txt"));
     let text =

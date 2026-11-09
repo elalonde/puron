@@ -1,8 +1,17 @@
-//! The rows dump, a mode of `puron-soak`. It starts the providers that
-//! the settings turn on, waits until each has reported once or 15 s have
-//! passed, builds the shown rows, the menu layout and the panel items
-//! with the puron-core functions that the applet calls, and prints them.
-//! Only the printing is its own.
+//! The text dump of what Puron would show, a mode of `puron-soak`.
+//!
+//! It runs an engine with the providers that the settings switch on,
+//! takes a snapshot once each of them has reported once (or a time limit
+//! has passed), and builds the shown rows, the menu and the panel items
+//! from it with the same `puron_core` functions that the applet calls.
+//! Only the printing is this module's own. The dump has one line per
+//! item, fields separated by tabs:
+//! - `raw <identity> <value>`: each reading of the snapshot, `none`
+//!   for a reading without a value;
+//! - `menu <depth> <kind> <icon> <label> <value> <pinned>`: each menu
+//!   entry, in menu order, `-` for a field the entry does not have, and
+//!   `1` or `0` for whether a reading line is pinned;
+//! - `panel <icon> <value>`: each panel item, in order.
 
 use std::os::fd::BorrowedFd;
 use std::path::Path;
@@ -23,9 +32,10 @@ use puron_engine::clock::Clock;
 use puron_engine::engine::{Adapters, Engine, LmReport, Snapshot};
 use puron_engine::registry::{self, ReadOutcome, Source, StartOutcome};
 
-/// The wait for the first report of each provider.
+/// The usual time limit for every provider's first report, 15 s.
 pub const WAIT: Duration = Duration::from_secs(15);
 
+/// Every provider; the dump waits for those the settings switch on.
 const PROVIDERS: [Provider; 5] = [
     Provider::LmSensors,
     Provider::Liquidctl,
@@ -34,8 +44,9 @@ const PROVIDERS: [Provider; 5] = [
     Provider::NvmeCli,
 ];
 
-/// An adapter that marks its provider as reported after its first `read`
-/// returns, or when its `start` is unavailable (it never reads then).
+/// Wraps a provider's adapter to see when the provider has reported: it
+/// sets `flag` when a `read` returns, or when `start` returns
+/// `Unavailable` (such a provider never reads).
 struct Reported {
     inner: Box<dyn Source>,
     flag: Arc<AtomicBool>,
@@ -61,8 +72,8 @@ impl Source for Reported {
     }
 }
 
-/// The production adapters of each provider (as `puron-soak` with the
-/// real liquidctl).
+/// The real adapters of `puron_engine::registry`, one per provider, for
+/// a dump of the machine's own sensors.
 pub fn registry_adapters() -> Adapters {
     Box::new(|p| -> Box<dyn Source> {
         match p {
@@ -75,8 +86,12 @@ pub fn registry_adapters() -> Adapters {
     })
 }
 
-/// The latest snapshot once every provider that `settings` turns on has
-/// reported, or the latest at `wait`; `None` when none came.
+/// Runs an engine on `clock` with `settings` and `adapters`, and returns
+/// a snapshot taken after every provider that `settings` switches on has
+/// reported (see `Reported`). If that does not happen within `wait` of
+/// real time, returns the latest snapshot taken by then, or `None` if
+/// there was none. With no provider switched on it returns `None` at
+/// once. The engine is shut down before it returns.
 pub fn snapshot(
     clock: Arc<dyn Clock>,
     settings: &Settings,
@@ -103,8 +118,12 @@ pub fn snapshot(
     );
     let start = Instant::now();
     let mut last = None;
-    // A snapshot taken after every flag was seen set holds each first
-    // report: a flag is set before its report reaches the engine.
+    // Every 10 ms, take the newest snapshot, and stop at the first one
+    // taken after every flag was seen set. A flag is set as its adapter's
+    // call returns, a moment before the engine has the result, so that
+    // snapshot can still lack the last provider's first report; the dump
+    // then has no readings of that provider. Nothing here waits for the
+    // engine to take that result.
     while !flags.is_empty() {
         let all = flags.iter().all(|(_, f)| f.load(Ordering::SeqCst));
         if let Some(s) = engine.try_next() {
@@ -122,7 +141,9 @@ pub fn snapshot(
     last
 }
 
-/// The dump of one snapshot: `raw`, `menu` and `panel` lines.
+/// The dump of one snapshot, or of no snapshot, under `settings`: its
+/// `raw` lines, then its `menu` lines, then its `panel` lines (see the
+/// module documentation).
 pub fn lines(snapshot: Option<&Snapshot>, settings: &Settings) -> String {
     let raw: &[RawReading] = snapshot.map_or(&[], |s| &s.readings);
     let mut out = String::new();
@@ -131,8 +152,9 @@ pub fn lines(snapshot: Option<&Snapshot>, settings: &Settings) -> String {
         let n = r.value.map_or("none".to_string(), |v| format!("{v}"));
         out.push_str(&format!("raw\t{id}\t{n}\n"));
     }
-    // As the applet does: the start (no rows, no report yet), then the
-    // snapshot with the start's Key and Panel state passed back in.
+    // As the applet does: first the menu and panel of the start, with no
+    // rows and no lm-sensors report yet; then those of the snapshot,
+    // given the start menu's `key` and the start panel's `state`.
     let none = menu::shown(&[], settings);
     let m0 = menu::menu(&none, settings, Report::NoneYet, None, false);
     let start = pins::start(settings.pinned.as_deref().unwrap_or_default());
@@ -195,8 +217,7 @@ pub fn lines(snapshot: Option<&Snapshot>, settings: &Settings) -> String {
     out
 }
 
-/// The rows dump on `settings` with `adapters`: the snapshot, then its
-/// lines.
+/// The whole dump: `snapshot`, then `lines` of it.
 pub fn dump(
     clock: Arc<dyn Clock>,
     settings: &Settings,
@@ -207,8 +228,9 @@ pub fn dump(
     lines(s.as_ref(), settings)
 }
 
-/// The settings of the configuration root `root`, as the applet loads
-/// them; each Problem goes to standard error.
+/// The settings stored under the configuration root `root`, loaded with
+/// `Config::load` as the applet loads them. Each problem found while
+/// loading is printed to standard error.
 pub fn settings(root: &Path) -> Settings {
     let loaded = Config::new(root).load();
     for p in &loaded.problems {
@@ -217,11 +239,11 @@ pub fn settings(root: &Path) -> Settings {
     loaded.settings
 }
 
-/// The identity of a `raw` line: class word, provider, Key. The class
-/// word is that of the Kind, or for liquidctl that of the unit, `-` for
-/// another unit; for a reading that gives a row this is the row's
-/// identity. Every adapter but liquidctl's gives a Kind; a reading
-/// without one gets `-` as well.
+/// The identity printed on a `raw` line: the class word, the provider
+/// word and the reading's key, joined with `rows::IDENTITY_SEPARATOR`,
+/// as a row's identity is built. The class word comes from the reading's
+/// `kind`, except for liquidctl, whose readings carry a unit instead (see
+/// `liquidctl_word`). A reading with no class gets `-`.
 fn raw_identity(r: &RawReading) -> String {
     let word = match (r.provider, r.kind) {
         (Provider::Liquidctl, _) => liquidctl_word(r.unit.as_deref()),
@@ -234,8 +256,9 @@ fn raw_identity(r: &RawReading) -> String {
     [word, r.provider.word(), r.key.as_str()].join(rows::IDENTITY_SEPARATOR)
 }
 
-/// The class word of a liquidctl unit, character for character as the
-/// row rules of `puron-core` map it.
+/// The class word of a liquidctl reading's unit; the unit must equal one
+/// of `rows::LIQUIDCTL_UNITS` exactly, as in `puron_core::rows`. Any other
+/// unit, or none, gives `-`.
 fn liquidctl_word(unit: Option<&str>) -> &'static str {
     let [celsius, rpm, volt] = rows::LIQUIDCTL_UNITS;
     match unit {
@@ -246,7 +269,9 @@ fn liquidctl_word(unit: Option<&str>) -> &'static str {
     }
 }
 
-/// A line's name in the dump, with its word and its default mark.
+/// The label of a menu line in the dump: the line's name, then its word
+/// if it has one, then `(default)` for a default line, separated by
+/// spaces.
 fn label(i: &Item) -> String {
     let word = match i.word {
         None => "",
@@ -265,6 +290,9 @@ fn label(i: &Item) -> String {
     parts.join(" ")
 }
 
+/// Prints the `menu` line of a reading line: kind `maximum` or `row`,
+/// its icon (`-` when `shown` does not have it), label, value, and
+/// whether it is pinned.
 fn item(out: &mut String, i: &Item, shown: &Shown, pinned: &[String]) {
     let mark = if pins::is_pinned(pinned, &i.identity) {
         "1"
@@ -294,8 +322,10 @@ fn menu_line(
     ));
 }
 
-/// The value text as the panel and the popup show it in English
-/// (`i18n/en/puron.ftl`: `no-value`, `suffix-*`).
+/// A value as the panel and the menu show it in English: the number and
+/// its unit's suffix, or `N/A` when there is no value. The texts copy
+/// those of the English catalog `i18n/en/puron.ftl` (`no-value` and the
+/// `suffix-*` messages).
 fn text(t: Option<&Text>) -> String {
     let Some(t) = t else {
         return "N/A".to_string();

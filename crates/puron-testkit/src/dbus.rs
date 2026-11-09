@@ -1,25 +1,42 @@
-//! The D-Bus fixtures: a private bus started with `dbus-daemon`, and the
-//! fake udisks2 service.
+//! D-Bus fixtures for the udisks2 provider's tests: a private bus run by
+//! `dbus-daemon`, and a fake udisks2 service on it that answers from a
+//! script, logs the calls it receives, and can be changed while it runs.
 //!
-//! The fake is `puron-fake-udisks2 --address <addr> --script <file>
-//! --log <file>`. A test starts the same code as a re-executed child of
-//! the current test binary (as `umd` does), with the arguments in
-//! `PURON_DBUS_FAKE`, because a test run of one package alone does not
-//! build the testkit's binaries. Each udisks2 test calls [`child`] first.
+//! The fake also exists as the program `puron-fake-udisks2 --address
+//! <addr> --script <file> --log <file>`. The tests do not use that
+//! program: [`Fake::start`] runs the current test binary again (see
+//! `rerun_self`) with the fake's arguments in `PURON_DBUS_FAKE`, because
+//! a test run of one package alone does not build the testkit's
+//! programs. Each udisks2 test therefore calls [`child`] first, which
+//! runs the fake when it finds that variable.
 //!
-//! Script (`fixtures/dbus/<name>.json`): `objects`, in registration
-//! order, each `{"path", "interfaces": {<interface>: {<property>:
-//! {"s"|"d"|"i": value}}}}`; `faults`, per object path, the action for
-//! its 1st, 2nd, ... `SmartTemperature` call (`"error"`, `"string"`,
-//! `"hang"` or null); `hang_list` true: no reply to `GetManagedObjects`.
+//! A script, `fixtures/dbus/<name>.json`, holds:
+//! - `objects`: a list of `{"path", "interfaces": {<interface>:
+//!   {<property>: <value>}}}`, each value tagged with its D-Bus type,
+//!   `{"s": "text"}`, `{"d": 1.5}` or `{"i": 3}`;
+//! - `faults` (optional): for an object path, the action for its first,
+//!   second, ... `Get` of `SmartTemperature`: `"error"` (a D-Bus error
+//!   reply), `"string"` (a string instead of a double), `"hang"` (no
+//!   reply), or null (the normal reply). Calls past the end of the list
+//!   get the normal reply;
+//! - `hang_list` (optional): when true, `GetManagedObjects` gets no
+//!   reply.
 //!
-//! Log: one line per call received, `<interface> <member> <object
-//! path>`; a `Get` line adds the interface and property asked for.
+//! The log holds one line per method call received, `<interface>
+//! <member> <object path>`; the line of a `Properties.Get` call adds the
+//! interface and the property asked for.
 //!
-//! Control socket `<dir>/ctl`, one line per command, answered `ok`:
-//! `set <path> <property> <value>` (`SmartTemperature` a double, any
-//! other property a string, the rest of the line); `add <path> <model>
-//! <kelvin>` (a drive with both interfaces); `remove <path>`.
+//! The control socket, `ctl` in the bus directory, takes one command per
+//! connection, one line, and answers `ok` once the script is changed:
+//! - `set <path> <property> <value>`: sets the property in every
+//!   interface of the object that has it, to the rest of the line, read
+//!   as a double for `SmartTemperature` and as a string otherwise;
+//! - `add <path> <model> <kelvin>`: adds a drive object with both
+//!   interfaces, `Drive.Model` and `Drive.Ata.SmartTemperature`;
+//! - `remove <path>`: removes the object.
+//!
+//! An unknown command, or `set` on an unknown object, panics the fake's
+//! control thread; no `ok` comes back, so the test's `Fake::ctl` fails.
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader, Write};
@@ -34,14 +51,16 @@ use serde::Deserialize;
 use udisks2::zbus;
 use zbus::zvariant::{ObjectPath, Value};
 
-/// The arguments of the fake in the re-executed child: address, script,
-/// log and control socket, one per line.
+/// The variable that makes a re-run test binary run the fake. It holds
+/// the bus address and the paths of the script, the log and the control
+/// socket, one per line.
 pub const FAKE_ENV: &str = "PURON_DBUS_FAKE";
 
 pub const SERVICE: &str = "org.freedesktop.UDisks2";
 pub const DRIVE: &str = "org.freedesktop.UDisks2.Drive";
 pub const ATA: &str = "org.freedesktop.UDisks2.Drive.Ata";
-/// `drives/<n>` as a full object path.
+/// The object path of the udisks2 drive `n`:
+/// `/org/freedesktop/UDisks2/drives/<n>`.
 pub fn drive(n: &str) -> String {
     format!("/org/freedesktop/UDisks2/drives/{n}")
 }
@@ -50,7 +69,8 @@ fn need() {
     crate::host_need("dbus-daemon", "dbus-daemon --version");
 }
 
-/// SIGTERM, then SIGKILL after 1 s.
+/// Ends a child process: SIGTERM, then SIGKILL if it has not exited
+/// within about 1 s. Returns at once if it has already exited.
 fn end(child: &mut Child) {
     if let Ok(Some(_)) = child.try_wait() {
         return;
@@ -67,6 +87,8 @@ fn end(child: &mut Child) {
     let _ = child.wait();
 }
 
+/// Makes the kernel kill the child with SIGKILL when the test process
+/// ends, so that no bus or fake outlives a test that fails or times out.
 fn die_with_parent(cmd: &mut Command) {
     // SAFETY: prctl is async-signal-safe; it only sets a flag of the child.
     unsafe {
@@ -77,14 +99,23 @@ fn die_with_parent(cmd: &mut Command) {
     }
 }
 
-/// A private bus: `dbus-daemon` at `unix:path=<dir>/bus`.
+/// A private bus: a `dbus-daemon` with the configuration
+/// `fixtures/dbus/session.conf`, listening on `unix:path=<dir>/bus`.
+/// Dropping it stops the daemon.
 pub struct Bus {
+    /// The directory of the bus socket; the fake's log and control
+    /// socket go here too.
     pub dir: PathBuf,
+    /// The bus address, `unix:path=<dir>/bus`.
     pub address: String,
     daemon: Child,
 }
 
 impl Bus {
+    /// Starts the daemon in `dir` and returns once it has printed its
+    /// address. A socket left in `dir` by an earlier daemon is removed
+    /// first. Ends the process with `HOST NEED dbus-daemon` when the
+    /// daemon is not installed.
     pub fn start(dir: &Path) -> Bus {
         need();
         let _ = std::fs::remove_file(dir.join("bus"));
@@ -104,8 +135,9 @@ impl Bus {
         BufReader::new(daemon.stdout.take().expect("daemon stdout"))
             .read_line(&mut line)
             .expect("daemon address");
-        // The printed address adds the daemon's guid; the tests use the
-        // plain path, the same for a daemon started again there.
+        // The daemon prints the address followed by its guid. The tests
+        // keep the address without the guid, so that it also reaches a
+        // daemon started again in the same directory.
         assert!(line.starts_with(&address), "daemon printed {line:?}");
         Bus {
             dir: dir.to_path_buf(),
@@ -114,6 +146,8 @@ impl Bus {
         }
     }
 
+    /// Stops the daemon (see `end`). The bus can be started again with
+    /// `Bus::start` on the same directory.
     pub fn stop(&mut self) {
         end(&mut self.daemon);
     }
@@ -125,17 +159,21 @@ impl Drop for Bus {
     }
 }
 
-/// The fake udisks2 service on a [`Bus`], as a child process.
+/// The fake udisks2 service on a [`Bus`], run in a child process.
+/// Dropping it stops the child.
 pub struct Fake {
     child: Child,
+    /// The call log, `<bus dir>/<script>.log`.
     pub log: PathBuf,
+    /// The control socket, `<bus dir>/ctl`.
     pub ctl: PathBuf,
 }
 
 impl Fake {
-    /// Starts the fake for `script` (a file of `fixtures/dbus/`, without
-    /// `.json`) as test `test_name` of the current binary, and waits until
-    /// it owns the service name.
+    /// Starts the fake with the script `fixtures/dbus/<script>.json`, by
+    /// running the test `test_name` of the current binary again, and
+    /// returns once the fake owns the udisks2 bus name. Panics if the
+    /// child ends before that.
     pub fn start(test_name: &str, bus: &Bus, script: &str) -> Fake {
         let log = bus.dir.join(format!("{script}.log"));
         let ctl = bus.dir.join("ctl");
@@ -150,13 +188,16 @@ impl Fake {
         let mut cmd = crate::rerun_self(test_name);
         cmd.env(FAKE_ENV, args).stdout(Stdio::piped());
         die_with_parent(&mut cmd);
-        // A fake that ends before ready fails the test below; it has already
-        // exited, and die_with_parent covers one that has not.
+        // The child is not waited for on every path. If it ends before
+        // `ready`, the panic below fails the test and the child has
+        // already exited; a child still running is killed by
+        // die_with_parent when the test process ends.
         #[allow(clippy::zombie_processes)]
         let mut child = cmd.spawn().expect("start the fake");
         let out = BufReader::new(child.stdout.take().expect("fake stdout"));
         for line in out.lines() {
-            // libtest prints "test <name> ... " before it, on the same line.
+            // The test harness prints "test <name> ... " before `ready`, on
+            // the same line, so only the end of the line is compared.
             if line.expect("fake output").ends_with("ready") {
                 return Fake { child, log, ctl };
             }
@@ -164,7 +205,8 @@ impl Fake {
         panic!("the fake ended before ready");
     }
 
-    /// The log lines so far.
+    /// The lines of the call log so far; none if the log does not exist
+    /// yet.
     pub fn log(&self) -> Vec<String> {
         std::fs::read_to_string(&self.log)
             .unwrap_or_default()
@@ -173,7 +215,9 @@ impl Fake {
             .collect()
     }
 
-    /// Sends one control command and waits for `ok`.
+    /// Sends one control command (see the module documentation) and
+    /// panics unless the fake answers `ok`. When it returns, the change is
+    /// in place for the next call the fake answers.
     pub fn ctl(&self, line: &str) {
         let mut s = UnixStream::connect(&self.ctl).expect("control socket");
         writeln!(s, "{line}").expect("send command");
@@ -182,6 +226,7 @@ impl Fake {
         assert_eq!(answer, "ok\n", "command {line:?}");
     }
 
+    /// Stops the fake (see `end`).
     pub fn stop(&mut self) {
         end(&mut self.child);
     }
@@ -193,20 +238,28 @@ impl Drop for Fake {
     }
 }
 
-/// The calls of the udisks2 provider that a log may hold.
+/// Whether a log line is a call the udisks2 provider is expected to
+/// make: `GetManagedObjects` on `/org/freedesktop/UDisks2`, or a
+/// `Properties.Get` of `Drive.Ata.SmartTemperature` on an object under
+/// it. Tests check each log line with it to show that the provider made
+/// no other call.
 pub fn allowed(line: &str) -> bool {
     line == "org.freedesktop.DBus.ObjectManager GetManagedObjects /org/freedesktop/UDisks2"
         || (line.starts_with("org.freedesktop.DBus.Properties Get /org/freedesktop/UDisks2/")
             && line.ends_with(" org.freedesktop.UDisks2.Drive.Ata SmartTemperature"))
 }
 
-/// Watches `NameOwnerChanged` on a bus: (name, old owner, new owner).
+/// Collects the `NameOwnerChanged` signals of a bus, each as
+/// `(name, old owner, new owner)`; an empty owner means none. Tests use
+/// it to see when a name is taken or released.
 pub struct Owners {
     rx: mpsc::Receiver<(String, String, String)>,
     _conn: zbus::blocking::Connection,
 }
 
 impl Owners {
+    /// Opens a connection of its own to `bus` and starts collecting. Only
+    /// changes after this call are seen.
     pub fn watch(bus: &Bus) -> Owners {
         let conn = zbus::blocking::connection::Builder::address(bus.address.as_str())
             .and_then(|b| b.build())
@@ -232,14 +285,17 @@ impl Owners {
         Owners { rx, _conn: conn }
     }
 
-    /// The next change within `wait`.
+    /// The next change not yet returned, waiting at most `wait` for one;
+    /// `None` if none comes.
     pub fn next(&self, wait: Duration) -> Option<(String, String, String)> {
         self.rx.recv_timeout(wait).ok()
     }
 }
 
-// ---- The fake, in its own process ----
+// ---- The fake service; this code runs in the fake's own process ----
 
+/// A property value of the script, tagged with its D-Bus type: `s`
+/// (string), `d` (double) or `i` (32-bit integer).
 #[derive(Clone, Debug, Deserialize)]
 enum Val {
     #[serde(rename = "s")]
@@ -282,8 +338,10 @@ struct State {
     calls: HashMap<String, usize>,
 }
 
-/// In a udisks2 test, first: in the re-executed child, runs the fake
-/// until its bus ends and exits the process.
+/// Every udisks2 test calls this first. In the process started by
+/// `Fake::start` (`PURON_DBUS_FAKE` set) it runs the fake until its
+/// connection to the bus ends, then exits the process with code 0. In
+/// any other process it returns at once.
 pub fn child() {
     let Some(args) = std::env::var_os(FAKE_ENV) else {
         return;
@@ -294,8 +352,9 @@ pub fn child() {
     std::process::exit(0);
 }
 
-/// `puron-fake-udisks2 --address <addr> --script <file> --log <file>`;
-/// the control socket is `ctl` next to the log.
+/// The `main` of `puron-fake-udisks2 --address <addr> --script <file>
+/// --log <file>`: runs the fake; the control socket is `ctl` next to the
+/// log. Panics if a flag is missing.
 pub fn main_args(args: &[String]) {
     let get = |flag: &str| {
         let i = args.iter().position(|a| a == flag).expect(flag);
@@ -306,6 +365,8 @@ pub fn main_args(args: &[String]) {
     serve(&get("--address"), Path::new(&get("--script")), &log, &ctl);
 }
 
+/// Listens on the control socket `ctl` on a thread of its own and
+/// applies each command to the script.
 fn control(state: Arc<Mutex<State>>, ctl: &Path) {
     let _ = std::fs::remove_file(ctl);
     let listener = UnixListener::bind(ctl).expect("bind control socket");
@@ -388,6 +449,9 @@ fn managed(script: &Script) -> Managed {
         .collect()
 }
 
+/// Runs the fake: takes the udisks2 name on the bus at `address`, prints
+/// `ready`, then logs and answers each method call until the connection
+/// ends. A call the script does not cover gets a D-Bus error reply.
 fn serve(address: &str, script: &Path, log: &Path, ctl: &Path) {
     let text = std::fs::read_to_string(script).expect("read script");
     let script: Script = serde_json::from_str(&text).expect("parse script");
@@ -403,7 +467,8 @@ fn serve(address: &str, script: &Path, log: &Path, ctl: &Path) {
     let conn = zbus::blocking::connection::Builder::address(address)
         .and_then(|b| b.build())
         .expect("fake connection");
-    // Before the name is owned, so that no call is missed.
+    // The iterator is made before the name is requested, so that it
+    // already receives a call sent as soon as the name is owned.
     let calls = zbus::blocking::MessageIterator::from(&conn);
     let reply: u32 = conn
         .call_method(
@@ -411,6 +476,8 @@ fn serve(address: &str, script: &Path, log: &Path, ctl: &Path) {
             "/org/freedesktop/DBus",
             Some("org.freedesktop.DBus"),
             "RequestName",
+            // Flag 4 is DO_NOT_QUEUE; reply 1 means the fake is the
+            // primary owner.
             &(SERVICE, 4u32),
         )
         .and_then(|m| m.body().deserialize())

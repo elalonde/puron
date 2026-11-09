@@ -1,5 +1,8 @@
-//! `puron-cfg-writer <root> <key> <RON value>` stores one key through
-//! `Config::store`, then exits 0 on *stored* and 1 otherwise.
+//! Stores one setting from a process of its own, through
+//! `Config::store` as Puron's programs do:
+//! `puron-cfg-writer <root> <key> <RON value>`. Exits 0 when the value
+//! was stored, 1 when it was not, and 2 on wrong arguments. The work is
+//! done by `puron_testkit::cfg::writer_main`.
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

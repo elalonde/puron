@@ -1,9 +1,13 @@
-//! The preload probe, on the captured umockdev testbed, in the
-//! re-executed child of `puron_testkit::umd`.
+//! Checks that a test run through `puron_testkit::umd` sees the testbed
+//! and not the machine. The testbed, `fixtures/umd/capture`, holds five
+//! sensor chips. In the child, `/sys` must
+//! report the sysfs file-system type, `class/hwmon/hwmon5/name` must read
+//! `coretemp`, and libsensors, with the testbed's `sensors.conf`, must
+//! list exactly the chips of `CHIPS`.
 
 use puron_testkit::{fixture, umd};
 
-/// The chip names of the captured testbed, sorted.
+/// The names of the chips that libsensors finds in the testbed, sorted.
 const CHIPS: [&str; 5] = [
     "BAT0-acpi-0",
     "coretemp-isa-0000",
@@ -12,8 +16,11 @@ const CHIPS: [&str; 5] = [
     "nvme-pci-0100",
 ];
 
+/// The file-system type that `statfs` reports for sysfs (`SYSFS_MAGIC`
+/// in `linux/magic.h`).
 const SYSFS_MAGIC: i64 = 0x6265_6572;
 
+/// The checks, run in the child under umockdev.
 fn probe() {
     let path = std::ffi::CString::new("/sys").unwrap();
     let mut st: libc::statfs = unsafe { std::mem::zeroed() };

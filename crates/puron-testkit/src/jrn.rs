@@ -1,6 +1,12 @@
-//! Journal fixtures: a socket with a reader, a full socket and no
-//! journal; the native-protocol parser; "one of each" (one event of each
-//! kind, in a fixed order, with fixed field values).
+//! Fixtures for the tests of the diagnostic events that Puron sends to
+//! the systemd journal, over the journal's native protocol on a datagram
+//! socket.
+//!
+//! Three stand-ins for the journal's socket: [`Journal`], a socket that a
+//! thread of the test reads; [`full`], a socket that takes no more data;
+//! and [`none`], a path where no socket exists. Also a parser of the
+//! native protocol, and [`one_of_each`], which builds one event of each
+//! kind with fixed field values.
 
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
@@ -10,26 +16,32 @@ use std::time::{Duration, Instant};
 
 use puron_engine::diag::{self, Event};
 
-/// One parsed entry: (field name, value) in datagram order.
+/// One parsed journal entry: its fields as `(name, value)`, in the
+/// order of the datagram.
 pub type Entry = Vec<(String, String)>;
 
-/// A journal socket `<tmp>/journal.socket`, bound by the test; a reader
-/// thread records each datagram, raw, in arrival order.
+/// A journal socket, `<tmp>/journal.socket`, bound by the test. A reader
+/// thread records each datagram, unparsed, in the order it arrives. The
+/// thread runs until the process ends.
 pub struct Journal {
+    /// The socket's path, for the code under test to send to.
     pub path: PathBuf,
     got: Arc<(Mutex<Vec<Vec<u8>>>, Condvar)>,
 }
 
 impl Journal {
+    /// Binds a new socket in a fresh temporary directory named after `tag`
+    /// and starts its reader.
     pub fn new(tag: &str) -> Journal {
         let path = crate::temp_dir(tag).join("journal.socket");
         let sock = UnixDatagram::bind(&path).expect("bind X-jrn-sock");
         let got = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
         let g = got.clone();
         sock.set_nonblocking(true).expect("nonblocking reader");
-        // The reader drains the queue without taking the lock and
-        // publishes a batch only when the queue is empty, so that it
-        // keeps up with senders that never wait.
+        // The reader receives every queued datagram without taking the
+        // lock, and hands the batch over only once the socket's queue is
+        // empty, so that it keeps up with senders that send without pause.
+        // Then it waits in poll for the next datagram.
         std::thread::spawn(move || {
             let mut buf = vec![0u8; 1 << 20];
             let mut batch = Vec::new();
@@ -56,12 +68,14 @@ impl Journal {
         Journal { path, got }
     }
 
-    /// The raw datagrams received so far.
+    /// The datagrams received so far, unparsed.
     pub fn raw(&self) -> Vec<Vec<u8>> {
         self.got.0.lock().unwrap().clone()
     }
 
-    /// Waits until `n` datagrams are in or `max` passes; returns them all.
+    /// Waits until at least `n` datagrams have arrived or `max` has
+    /// passed, then returns all that have arrived, unparsed. The caller
+    /// checks the count.
     pub fn wait_raw(&self, n: usize, max: Duration) -> Vec<Vec<u8>> {
         let end = Instant::now() + max;
         let mut g = self.got.0.lock().unwrap();
@@ -75,7 +89,8 @@ impl Journal {
         g.clone()
     }
 
-    /// As `wait_raw`, each datagram parsed (a parse error panics).
+    /// As `wait_raw`, with each datagram parsed; a datagram that is not
+    /// one whole entry panics.
     pub fn wait(&self, n: usize, max: Duration) -> Vec<Entry> {
         self.wait_raw(n, max)
             .iter()
@@ -84,8 +99,10 @@ impl Journal {
     }
 }
 
-/// A full journal: a bound socket with `SO_RCVBUF` 1 and no reader.
-/// Keep the returned socket alive for the test.
+/// A journal that takes nothing more: a bound socket with the smallest
+/// receive buffer (`SO_RCVBUF` 1) and no reader, so that a send to it
+/// soon finds it full. Returns its path and the socket; the caller keeps
+/// the socket alive for the whole test.
 pub fn full(tag: &str) -> (PathBuf, UnixDatagram) {
     let path = crate::temp_dir(tag).join("journal.socket");
     let sock = UnixDatagram::bind(&path).expect("bind X-jrn-full");
@@ -104,15 +121,19 @@ pub fn full(tag: &str) -> (PathBuf, UnixDatagram) {
     (path, sock)
 }
 
-/// No journal: `<tmp>/nojournal/socket` in an empty directory.
+/// No journal: the path `<tmp>/nojournal/socket`, in an empty
+/// directory, where no socket exists.
 pub fn none(tag: &str) -> PathBuf {
     let dir = crate::temp_dir(tag).join("nojournal");
     std::fs::create_dir(&dir).expect("nojournal");
     dir.join("socket")
 }
 
-/// Parses one datagram of the native protocol: `NAME=value\n`, or
-/// `NAME\n`, a 64-bit little-endian length, the bytes and `\n`.
+/// Parses one datagram of the journal's native protocol into an entry.
+/// Each field is either `NAME=value\n`, or, for a value that may hold a
+/// newline, `NAME\n`, the value's length as 64-bit little-endian, the
+/// value and `\n`. Returns an error, naming the place, for anything else,
+/// such as a field cut short or a value that is not UTF-8.
 pub fn parse(d: &[u8]) -> Result<Entry, String> {
     let mut out = Vec::new();
     let mut i = 0;
@@ -152,13 +173,13 @@ pub fn parse(d: &[u8]) -> Result<Entry, String> {
     Ok(out)
 }
 
-/// The value of `name` in `e` (the first one).
+/// The value of the first field `name` in `e`, if any.
 pub fn field<'a>(e: &'a Entry, name: &str) -> Option<&'a str> {
     e.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
 }
 
-/// `FIELD=value` per line, one entry after another, a blank line after
-/// each entry.
+/// The entries as text, for comparing with an expected file: one line
+/// `NAME=value` per field, and a blank line after each entry.
 pub fn dump(entries: &[Entry]) -> String {
     let mut s = String::new();
     for e in entries {
@@ -170,13 +191,18 @@ pub fn dump(entries: &[Entry]) -> String {
     s
 }
 
-/// The fixed value of field `name` in event number `n` (1 to 29).
+/// The value that `one_of_each` gives the field `name` of its `n`-th
+/// event: `<name in lower case>-<n>`, so that each value shows where it
+/// came from.
 fn v(name: &str, n: usize) -> String {
     format!("{}-{n}", name.to_lowercase())
 }
 
-/// Calls `f` with each of the 29 diagnostic events, in the order of the
-/// event list, with field values `<field in lower case>-<event number>`.
+/// Calls `f` once for each of the 29 kinds of diagnostic event of
+/// `puron_engine::diag`, in a fixed order grouped by source (engine,
+/// lm-sensors, NVIDIA, udisks2, liquidctl, applet). Each field value is
+/// made by `v` from the event's place in that order, 1 to 29; events
+/// without fields still take their place.
 pub fn one_of_each(mut f: impl FnMut(Event<'_>)) {
     use diag::{applet, engine, liquidctl, lmsensors, nvidia, udisks2};
     f(engine::panic(

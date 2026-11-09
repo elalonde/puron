@@ -1,9 +1,18 @@
-//! A chip added during one `umockdev-run` is listed by `sensors`.
+//! Checks that a chip added to the testbed while `umockdev-run` runs is
+//! seen by `sensors` within the same run.
+//!
+//! In one `umockdev-run` on the captured testbed, `sensors -j` runs, then
+//! `fixtures/umd/addchip.sh` adds the chip `puron_new` with one
+//! temperature of 30 °C, then `sensors -j` runs again. Expected: the
+//! first output lacks `puron_new-isa-0000`, and the second lists it with
+//! `temp1_input` 30.
 
 use std::process::Command;
 
 use puron_testkit::{fixture, host_need, temp_dir};
 
+/// The exit code of `jq -e <filter> <file>`: 0 when the filter's last
+/// output is true, 1 when it is false or null.
 fn jq(filter: &str, file: &std::path::Path) -> Option<i32> {
     Command::new("jq")
         .args(["-e", filter])

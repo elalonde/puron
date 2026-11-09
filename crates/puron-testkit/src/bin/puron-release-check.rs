@@ -1,14 +1,21 @@
-//! The engine's read-after-panic case, built with the release profile:
-//! a `read` that panics gives no value for that poll, the next `read` works
-//! again, and the other provider is not affected. Prints a success line
-//! and exits 0 when the checks hold; prints the failed check and exits 1
-//! otherwise.
+//! Checks that the engine recovers from a provider's panic in a release
+//! build; a script builds this program with the release profile and runs
+//! it.
+//!
+//! On a virtual clock, with the default poll interval of 5 s, a fake
+//! lm-sensors reads the two temperatures of `puron_testkit::eng::r1`,
+//! then panics, then reads `r1` again, while a fake NVIDIA reads `r2`
+//! every time. Expected: lm-sensors shows the values of `r1` at 0 s, its
+//! readings without values at 5 s, and the values of `r1` again at 10 s;
+//! NVIDIA shows the values of `r2` at 5 s. Prints a success line and exits 0 when every
+//! check holds; otherwise prints the failed check and exits 1.
 
 use puron_core::rows::Provider::{self, LmSensors, Nvidia};
 use puron_core::settings::Settings;
 use puron_engine::engine::{Engine, Snapshot};
 use puron_testkit::eng::{adapters, r1, r2, Fake, ReadStep, VirtualClock};
 
+/// The values of the readings of `p` in `s`, in order.
 fn values(s: &Snapshot, p: Provider) -> Vec<Option<f64>> {
     s.readings
         .iter()
@@ -17,6 +24,7 @@ fn values(s: &Snapshot, p: Provider) -> Vec<Option<f64>> {
         .collect()
 }
 
+/// Unless `ok`, prints which check failed and exits 1.
 fn check(what: &str, ok: bool) {
     if !ok {
         println!("C-engine-15 failed: {what}");
@@ -25,7 +33,8 @@ fn check(what: &str, ok: bool) {
 }
 
 fn main() {
-    // A panic of the fake is expected; keep its message short.
+    // The fake's panic is expected; print it as one short line instead
+    // of the default panic message.
     std::panic::set_hook(Box::new(|i| eprintln!("caught: {i}")));
     let clock = VirtualClock::new();
     let lm = Fake::new(clock.dyn_clock(), LmSensors).reads([
