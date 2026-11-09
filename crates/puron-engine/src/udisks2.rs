@@ -405,7 +405,7 @@ mod tests {
     // limit has passed.
     #[test]
     fn within_limit_passes() {
-        puron_testkit::limit("p4f3-within", 2, || {
+        puron_testkit::limit("within_limit_passes", 2, || {
             let r = zbus::block_on(Within::new(
                 Duration::from_millis(50),
                 std::future::pending::<()>(),
@@ -418,7 +418,7 @@ mod tests {
     // text for a value that is not a double.
     #[test]
     fn reason_texts() {
-        puron_testkit::limit("p4f3-reason", 2, || {
+        puron_testkit::limit("reason_texts", 2, || {
             let name = zbus::names::OwnedErrorName::try_from("org.example.Error").unwrap();
             let call = zbus::message::Message::method_call("/", "M")
                 .unwrap()

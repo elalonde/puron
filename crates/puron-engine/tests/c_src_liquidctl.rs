@@ -416,7 +416,8 @@ fn c_src_liquidctl_1__eintr() {
 
 /// A read on a thread where `pidfd_open` fails with ENOSYS, as on a
 /// kernel older than 5.3; a seccomp filter makes it fail. Expects the
-/// read to fail within 0.5 s, without starting the program.
+/// read to fail within 0.5 s: the program is started, but killed at once
+/// because the run cannot be watched.
 #[test]
 fn c_src_liquidctl_1__nopidfd() {
     puron_testkit::limit("C-src.liquidctl-1", SHORT, || {
@@ -433,21 +434,59 @@ fn c_src_liquidctl_1__nopidfd() {
     });
 }
 
+// Classic BPF opcodes and seccomp return values for the filters below.
+const LD_W_ABS: u16 = 0x20; // BPF_LD | BPF_W | BPF_ABS
+const JEQ_K: u16 = 0x15; // BPF_JMP | BPF_JEQ | BPF_K
+const JGT_K: u16 = 0x25; // BPF_JMP | BPF_JGT | BPF_K
+const RET_K: u16 = 0x06; // BPF_RET | BPF_K
+const RET_ERRNO: u32 = 0x0005_0000;
+const RET_ALLOW: u32 = 0x7fff_0000;
+/// Offset in `seccomp_data` of the system call number, and of the low 32
+/// bits of the first argument (little-endian).
+const NR: u32 = 0;
+const ARG0: u32 = 16;
+
+fn op(code: u16, jt: u8, jf: u8, k: u32) -> libc::sock_filter {
+    libc::sock_filter { code, jt, jf, k }
+}
+
 /// Installs a seccomp filter on this thread that makes `pidfd_open` fail
 /// with ENOSYS and allows every other system call.
 fn deny_pidfd_open() {
-    const LD_W_ABS: u16 = 0x20; // BPF_LD | BPF_W | BPF_ABS
-    const JEQ_K: u16 = 0x15; // BPF_JMP | BPF_JEQ | BPF_K
-    const RET_K: u16 = 0x06; // BPF_RET | BPF_K
-    const RET_ERRNO: u32 = 0x0005_0000;
-    const RET_ALLOW: u32 = 0x7fff_0000;
-    let f = |code, jt, jf, k| libc::sock_filter { code, jt, jf, k };
-    let mut prog = [
-        f(LD_W_ABS, 0, 0, 0), // seccomp_data.nr
-        f(JEQ_K, 0, 1, libc::SYS_pidfd_open as u32),
-        f(RET_K, 0, 0, RET_ERRNO | libc::ENOSYS as u32),
-        f(RET_K, 0, 0, RET_ALLOW),
-    ];
+    install(&mut [
+        op(LD_W_ABS, 0, 0, NR),
+        op(JEQ_K, 0, 1, libc::SYS_pidfd_open as u32),
+        op(RET_K, 0, 0, RET_ERRNO | libc::ENOSYS as u32),
+        op(RET_K, 0, 0, RET_ALLOW),
+    ]);
+}
+
+/// Installs a seccomp filter on this thread that makes waiting for one
+/// given child fail with ECHILD: `wait4` with a pid above 0, and `waitid`
+/// with `P_PID`. Waiting for any child (`wait4` with -1, as the fake's
+/// shell does for its own commands) still works. The started program
+/// inherits the filter, so this keeps the fake working while the
+/// adapter's reap of it fails.
+fn deny_child_wait() {
+    install(&mut [
+        op(LD_W_ABS, 0, 0, NR),
+        op(JEQ_K, 1, 0, libc::SYS_wait4 as u32),
+        op(JEQ_K, 3, 5, libc::SYS_waitid as u32),
+        // wait4: allow 0 and the negative pids (above 0x7fffffff as u32).
+        op(LD_W_ABS, 0, 0, ARG0),
+        op(JEQ_K, 3, 0, 0),
+        op(JGT_K, 2, 3, 0x7fff_ffff),
+        // waitid: deny P_PID.
+        op(LD_W_ABS, 0, 0, ARG0),
+        op(JEQ_K, 1, 0, libc::P_PID),
+        op(RET_K, 0, 0, RET_ALLOW),
+        op(RET_K, 0, 0, RET_ERRNO | libc::ECHILD as u32),
+    ]);
+}
+
+/// Installs `prog` as a seccomp filter of this thread, after setting
+/// `no_new_privs`, which seccomp requires of a user who is not root.
+fn install(prog: &mut [libc::sock_filter]) {
     let fprog = libc::sock_fprog {
         len: prog.len() as u16,
         filter: prog.as_mut_ptr(),
@@ -981,5 +1020,78 @@ fn c_src_liquidctl_14() {
                 "Dev//Fan speed",
             ]
         );
+    });
+}
+
+/// With diagnostics on and sent to a test journal, reads the fake that
+/// prints `G.json` with `deny`'s seccomp filter on the reading thread.
+/// Expects the read to fail with one `run-failed` entry of reason
+/// `wait-error` whose text is the system error `errno`, and no
+/// `not-started` entry: the program did start.
+fn wait_error_logged(test: &str, deny: fn(), errno: i32) {
+    if !is_child() {
+        run_child(test, |_| {});
+        return;
+    }
+    let j = puron_testkit::jrn::Journal::new("c-lqc-15");
+    puron_engine::diag::set_socket(&j.path);
+    puron_engine::diag::switch(true);
+    let mut src = started(dir("good"), ONE);
+    deny();
+    assert_eq!(read(&mut src), ReadOutcome::Failed);
+    // The read's events are sent before it returns, so the marker sent
+    // now arrives after them.
+    let sock = std::os::unix::net::UnixDatagram::unbound().expect("socket");
+    sock.send_to(b"MESSAGE=marker\n", &j.path)
+        .expect("send marker");
+    let mut n = 1;
+    let entries = loop {
+        let e = j.wait(n, Duration::from_secs(SHORT));
+        if e.iter()
+            .any(|e| puron_testkit::jrn::field(e, "MESSAGE") == Some("marker"))
+        {
+            break e;
+        }
+        assert!(e.len() >= n, "marker not received");
+        n = e.len() + 1;
+    };
+    let events: Vec<_> = entries
+        .iter()
+        .filter_map(|e| puron_testkit::jrn::field(e, "PURON_EVENT").map(|ev| (ev, e)))
+        .collect();
+    let ids: Vec<&str> = events.iter().map(|(ev, _)| *ev).collect();
+    assert_eq!(
+        ids,
+        ["run-failed"],
+        "{}",
+        puron_testkit::jrn::dump(&entries)
+    );
+    let e = events[0].1;
+    assert_eq!(
+        puron_testkit::jrn::field(e, "PURON_REASON"),
+        Some("wait-error")
+    );
+    let text = std::io::Error::from_raw_os_error(errno).to_string();
+    assert_eq!(
+        puron_testkit::jrn::field(e, "PURON_TEXT"),
+        Some(text.as_str())
+    );
+}
+
+/// `pidfd_open` fails with ENOSYS after the program has started: logged
+/// as a failed wait with ENOSYS's text.
+#[test]
+fn c_src_liquidctl_15__nopidfd() {
+    puron_testkit::limit("C-src.liquidctl-15", SHORT, || {
+        wait_error_logged("c_src_liquidctl_15__nopidfd", deny_pidfd_open, libc::ENOSYS)
+    });
+}
+
+/// The run completes, and reaping the program fails with ECHILD: logged
+/// as a failed wait with ECHILD's text.
+#[test]
+fn c_src_liquidctl_15__reap() {
+    puron_testkit::limit("C-src.liquidctl-15", SHORT, || {
+        wait_error_logged("c_src_liquidctl_15__reap", deny_child_wait, libc::ECHILD)
     });
 }

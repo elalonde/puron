@@ -1074,7 +1074,7 @@ fn c_src_registry_5() {
 /// signal at 2 s: dropping the handle shuts the engine down.
 #[test]
 fn engine_drop_sends_shutdown() {
-    puron_testkit::limit("p4f3-drop", LIMIT, || {
+    puron_testkit::limit("engine_drop_sends_shutdown", LIMIT, || {
         let r = Run::new();
         let lq = r.fake(Liquidctl).reads([ReadStep::Hangs]);
         r.start(&on(&[Liquidctl], 5), std::slice::from_ref(&lq));
@@ -1092,7 +1092,7 @@ fn engine_drop_sends_shutdown() {
 /// provider removes only that provider's read deadline.
 #[test]
 fn stop_keeps_other_deadlines() {
-    puron_testkit::limit("p4f3-deadlines", LIMIT, || {
+    puron_testkit::limit("stop_keeps_other_deadlines", LIMIT, || {
         let mut r = Run::new();
         let ud = r.fake(Udisks2).reads([gives(r1(Udisks2)), ReadStep::Hangs]);
         let lm = r.fake(LmSensors).reads([gives(r1(LmSensors))]);

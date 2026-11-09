@@ -2,10 +2,11 @@
 //!
 //! libcosmic runs it as a single instance. `window::Window` holds the
 //! window's state and decides what to store; `view::view` draws its
-//! `Plan`. The settings are those under `puron_config::user_root`. When
-//! the window opens it loads them and starts a `Config::watch`; every
-//! change the watch reports goes back to `Window::handle` as an
-//! `Event::Delivery`.
+//! `Plan`. The settings are those of `Config::user`, under
+//! `puron_config::user_root`; when no root can be found, the window shows
+//! the defaults and stores nothing. When the window opens it loads them
+//! and starts a `Config::watch`; every change the watch reports goes back
+//! to `Window::handle` as an `Event::Delivery`.
 
 use std::sync::Mutex;
 
@@ -126,7 +127,7 @@ fn main() {
 
     let (tx, rx) = unbounded();
     *DELIVERIES.lock().unwrap() = Some(rx);
-    let config = Config::new(puron_config::user_root().unwrap_or_default());
+    let config = Config::user();
 
     let w = window_settings();
     let settings = Settings::default()

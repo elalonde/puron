@@ -234,7 +234,7 @@ fn main() {
     *VIEWS.lock().unwrap() = Some(vrx);
 
     let engine = Arc::new(Engine::new(SystemClock::new()));
-    let config = Config::new(puron_config::user_root().unwrap_or_default());
+    let config = Config::user();
     let state = App::new(engine, config, Programs::production());
     let loop_tx = tx.clone();
     let event_loop = std::thread::spawn(move || {
