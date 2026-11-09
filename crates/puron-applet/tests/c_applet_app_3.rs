@@ -1,7 +1,11 @@
-//! Stop twice in process, then SIGTERM to a child that runs the loop with
-//! a fake engine handle whose shutdown takes 1 s. In its own test binary,
-//! since signal handlers are per process. Time limit 10 s, as it starts a
-//! process.
+//! `Event::Stop` shuts the engine down once and exits. In the test
+//! process, the first stop must call the engine's shutdown and give
+//! `Exit`, and a second stop must do nothing. Then a fresh run of this
+//! test binary runs `app::run` with a fake engine whose shutdown takes
+//! 1 s, and receives SIGTERM: it must exit with status 0, not by the
+//! signal, no sooner than 1 s later, after exactly one shutdown. The test
+//! has its own binary because signal handlers are process-wide, and a
+//! time limit of 10 s because it starts a process.
 #![allow(non_snake_case)]
 
 mod common;
@@ -70,9 +74,10 @@ fn c_applet_app_3() {
     });
 }
 
-/// The child: the production loop with the fake handle (shutdown 1 s);
-/// prints "ready" once the loop has started, and the handle's shutdown
-/// count when it exits. Returns at once when not the child.
+/// The child's side of `c_applet_app_3`; it does nothing unless it runs
+/// in the child. It runs `app::run` with a fake engine whose shutdown
+/// takes 1 s, prints "ready" once the loop has handled `Event::Start`,
+/// and prints the number of shutdowns when the loop exits.
 #[test]
 fn c_applet_app_3__child() {
     if std::env::var_os(CHILD).is_none() {

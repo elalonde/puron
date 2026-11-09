@@ -1,10 +1,11 @@
-//! Tests of the panel button, 5 s each. "Plan" tests read the panel
-//! plan; "Bounds" tests measure the widgets built from it with the iced
-//! test simulator, headless, at panel size M. Items come from
-//! `core.panel` with the captured readings and pinned list P1 unless a
-//! test says otherwise. The icon theme test runs in a re-executed child
-//! whose XDG_DATA_DIRS holds Puron's icon files in a temporary hicolor
-//! tree.
+//! Tests of the panel button, each with a time limit of 5 s. Some check
+//! the panel plan alone; others lay out the widgets built from the plan
+//! in iced's headless test simulator, at panel size M, and measure them.
+//! Unless a test says otherwise, the items come from
+//! `puron_core::panel::panel` with the captured readings and the pinned
+//! list `P1` of `pins.json`. The icon theme test runs in a fresh run of
+//! this test binary whose `XDG_DATA_DIRS` holds the project's icon files
+//! in a temporary hicolor tree.
 #![allow(non_snake_case)]
 
 use std::collections::BTreeMap;
@@ -25,12 +26,12 @@ use puron_core::settings::Settings;
 
 const LIMIT: u64 = 5;
 const CHILD: &str = "PURON_PANEL_CHILD";
-/// The button's cross-axis size: the height of a horizontal
+/// The button's size across the panel in px: the height of a horizontal
 /// button, the width of a vertical one.
 const BUTTON: f32 = 48.0;
-/// The simulator's window, main axis.
+/// The simulator window's size along the panel in px.
 const LONG: f32 = 600.0;
-/// The snapshot's fixed scale factor.
+/// The scale factor at which a snapshot is rendered.
 const SCALE: f32 = 2.0;
 
 const FAN: &str = "puron-fan-symbolic";
@@ -66,8 +67,8 @@ fn core_panel(raw: &[RawReading], pins: &[String], icons: bool) -> Panel {
     puron_core::panel::panel(&menu::shown(raw, &s), pins, &s, &State::default())
 }
 
-/// The applet context at panel size M (the size is set here, never
-/// taken from the environment).
+/// An applet context at panel size M. The size is set here, so the
+/// environment cannot change it.
 fn context() -> Context {
     Context {
         size: AppletSize::PanelSize(PanelSize::M),
@@ -75,7 +76,7 @@ fn context() -> Context {
     }
 }
 
-/// The icon size libcosmic returns for M.
+/// The icon size in px that libcosmic gives for panel size M.
 fn m_icon_size() -> f32 {
     PanelSize::M.get_applet_icon_size(true) as f32
 }
@@ -88,8 +89,8 @@ fn p1_plan(icons: bool, o: Orientation) -> Plan {
     plan_of(&core_panel(&capture(), &pinned("P1"), icons), o)
 }
 
-/// What the plan holds, one string per element: `icon <name>`, `slot`,
-/// `text <text>`, each after its item index.
+/// The plan's elements, one string each: the item index, then
+/// `icon <name>`, `slot` or `text <text>`.
 fn kinds(plan: &Plan) -> Vec<String> {
     plan.elements
         .iter()
@@ -113,8 +114,9 @@ fn names(plan: &Plan) -> Vec<&'static str> {
 
 type Sim = Simulator<'static, (), Theme, cosmic::Renderer>;
 
-/// The button: the plan's content in a container of the fixed cross size
-/// with the id `root`.
+/// A simulator holding the button: the plan's content in a container
+/// with the ID `root`, `BUTTON` px across the panel, in a window `LONG` px
+/// along it.
 fn simulate(plan: &Plan) -> Sim {
     let content = container(panel::view::<()>(plan)).id(Id::new("root"));
     let (button, window) = match plan.orientation {
@@ -136,7 +138,7 @@ fn bounds(sim: &mut Sim, id: Id) -> Rectangle {
         .bounds()
 }
 
-/// The rectangles of the plan's elements, in plan order.
+/// The laid-out rectangles of the plan's elements, in plan order.
 fn rects(sim: &mut Sim, plan: &Plan) -> Vec<Rectangle> {
     (0..plan.elements.len())
         .map(|i| bounds(sim, panel::element_id(i)))
@@ -151,7 +153,8 @@ fn is_text(e: &Element) -> bool {
     matches!(e, Element::Text { .. })
 }
 
-/// The snapshot's pixels: RGB rows at the fixed scale.
+/// A rendered snapshot's pixels, as RGBA rows at `SCALE`; `at` drops the
+/// alpha.
 struct Pixels {
     width: u32,
     height: u32,
@@ -164,7 +167,8 @@ impl Pixels {
         [self.rgba[i], self.rgba[i + 1], self.rgba[i + 2]]
     }
 
-    /// The pixels of a layout rectangle, rounded inward.
+    /// The pixels inside a layout rectangle, whose edges are scaled and
+    /// rounded inward.
     fn inside(&self, r: &Rectangle) -> Vec<[u8; 3]> {
         let x0 = (r.x * SCALE).ceil() as u32;
         let y0 = (r.y * SCALE).ceil() as u32;
@@ -185,8 +189,9 @@ fn rgb8(c: cosmic::iced::Color) -> [u8; 3] {
     [q(c.r), q(c.g), q(c.b)]
 }
 
-/// The snapshot with `Theme::dark()`, its background and foreground:
-/// the background is the pixel at (0, 0) and equals the theme's.
+/// Renders the button with `Theme::dark()` and returns its pixels with the
+/// theme's background and text colours. It fails unless the pixel at
+/// (0, 0) has the background colour.
 fn snapshot(sim: &mut Sim, test: &str) -> (Pixels, [u8; 3], [u8; 3]) {
     let theme = Theme::dark();
     let snap = sim.snapshot(&theme).expect("snapshot");
@@ -428,8 +433,9 @@ fn c_applet_panel_9() {
     });
 }
 
-/// Puron's icon files in a hicolor tree under `share` with a minimal
-/// index (the system may have no hicolor index.theme).
+/// Copies the project's four icon files into a hicolor tree under `share`
+/// and writes a minimal `index.theme` for it, since the system may have
+/// none for hicolor.
 fn icon_tree(share: &Path) {
     let status = share.join("icons/hicolor/scalable/status");
     std::fs::create_dir_all(&status).expect("icon dir");
@@ -488,8 +494,10 @@ fn c_applet_panel_11() {
                 if p == bg {
                     continue;
                 }
-                // The fraction t of the foreground over the background:
-                // the projection on the segment, clamped to [0, 1].
+                // How far the pixel lies from the background towards the
+                // foreground, as t in [0, 1]: its projection onto the line
+                // between the two colours. The pixel must then be within 2
+                // of that blend in each channel.
                 let d: Vec<f32> = (0..3)
                     .map(|c| f32::from(fg[c]) - f32::from(bg[c]))
                     .collect();

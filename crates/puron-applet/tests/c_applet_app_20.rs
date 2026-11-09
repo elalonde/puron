@@ -1,6 +1,10 @@
-//! The diag events `menu-rebuilt` and `display-updated`, with fixture
-//! `p5-debug` (the defaults with pinned list P5 and `debug_logging`
-//! true). In its own test binary for diag's socket.
+//! Which layouts log `menu-rebuilt` and `display-updated`, with diagnostic
+//! logging on (fixture `p5-debug`: the defaults with the pinned list `P5`
+//! and `debug_logging` true). The first snapshot rebuilds the popup and
+//! logs both; the same readings again log only `display-updated`;
+//! switching panel icons off logs nothing; hiding temperatures forces a
+//! rebuild at the next snapshot, which logs both. The test has its own
+//! binary because the diagnostics socket is process-wide.
 #![allow(non_snake_case)]
 
 mod common;
@@ -24,7 +28,7 @@ fn c_applet_app_20() {
         assert!(a.settings().debug_logging);
         a.handle(Event::Snapshot(rebuild("S1")));
         a.handle(Event::Snapshot(rebuild("S1")));
-        // A panel rebuild that changes only icons writes no event.
+        // Switching icons off rebuilds only the panel, which logs nothing.
         a.handle(delivery(&a, &["show_panel_icons"], |s| {
             s.show_panel_icons = false
         }));

@@ -1,6 +1,10 @@
-//! Settings link with a fake settings program that records its PID,
-//! parent PID and session ID. In its own test binary: `waitpid(-1)` reaps
-//! every child of the process. Time limit 10 s, as it starts a process.
+//! The settings link starts the settings program detached from the
+//! applet. A fake settings program writes its PID, parent PID and session
+//! ID to a file. The launch must report `Started` and leave no child of
+//! the test process; the program must be alive and not a zombie, and its
+//! parent and session must differ from the test process's. The test has
+//! its own binary because `waitpid(-1)` sees every child of the process,
+//! and a time limit of 10 s because it starts a process.
 #![allow(non_snake_case)]
 
 mod common;
@@ -11,6 +15,7 @@ use common::*;
 use puron_applet::app::{Event, Launched, Output, Programs};
 use puron_testkit::cfg;
 
+/// Whether `waitpid` finds no child `pid` (or no child at all for -1).
 fn echild(pid: i32) -> bool {
     let mut st = 0;
     let r = unsafe { libc::waitpid(pid, &mut st, libc::WNOHANG) };

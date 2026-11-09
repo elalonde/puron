@@ -1,7 +1,9 @@
-//! Start with an empty config (both kinds of root: no entry, and no ID
-//! directory), then one of each event: no datagram in the 0.5 s quiet
-//! window. In its own test binary, since diag's switch and socket are per
-//! process.
+//! With an empty config, diagnostic logging stays off. The applet starts
+//! on each of the two empty configs (the settings directory with no
+//! entry, and no settings directory at all), and every diagnostic event
+//! is then sent once: the fake journal must receive nothing within 0.5 s.
+//! The test has its own binary because the diagnostics switch and socket
+//! are process-wide.
 
 mod common;
 

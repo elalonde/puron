@@ -1,6 +1,8 @@
-//! An empty config; a delivery with `debug_logging` true, one `panic`; a
-//! delivery with false, one `panic`: exactly one datagram. In its own
-//! test binary, since diag's switch and socket are per process.
+//! A config change switches diagnostic logging at once. Starting from an
+//! empty config, a change that sets `debug_logging` is followed by one
+//! event, then a change that clears it by another: the fake journal must
+//! receive only the first. The test has its own binary because the
+//! diagnostics switch and socket are process-wide.
 
 mod common;
 

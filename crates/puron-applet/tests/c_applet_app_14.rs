@@ -1,6 +1,7 @@
-//! Start with a config whose entries hold values of the wrong type: each
-//! problem that Load reports reaches diag, in order. In its own test
-//! binary, since diag's socket is per process.
+//! With a config whose entries hold values of the wrong type, every
+//! problem that `Config::load` reports gives one `config-problem` event at
+//! start, in the same order. The test has its own binary because the
+//! diagnostics socket is process-wide.
 #![allow(non_snake_case)]
 
 mod common;

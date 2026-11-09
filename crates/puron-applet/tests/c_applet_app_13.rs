@@ -1,6 +1,11 @@
-//! A failed store of `pinned` on a read-only config root that holds the
-//! defaults with pinned list P5 (fixture `p5-readonly`; the test runs as
-//! a user who is not root). In its own test binary for diag's socket.
+//! A pinned list that cannot be stored still takes effect in memory. The
+//! config is read-only (fixture `p5-readonly`: the defaults with the
+//! two-pin list `P5` of `pins.json`), so the test must run as a user who
+//! is not root. Pinning a fan line must report a failed store of the
+//! three-pin list, show three panel items and log one
+//! `pinned-store-failed` event. Unpinning the first pin must then store
+//! the new two-pin list exactly once. The test has its own binary because
+//! the diagnostics socket is process-wide.
 #![allow(non_snake_case)]
 
 mod common;
@@ -25,8 +30,8 @@ fn c_applet_app_13() {
         let mut a = app(&c.root, &h);
         a.handle(Event::Start);
         a.handle(Event::Snapshot(capture()));
-        // The default config keeps debug logging off; the test turns diag
-        // on to read the one event (diag decides what is written).
+        // The fixture keeps diagnostic logging off. The test switches it on
+        // directly, so that the failed store's event reaches the journal.
         diag::switch(true);
         let ids = a.menu().unwrap().identities.clone();
         let fan = ids

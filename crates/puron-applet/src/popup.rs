@@ -1,6 +1,8 @@
-//! The popup: rendering and clicks. It draws `core.menu`'s layout and sends
-//! pin and link clicks to `app`. It decides no entry (that is `core.menu`'s
-//! job) and changes no pinned list (that is `core.pins`'s job).
+//! The popup that opens from the panel button: a `Plan` built from the
+//! `Menu` that `puron_core::menu` laid out, the widgets drawn from it, and
+//! what a click on them does. A click on a line becomes an `Event` for the
+//! event loop in `app`; this module chooses no entry itself and never
+//! changes the pinned list (`puron_core::pins` does that).
 
 use cosmic::applet;
 use cosmic::iced::advanced::layout::Limits;
@@ -16,63 +18,76 @@ use puron_core::rows::{self as core_rows, NAME_LIMIT};
 use crate::i18n;
 use crate::panel::section_icon_name;
 
-/// The check mark of a checked line.
+/// The icon name of the check mark drawn in front of a pinned line.
 pub const CHECK_MARK: &str = "object-select-symbolic";
 /// The check mark's side, in px. It does not follow the panel's icon size.
 pub const CHECK_MARK_SIZE: u16 = 14;
-/// The check slot's width, in px, with a mark or without one: the mark, then
-/// 6 px of gap to the text.
+/// The width in px of the slot in front of every line's text, whether or
+/// not it holds a mark: the 14 px mark, then 6 px of gap to the text.
 pub const CHECK_SLOT: f32 = 20.0;
 /// A device heading's indent from the section heading's left edge, in px.
 pub const DEVICE_INDENT: f32 = 16.0;
 /// A line's indent from the section heading's left edge, in px.
 pub const LINE_INDENT: f32 = 24.0;
-/// The popup's least width, the one libcosmic's `applet::popup_container`
-/// sets.
+/// The popup's narrowest width in px. libcosmic's
+/// `applet::popup_container` fixes the width at this value; `limits`
+/// replaces that with the width that `width` computes.
 pub const WIDTH: f32 = 360.0;
-/// The popup's greatest width: 44 characters on a line, at the default font's
-/// 7 px on average: 48 of padding, 24 of indent, 20 of check slot, 308, 8 of
-/// gap, 64 of value.
+/// The popup's widest width in px: room for a line whose name has 44
+/// characters, taken as 7 px each on average in the default font. That
+/// is 48 of padding, 24 of indent, 20 of check slot, 308 of name, 8 of
+/// gap and 64 of value.
 pub const MAX_WIDTH: f32 = 472.0;
-/// libcosmic's height limit of `applet::popup_container`. A taller popup
-/// scrolls.
+/// The height limit in px that libcosmic's `applet::popup_container`
+/// sets, kept by `limits`. Content taller than this scrolls.
 const MAX_HEIGHT: f32 = 1000.0;
-/// The space kept between a name and its value.
+/// The least space in px that `fit_width` counts between a line's name
+/// and its value. `view` draws no gap of its own.
 const NAME_GAP: f32 = 8.0;
-/// The space between a section's icon and its text.
+/// The space in px between a section heading's icon and its text.
 const SECTION_GAP: f32 = 8.0;
-/// The width kept for a value, so that a value that grows by a digit does
-/// not resize the popup: "100.0°F" fits.
+/// The least width in px counted for a value, so that a value that grows
+/// by a digit does not widen the popup. "100.0°F" fits in it.
 const VALUE_ROOM: f32 = 64.0;
-/// libcosmic's default text size in an applet.
+/// The text size in px that `measure` assumes: libcosmic's default size
+/// for applet text.
 const TEXT_SIZE: f32 = 14.0;
 
-/// A line as drawn: check slot, text, value, left to right.
+/// A reading's line in the popup, drawn left to right as the check slot,
+/// the text and the value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
+    /// The reading's identity: the text that the pinned list stores and
+    /// that a click on the line sends.
     pub identity: String,
-    /// The check mark is drawn (the line is pinned, per `core.pins`).
+    /// Whether the check mark is drawn, that is, whether `identity` is in
+    /// the pinned list.
     pub pinned: bool,
+    /// The name, shortened to fit `NAME_LIMIT` characters together with
+    /// the default line's suffix.
     pub text: String,
+    /// The value text. The line of a pin that waits for lm-sensors shows
+    /// the missing-value text instead.
     pub value: String,
 }
 
-/// One drawn entry of the popup plan.
+/// One entry of the popup, made from one entry of the `Menu`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Drawn {
-    /// A section heading: a plain label.
+    /// A section heading: the class's icon and name. A click does nothing.
     Section {
         icon: &'static str,
         text: String,
     },
-    /// A device heading: a plain label.
+    /// A device heading, such as a drive's name or "CPU". A click does
+    /// nothing.
     Device {
         text: String,
     },
     Line(Line),
     Separator,
-    /// The message shown when there are no readings: a click sends
-    /// `Event::HomepageLink`.
+    /// The message shown when there are no readings, which tells the user
+    /// what to do. A click on it opens the homepage, like the link.
     Message {
         text: String,
     },
@@ -84,32 +99,39 @@ pub enum Drawn {
     },
 }
 
-/// The popup plan: a value that tests read without a display.
+/// Everything the popup draws, as plain data. `view` builds the widgets
+/// from it alone, so tests can check a plan without a display.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
     pub entries: Vec<Drawn>,
+    /// The side in px of a section heading's icon.
     pub icon_size: u16,
 }
 
-/// An event to `app`.
+/// What a click asks the event loop in `app` to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    /// A click on the line with this identity. `puron_core::pins::click`
+    /// decides the new pinned list.
     PinClick(String),
+    /// Open the project homepage in the browser.
     HomepageLink,
+    /// Start the settings program.
     SettingsLink,
 }
 
-/// What a click gives: the event sent, if any, and whether the popup
-/// closes.
+/// The answer to a click: the event to send, if any, and whether the
+/// popup closes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Reply {
     pub event: Option<Event>,
     pub close: bool,
 }
 
-/// The widget message of a click: what was clicked, not where. A line is
-/// named by its identity, so a click still means the line the user saw when
-/// a newer view has come in between the draw and the click.
+/// The widget message of a click. It names what was clicked, not its
+/// position: a line is named by its identity, so the click still means
+/// the line the user saw even if a newer view has arrived between the
+/// draw and the click.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Clicked {
     Line(String),
@@ -118,8 +140,11 @@ pub enum Clicked {
     SettingsLink,
 }
 
-/// A widget's click on `plan`, the view at the time of the click. A line
-/// that `plan` no longer has does nothing.
+/// The answer to a widget's click, given `plan`, the popup's plan at the
+/// time of the click. A line that `plan` still shows is sent as
+/// `Event::PinClick` and the popup stays open; a line that `plan` no
+/// longer shows sends nothing. The message and the links answer as in
+/// `click`.
 pub fn clicked(plan: &Plan, clicked: Clicked) -> Reply {
     let (event, close) = match clicked {
         Clicked::Line(id) => {
@@ -135,10 +160,10 @@ pub fn clicked(plan: &Plan, clicked: Clicked) -> Reply {
     Reply { event, close }
 }
 
-/// A click on a drawn entry. A line sends `Event::PinClick` and leaves the
-/// popup open. The message and the homepage link send `Event::HomepageLink`,
-/// the settings link sends `Event::SettingsLink`, and these close the popup.
-/// Nothing else answers.
+/// The answer to a click on a drawn entry. A line sends `Event::PinClick`
+/// and leaves the popup open. The message and the homepage link send
+/// `Event::HomepageLink`, the settings link sends `Event::SettingsLink`,
+/// and these three close the popup. Headings and separators do nothing.
 pub fn click(entry: &Drawn) -> Reply {
     let (event, close) = match entry {
         Drawn::Line(l) => (Some(Event::PinClick(l.identity.clone())), false),
@@ -149,8 +174,9 @@ pub fn click(entry: &Drawn) -> Reply {
     Reply { event, close }
 }
 
-/// The popup plan of a layout with the in-memory pinned list: one drawn entry
-/// per layout entry, in the layout's order.
+/// The popup plan for `menu`, with a check mark on each line that is in
+/// `pinned`: one drawn entry per menu entry, in the menu's order. The
+/// texts come from the catalog of the chosen language.
 pub fn plan(menu: &Menu, pinned: &[String], icon_size: u16) -> Plan {
     let entries = menu
         .entries
@@ -182,7 +208,11 @@ pub fn plan(menu: &Menu, pinned: &[String], icon_size: u16) -> Plan {
     Plan { entries, icon_size }
 }
 
-/// A line's name and its word, with one space when it has both.
+/// A line's text before it is shortened: the reading's name, then the word
+/// that the menu attached to the line (such as "composite"), with one
+/// space between them. A line with no name shows the word alone. For the
+/// line of a pin that waits for lm-sensors, the word is "CPU: waiting for
+/// lm-sensors" in English.
 fn line_name(item: &Item) -> String {
     let word = match item.word {
         None => return item.name.clone(),
@@ -199,6 +229,9 @@ fn line_name(item: &Item) -> String {
     }
 }
 
+/// The drawn line for `item`. The default line gets the `cpu-default`
+/// suffix; the name is shortened first so that name and suffix together
+/// fit `NAME_LIMIT` characters.
 fn line_of(item: &Item, pinned: &[String]) -> Line {
     let suffix = if item.default {
         format!(" {}", fl!("cpu-default"))
@@ -235,13 +268,19 @@ fn heading_text(heading: &Heading) -> String {
     core_rows::cut_at_end(&text, NAME_LIMIT)
 }
 
-/// The popup's width: its widest entry. Between [`WIDTH`] and [`MAX_WIDTH`].
+/// The popup's width in px: the width of its widest heading or line, plus
+/// libcosmic's horizontal padding of a menu entry, but never less than
+/// [`WIDTH`] or more than [`MAX_WIDTH`].
 pub fn width(menu: &Menu, icon_size: u16) -> f32 {
     let padding = applet::menu_control_padding();
     fit_width(menu, icon_size, padding.left + padding.right, &measure)
 }
 
-/// [`width`] with the entry's padding and the measure of a text as parameters.
+/// The computation of [`width`], with the entry's horizontal padding and
+/// the text measure as parameters. A line counts its indent, check slot,
+/// name, gap and value (at least [`VALUE_ROOM`]); a section heading its
+/// icon, gap and text; a device heading its indent and text. Separators,
+/// the message and the links do not count.
 pub fn fit_width(menu: &Menu, icon_size: u16, padding: f32, measure: &dyn Fn(&str) -> f32) -> f32 {
     let side = f32::from(icon_size);
     let widest = plan(menu, &[], icon_size)
@@ -263,7 +302,8 @@ pub fn fit_width(menu: &Menu, icon_size: u16, padding: f32, measure: &dyn Fn(&st
     (padding + widest).clamp(WIDTH, MAX_WIDTH)
 }
 
-/// A text's one-line width at the applet's default font and size.
+/// The width in px of `content` on one line, in the default font at
+/// [`TEXT_SIZE`].
 fn measure(content: &str) -> f32 {
     type Paragraph = <cosmic::Renderer as advanced_text::Renderer>::Paragraph;
     Paragraph::with_text(advanced_text::Text {
@@ -281,7 +321,8 @@ fn measure(content: &str) -> f32 {
     .min_width()
 }
 
-/// The surface limits of a popup of `width`, otherwise libcosmic's.
+/// The size limits of a popup `width` px wide: exactly that width, and
+/// the same height limits as libcosmic's `applet::popup_container`.
 pub fn limits(width: f32) -> Limits {
     Limits::NONE
         .min_height(1.0)
@@ -290,13 +331,15 @@ pub fn limits(width: f32) -> Limits {
         .max_height(MAX_HEIGHT)
 }
 
-/// The widget id of drawn entry `index`: the container of its entry.
+/// The widget ID of the container of the drawn entry at `index` in
+/// `Plan::entries`, so that tests can find its rectangle.
 pub fn entry_id(index: usize) -> Id {
     Id::new(format!("e{index}"))
 }
 
-/// The widget id of an element of drawn entry `index`: a line's `check`, `mark`,
-/// `name` and `value`, a section's `icon` and `heading`.
+/// The widget ID of one part of the drawn entry at `index`. A line's parts
+/// are `check`, `mark`, `name` and `value`; a section heading's are `icon`
+/// and `heading`.
 pub fn element_id(index: usize, element: &str) -> Id {
     Id::new(format!("e{index}.{element}"))
 }
@@ -310,13 +353,16 @@ fn symbolic<'a, M: 'a>(name: &'static str, size: u16) -> cosmic::Element<'a, M> 
         .into()
 }
 
-/// The popup content, built from the plan alone, in libcosmic's applet menu
-/// widgets, so it has COSMIC's own popup style. Each drawn entry is a container
-/// with the id `e<index>`; a line's elements have the ids `e<index>.check`,
-/// `.mark` (only when checked), `.name` and `.value`, and a section's the ids
-/// `e<index>.icon` and `.heading`, a text's id on the text's own rectangle. A
-/// name stays on one line; a name wider than its space is clipped there, and
-/// never covers the value. Content taller than the popup scrolls.
+/// The popup's content, built from the plan alone with libcosmic's applet
+/// menu widgets, so that it looks like COSMIC's own popups.
+///
+/// Each drawn entry sits in a container with the ID `entry_id(index)`.
+/// Inside it, a line's parts have the IDs of `element_id` with `check`,
+/// `mark` (only when the line is pinned), `name` and `value`, and a
+/// section heading's parts `icon` and `heading`; an ID on a text is on the
+/// text's own rectangle. A name stays on one line: when it is wider than
+/// its space it is clipped there and never covers the value. Content
+/// taller than the popup scrolls.
 pub fn view<'a>(plan: &Plan) -> cosmic::Element<'a, Clicked> {
     let size = plan.icon_size;
     let mark_side = f32::from(CHECK_MARK_SIZE);
