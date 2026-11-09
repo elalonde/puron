@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks that the release tree ships the English catalog only:
+# Checks that the source tree holds only the English translation file:
 # find i18n -name '*.ftl' must print exactly i18n/en/puron.ftl.
 # Usage: tools/c_i18n_10.sh
 cd "$(dirname "$0")/.." || exit 2

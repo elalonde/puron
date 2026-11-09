@@ -1,9 +1,11 @@
 #!/bin/sh
-# Builds the Debian package target/deb/puron_<version>_<arch>.deb from a
-# staged make install (PREFIX=/usr) with dpkg-deb. Depends is libsensors5
-# plus what dpkg-shlibdeps finds for the two binaries. The binaries are
-# built with the cargo home and the build folder remapped, so they hold
-# neither path; /usr/share/doc/puron gets the license and source documents.
+# Builds the Debian package target/deb/puron_<version>_<arch>.deb with
+# dpkg-deb from a staged make install (PREFIX=/usr). Depends is
+# libsensors5 plus what dpkg-shlibdeps finds for the two binaries. The
+# binaries are built with the cargo home and the build directory remapped
+# to /cargo and /build, so they hold neither real path, and then
+# stripped. /usr/share/doc/puron gets the copyright file, the changelog,
+# the GPL-3.0 text, the source offer and the third-party notices.
 # Usage: tools/make-deb.sh   (or make deb)
 cd "$(dirname "$0")/.." || exit 2
 target=${CARGO_TARGET_DIR:-target}
@@ -29,7 +31,8 @@ python3 -I tools/gen-notices.py "$work/tree/vendor" "$work/scratch/metadata.json
     "$stage/usr/share/doc/puron/THIRD-PARTY-NOTICES.txt" || exit 1
 rm -rf "$work/tree" "$work/scratch"
 chmod 644 "$stage"/usr/share/doc/puron/*
-# dpkg-shlibdeps wants a source tree with debian/control.
+# dpkg-shlibdeps must run in a source tree with a debian/control file; a
+# minimal one in the work directory is enough.
 mkdir -p "$work/src/debian" || exit 2
 printf 'Source: puron\n\nPackage: puron\nArchitecture: any\n' > "$work/src/debian/control"
 shl=$(cd "$work/src" && dpkg-shlibdeps -O -e"$stage/usr/bin/puron-applet" -e"$stage/usr/bin/puron-settings" 2> ../shlibdeps.err) \

@@ -1,6 +1,11 @@
-//! Tests of the settings window's state machine and window plan, and the
-//! window settings checked by c_settings_window_17. Each test runs on its
-//! own temporary configuration root.
+//! Tests of `puron_settings::window`: what the window shows, what it
+//! stores in response to each event, and how it follows changes made by
+//! another process.
+//!
+//! The tests drive `Window` directly, without a display. Each one builds
+//! its own settings tree from a fixture of `puron_testkit::cfg` in a
+//! temporary directory. Where a test needs another process to store a
+//! setting, it runs this test binary again as `x_cfg_writer`.
 #![allow(non_snake_case)]
 
 use std::path::Path;
@@ -13,21 +18,25 @@ use puron_core::settings::TemperatureUnit;
 use puron_settings::window::{window_settings, Control, Event, Output, Plan, Window};
 use puron_testkit::cfg::{self, Cfg};
 
-/// Time limit of each plan test, in seconds.
+/// The time limit of each test, in seconds.
 const LIMIT: u64 = 5;
-/// The wait for one delivery.
+/// How long to wait for a watch delivery.
 const WAIT: Duration = Duration::from_secs(2);
 
+/// The variable that turns this binary into the config writer, and holds
+/// what it stores.
 const WRITER: &str = "PURON_CFG_WRITER";
 
-/// The config writer, as a child mode of this binary: stores
-/// `$PURON_CFG_WRITER` = `<root>\t<key>\t<RON value>`, exit 0 on *stored*.
+/// The config writer: not a test, but a helper that `writer` runs in a
+/// second process. When `PURON_CFG_WRITER` holds `<root>\t<key>\t<RON
+/// value>`, it stores that value and passes only if the store succeeds.
+/// Without the variable it does nothing and passes.
 #[test]
 fn x_cfg_writer() {
     let Ok(args) = std::env::var(WRITER) else {
         return;
     };
-    // Exit 0 within 2 s on a writable root.
+    // The store must finish within 2 s.
     puron_testkit::limit("X-cfg-writer", 2, move || {
         let mut parts = args.splitn(3, '\t');
         let (root, key, ron) = (
@@ -39,7 +48,8 @@ fn x_cfg_writer() {
     });
 }
 
-/// Runs the config writer as a second process and waits for its exit 0.
+/// Stores `ron` under `key` from a second process, as another program
+/// would, and fails the test unless that store succeeds.
 fn writer(root: &Path, key: &str, ron: &str) {
     let status = puron_testkit::rerun_self("x_cfg_writer")
         .env(WRITER, format!("{}\t{key}\t{ron}", root.display()))
@@ -49,19 +59,22 @@ fn writer(root: &Path, key: &str, ron: &str) {
     assert!(status.success(), "X-cfg-writer {key} {ron}: {status}");
 }
 
+/// Fails the test when it runs as root, which can write any file and so
+/// would defeat a test of a read-only settings directory.
 fn not_root() {
     puron_testkit::host_need("a test user who is not root", "test \"$(id -u)\" -ne 0");
 }
 
-/// Opens a window on the fixture's root; checks that `Event::Open` ends with
-/// `Output::WatchStart` and stores nothing.
+/// Opens a window on the fixture's settings and checks that `Event::Open`
+/// asks for the watch (`Output::WatchStart`) and stores nothing.
 fn open(fx: &Cfg) -> Window {
     let mut w = Window::new(Config::new(&fx.root));
     assert_eq!(w.handle(Event::Open), vec![Output::WatchStart], "Open");
     w
 }
 
-/// Starts the watch the production loop starts after `Event::Open`.
+/// Starts the watch that the program starts on `Output::WatchStart`, and
+/// returns a receiver of its deliveries.
 fn watch(fx: &Cfg) -> (puron_config::Watch, mpsc::Receiver<Delivery>) {
     let (tx, rx) = mpsc::channel();
     let watch = Config::new(&fx.root)
@@ -72,8 +85,10 @@ fn watch(fx: &Cfg) -> (puron_config::Watch, mpsc::Receiver<Delivery>) {
     (watch, rx)
 }
 
-/// Hands the first delivery (within 2 s) and any that follow it at once
-/// to the window; the stores they cause are returned.
+/// Waits up to 2 s for a delivery, hands it to the window, then hands on
+/// any further delivery that arrives within 200 ms of the previous one.
+/// Returns the window's outputs, so that a test can check they hold no
+/// store.
 fn deliver(w: &mut Window, rx: &mpsc::Receiver<Delivery>) -> Vec<Output> {
     let mut out = Vec::new();
     let first = rx.recv_timeout(WAIT).expect("a delivery within 2 s");
@@ -84,7 +99,7 @@ fn deliver(w: &mut Window, rx: &mpsc::Receiver<Delivery>) -> Vec<Output> {
     out
 }
 
-/// The `Output::Store` outputs, as (key, value).
+/// The key and value of each `Output::Store` in `out`, in order.
 fn stores(out: &[Output]) -> Vec<(&'static str, Value)> {
     out.iter()
         .filter_map(|o| match o {
@@ -94,6 +109,7 @@ fn stores(out: &[Output]) -> Vec<(&'static str, Value)> {
         .collect()
 }
 
+/// The result of each `Output::Store` in `out`, in order.
 fn results(out: &[Output]) -> Vec<StoreResult> {
     out.iter()
         .filter_map(|o| match o {
@@ -103,18 +119,18 @@ fn results(out: &[Output]) -> Vec<StoreResult> {
         .collect()
 }
 
-/// The items of the plan in order.
+/// Every item of `plan`, across its sections, in window order.
 fn items(plan: &Plan) -> Vec<&puron_settings::window::Item> {
     plan.sections.iter().flat_map(|s| s.items.iter()).collect()
 }
 
-/// Item `n` (1 to 17) of the plan.
+/// Item number `n` (1 to 17) of `plan`.
 fn item(plan: &Plan, n: usize) -> puron_settings::window::Item {
     items(plan)[n - 1].clone()
 }
 
-/// The shown value of each item: the number, `on`/`off`, or the shown
-/// list item's text.
+/// What each item shows, as text: the number field's value, `on` or
+/// `off` for a switch, or the text of the selected list entry.
 fn shown(plan: &Plan) -> Vec<String> {
     items(plan)
         .iter()
@@ -133,7 +149,8 @@ fn switch_of(plan: &Plan, n: usize) -> bool {
     }
 }
 
-/// The number field: value, text, − enabled, + enabled.
+/// The number field's state: its value, its text, and whether − and +
+/// are enabled.
 fn field(plan: &Plan) -> (u32, String, bool, bool) {
     match item(plan, 1).control {
         Control::Number {
@@ -155,7 +172,8 @@ fn tip(plan: &Plan, n: usize) -> Option<String> {
     item(plan, n).tooltip.map(|(_, t)| t)
 }
 
-/// `grep -c <pattern> i18n/en/puron.ftl`'s stdout.
+/// How many lines of the English translation file `i18n/en/puron.ftl`
+/// match `pattern`, as `grep -c` prints it.
 fn grep_count(pattern: &str) -> String {
     let out = Command::new("grep")
         .args(["-c", pattern, "i18n/en/puron.ftl"])
@@ -165,17 +183,21 @@ fn grep_count(pattern: &str) -> String {
     String::from_utf8(out.stdout).unwrap().trim().to_string()
 }
 
-/// The setting defaults, in item order.
+/// What each item shows when nothing is stored, in item order.
 const DEFAULTS: [&str; 17] = [
     "5", "on", "°C", "on", "on", "on", "on", "off", "on", "off", "off", "off", "off", "on", "on",
     "on", "on",
 ];
-/// The values of the cfg fixture good.txt, in item order.
+/// What each item shows for the `good` fixture, in item order. Every value
+/// differs from its default.
 const GOOD: [&str; 17] = [
     "7", "off", "°F", "off", "off", "off", "off", "on", "off", "on", "on", "on", "on", "off",
     "off", "off", "off",
 ];
 
+/// The plan's layout (each item's heading, label, control kind, key and
+/// tooltip ID) matches the expected table `c_settings_window_1.tsv` line
+/// for line, with five sections and 17 items.
 #[test]
 fn c_settings_window_1() {
     puron_testkit::limit("C-settings.window-1", LIMIT, || {
@@ -212,6 +234,8 @@ fn c_settings_window_1() {
     });
 }
 
+/// With nothing stored, every item shows its default; with the `good`
+/// fixture, every item shows the stored value.
 #[test]
 fn c_settings_window_2() {
     puron_testkit::limit("C-settings.window-2", LIMIT, || {
@@ -222,6 +246,10 @@ fn c_settings_window_2() {
     });
 }
 
+/// Opening a window on entries of the wrong type, then receiving a change
+/// made by another process, and closing, stores nothing and changes no
+/// other entry. The items whose entries are of the wrong type show their
+/// defaults, and closing returns `Output::Exit`.
 #[test]
 fn c_settings_window_3() {
     puron_testkit::limit("C-settings.window-3", LIMIT, || {
@@ -246,7 +274,7 @@ fn c_settings_window_3() {
     });
 }
 
-/// The keys of the 15 switches, items 2, 4 to 17.
+/// The keys of the 15 switches (items 2 and 4 to 17), in item order.
 const SWITCH_KEYS: [&str; 15] = [
     "show_panel_icons",
     "show_temperature_unit",
@@ -265,6 +293,9 @@ const SWITCH_KEYS: [&str; 15] = [
     "show_power",
 ];
 
+/// Flipping every switch once from its default stores each new value,
+/// under the switch's own key, in order, and each store succeeds. A new
+/// window opened afterwards shows every switch flipped.
 #[test]
 fn c_settings_window_4() {
     puron_testkit::limit("C-settings.window-4", LIMIT, || {
@@ -298,6 +329,8 @@ fn c_settings_window_4() {
     });
 }
 
+/// The unit list offers °C and °F. Choosing °F stores it; choosing °F
+/// again stores nothing; choosing °C stores it.
 #[test]
 fn c_settings_window_5() {
     puron_testkit::limit("C-settings.window-5", LIMIT, || {
@@ -327,6 +360,10 @@ fn c_settings_window_5() {
     });
 }
 
+/// The + and − buttons step the poll interval by one and store each new
+/// value. At 1, − is disabled and a press does nothing; at 60, the same
+/// holds for +. With text typed, a press first stores the typed value,
+/// then steps from it, unless that value is already at the limit.
 #[test]
 fn c_settings_window_6() {
     puron_testkit::limit("C-settings.window-6", LIMIT, || {
@@ -350,7 +387,8 @@ fn c_settings_window_6() {
         assert_eq!(field(&w.plan()), (60, "60".into(), true, false), "at 60");
         assert_eq!(w.handle(Event::Plus), vec![], "+ at 60");
         assert_eq!(field(&w.plan()).0, 60);
-        // A press takes the typed text first, then steps.
+        // Typed text is committed before the press steps: "12" then +
+        // stores 12 and 13; "60" then + stores only 60.
         let mut w = open(&fx);
         let mut out = Vec::new();
         for (text, press) in [
@@ -374,6 +412,9 @@ fn c_settings_window_6() {
     });
 }
 
+/// Typed text is stored only when it is committed, as `read_interval`
+/// reads it, and only when the result differs from the shown value. After
+/// each commit the field shows the value, not the typed text.
 #[test]
 fn c_settings_window_7() {
     puron_testkit::limit("C-settings.window-7", LIMIT, || {
@@ -385,7 +426,8 @@ fn c_settings_window_7() {
         let mut out = Vec::new();
         let mut last = 5;
         for text in typed {
-            // Each keystroke is a Typed event; none stores.
+            // Every prefix of the text arrives as a `Typed` event, as
+            // keystrokes would; none of them stores.
             for end in 1..=text.len() {
                 let o = w.handle(Event::Typed(text[..end].to_string()));
                 assert_eq!(o, vec![], "keystroke of {text:?}");
@@ -405,6 +447,9 @@ fn c_settings_window_7() {
     });
 }
 
+/// Item 8's tooltip reads "Show additional digits after decimal point",
+/// and the English translation file has no line with the misspelling
+/// "additionnal".
 #[test]
 fn c_settings_window_8() {
     puron_testkit::limit("C-settings.window-8", LIMIT, || {
@@ -418,6 +463,8 @@ fn c_settings_window_8() {
     });
 }
 
+/// Of items 9 to 17, only the lm-sensors and liquidctl switches have a
+/// tooltip, with the expected text.
 #[test]
 fn c_settings_window_10() {
     puron_testkit::limit("C-settings.window-10", LIMIT, || {
@@ -433,6 +480,7 @@ fn c_settings_window_10() {
     });
 }
 
+/// Adds write permission for the owner of `path`.
 fn make_writable(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let mut perms = std::fs::metadata(path).unwrap().permissions();
@@ -440,6 +488,10 @@ fn make_writable(path: &Path) {
     std::fs::set_permissions(path, perms).unwrap();
 }
 
+/// In a read-only settings directory, flipping a switch reports one
+/// failed store, the switch keeps its new position, and the entry keeps
+/// its old value. Once the directory is writable again, the next two
+/// flips store and succeed.
 #[test]
 fn c_settings_window_11() {
     puron_testkit::limit("C-settings.window-11", LIMIT, || {
@@ -458,7 +510,7 @@ fn c_settings_window_11() {
         );
         assert!(!switch_of(&w.plan(), 8), "switch shown off");
         assert_eq!(fx.entry("show_decimals"), b"true", "entry still true");
-        // Make the ID directory and v1 writable again.
+        // Make the settings directory and its parent writable again.
         make_writable(&fx.root.join("cosmic/io.github.elalonde.Puron"));
         make_writable(&fx.id_dir());
         let mut out = w.handle(Event::Switch { item: 8, on: true });
@@ -475,6 +527,9 @@ fn c_settings_window_11() {
     });
 }
 
+/// Values stored by another process reach the open window through the
+/// watch: the switch and the number field show them, and the window
+/// stores nothing in return.
 #[test]
 fn c_settings_window_12() {
     puron_testkit::limit("C-settings.window-12", LIMIT, || {
@@ -494,6 +549,8 @@ fn c_settings_window_12() {
     });
 }
 
+/// Text being typed survives a change from another process: after the
+/// delivery the field still shows "3", and the commit then stores 3.
 #[test]
 fn c_settings_window_13() {
     puron_testkit::limit("C-settings.window-13", LIMIT, || {
@@ -513,8 +570,14 @@ fn c_settings_window_13() {
     });
 }
 
+/// Set in the child process of `c_settings_window_14`.
 const CHILD14: &str = "PURON_SETTINGS14_CHILD";
 
+/// Under a test catalog that prefixes every English text with "EO ", the
+/// headings, labels, tooltips and list entries are translated, while the
+/// title and the five product names of items 9 to 13 stay as they are.
+/// The check runs in a child process with `LANG=eo.UTF-8` and the other
+/// locale variables removed.
 #[test]
 fn c_settings_window_14() {
     puron_testkit::limit("C-settings.window-14", LIMIT, || {
@@ -567,8 +630,10 @@ fn c_settings_window_14() {
     });
 }
 
-/// The window settings part of tools/c_settings_window_17.sh, which
-/// also checks the libcosmic features of puron-settings.
+/// The window's title, application ID, initial size and minimum size are
+/// the expected ones, and the plan has the same title.
+/// `tools/c_settings_window_17.sh` runs this test and also checks the
+/// libcosmic features that puron-settings enables.
 #[test]
 fn c_settings_window_17() {
     puron_testkit::limit("C-settings.window-17", LIMIT, || {

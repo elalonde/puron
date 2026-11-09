@@ -1,7 +1,11 @@
-//! The start code of puron-settings leaves the C library locale `C`
-//! under `LC_ALL=tr_TR.UTF-8` and `de_DE.UTF-8`; both locales must be
-//! installed on the host. Each case runs in a re-executed child, so the
-//! locale of the test process does not leak into it.
+//! Checks that `puron_settings::start` leaves the C library's locale at
+//! `C` even when the environment asks for another one.
+//!
+//! The test runs `start` under `LC_ALL=tr_TR.UTF-8` and under
+//! `LC_ALL=de_DE.UTF-8`, and expects `setlocale` to report `C` afterwards.
+//! Both locales must be installed on the host, or the test fails. Each
+//! case runs in a fresh child process (this test binary run again), so
+//! that the test process's own locale cannot affect it.
 
 use std::ffi::CStr;
 
@@ -13,8 +17,8 @@ fn c_i18n_12() {
     puron_testkit::limit("C-i18n-12", 5, || {
         if std::env::var_os(CHILD).is_some() {
             puron_settings::start();
-            // SAFETY: a query (null name) on this thread; nothing else
-            // changes the locale in the child.
+            // SAFETY: a null name only queries the locale, and no other
+            // thread in the child changes it.
             let now = unsafe { CStr::from_ptr(libc::setlocale(libc::LC_ALL, std::ptr::null())) };
             assert_eq!(now.to_str().unwrap(), "C", "C library locale after start");
             return;

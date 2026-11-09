@@ -1,8 +1,11 @@
-//! The puron-settings program. libcosmic's single-instance start runs
-//! the settings window: the state machine of `window` on `config`'s
-//! per-user root, drawn by `view` from its plan. Open ends with the
-//! start of the config watch; each delivery goes back to the state
-//! machine.
+//! The puron-settings program: the window that edits Puron's settings.
+//!
+//! libcosmic runs it as a single instance. `window::Window` holds the
+//! window's state and decides what to store; `view::view` draws its
+//! `Plan`. The settings are those under `puron_config::user_root`. When
+//! the window opens it loads them and starts a `Config::watch`; every
+//! change the watch reports goes back to `Window::handle` as an
+//! `Event::Delivery`.
 
 use std::sync::Mutex;
 
@@ -15,7 +18,10 @@ use puron_config::{Config, Delivery, Watch};
 use puron_settings::view;
 use puron_settings::window::{window_settings, Event, Output, Plan, Window, APP_ID, TITLE};
 
-/// The receiving end of the deliveries, taken once by the subscription.
+/// The receiving end of the watch deliveries. `Subscription::run` takes a
+/// plain function, so the receiver reaches `deliveries` through this
+/// static. The first call takes it; any later call gets a stream that
+/// never yields.
 static DELIVERIES: Mutex<Option<UnboundedReceiver<Delivery>>> = Mutex::new(None);
 
 fn deliveries() -> BoxStream<'static, Event> {
@@ -38,7 +44,8 @@ impl CosmicFlags for Flags {
 struct App {
     core: Core,
     window: Window,
-    /// The plan of the state after the last event, which `view` draws.
+    /// What `view` draws: the plan of the window's state after the last
+    /// event.
     plan: Plan,
     config: Config,
     tx: UnboundedSender<Delivery>,

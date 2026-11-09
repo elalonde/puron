@@ -1,8 +1,8 @@
 #!/bin/sh
 # Checks the settings program's window: runs the test
-# c_settings_window_17 (title, App ID, sizes), then checks that the
-# feature tree of puron-settings has the libcosmic feature
-# "single-instance" and not the feature "applet".
+# c_settings_window_17 (title, application ID, sizes), then checks that
+# the feature tree of puron-settings has the libcosmic feature
+# "single-instance" and no feature "applet".
 # Usage: tools/c_settings_window_17.sh   (make check gives it 120 s)
 cd "$(dirname "$0")/.." || exit 2
 export RUSTUP_AUTO_INSTALL=0

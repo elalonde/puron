@@ -1,13 +1,15 @@
 #!/bin/sh
 # Checks that every #[test] function in the workspace calls the time
 # limit helper puron_testkit::limit( in its body. Prints each test
-# without it; exits 1 if there is one, or if no test is found.
+# without it; exits 1 if there is one, or if no test is found. A body
+# ends where its braces balance; braces are counted on every line, so a
+# brace inside a string or comment also counts.
 # Usage: tools/c_tests_6.sh
 cd "$(dirname "$0")/.." || exit 2
 find crates -name target -prune -o -name '*.rs' -type f -print | sort \
 | xargs awk '
 FNR == 1 { want = 0; inbody = 0 }
-# A #[test] attribute: the next fn is a test.
+# After a #[test] attribute, the next fn is a test.
 /^[ \t]*#\[test\]/ { want = 1; next }
 want && !inbody && /fn [A-Za-z0-9_]+/ {
     name = $0; sub(/.*fn /, "", name); sub(/[^A-Za-z0-9_].*/, "", name)

@@ -1,6 +1,10 @@
-//! Tests of config, 5 s each; each wait for a delivery or a return is
-//! 2 s. Fixtures are built at test time. A second process is this test
-//! binary run again with `PURON_CFG_CHILD` set.
+//! Tests of `puron_config`: loading, storing and watching the settings.
+//!
+//! Each test builds its settings tree from a fixture of `puron_testkit::cfg`
+//! in a temporary directory, and ends the run if it takes more than 5 s.
+//! Each wait for a watch delivery or a `store` return gives up after 2 s.
+//! Where a test needs a second process, it runs this test binary again
+//! with `PURON_CFG_CHILD` naming what the child does.
 
 #![allow(non_snake_case)] // case names: c_<id>__<case>
 
@@ -109,23 +113,27 @@ fn problem(key: &'static str, kind: ProblemKind) -> Problem {
     }
 }
 
+/// Fails the test when it runs as root, which can read and write any file
+/// and so would defeat a test of file permissions.
 fn not_root() {
     puron_testkit::host_need("a test user who is not root", "test \"$(id -u)\" -ne 0");
 }
 
-/// The child mode of this run, if it is a second process.
+/// What this process must do when it is a second process started by a
+/// test, or `None` in the test's own process.
 fn child() -> Option<String> {
     std::env::var("PURON_CFG_CHILD").ok()
 }
 
+/// The configuration root that the parent passed to a second process.
 fn child_root() -> std::path::PathBuf {
     std::env::var_os("PURON_CFG_ROOT")
         .expect("PURON_CFG_ROOT")
         .into()
 }
 
-/// Runs this test again as a second process with `env`; returns its
-/// exit status.
+/// Runs the test `test` again in a second process with the extra
+/// environment `env`, and returns its exit status.
 fn second_process(test: &str, env: &[(&str, &std::ffi::OsStr)]) -> std::process::ExitStatus {
     let mut cmd = puron_testkit::rerun_self(test);
     for (k, v) in env {
@@ -147,6 +155,9 @@ fn watch(config: &Config) -> (puron_config::Watch, mpsc::Receiver<Delivery>) {
     (watch, rx)
 }
 
+/// The `good` fixture, which holds a usable entry for every key, loads as
+/// exactly those values with no problem. `KEYS` has the 19 keys, in the
+/// order of `good_values`.
 #[test]
 fn c_config_1() {
     puron_testkit::limit("C-config-1", LIMIT, || {
@@ -158,8 +169,9 @@ fn c_config_1() {
         let stored: Vec<&str> = good_values().iter().map(|(key, _)| *key).collect();
         assert_eq!(stored, puron_config::KEYS);
 
-        // Entries of older versions: no Problem. Of the old row sources, only
-        // the last choice for the CPU row is read.
+        // Entries left by older builds that are not keys record no
+        // problem. Of the old row choices, only the last one for the CPU
+        // row is read, and the load leaves every entry as it was.
         for key in ["group_temperature", "group_rotation_rate", "group_voltage"] {
             cfg::write(&fx.id_dir().join(key), b"false");
         }
@@ -177,7 +189,8 @@ fn c_config_1() {
         assert_eq!(loaded.problems, vec![]);
         assert_eq!(fx.tree(), before, "load changed an entry");
 
-        // Old row sources with no choice for the CPU row.
+        // Old row choices with none for the CPU row leave
+        // `old_cpu_source` empty.
         cfg::write(
             &fx.id_dir().join("row_sources"),
             br#"[("@other", "chip/temp3")]"#,
@@ -188,6 +201,8 @@ fn c_config_1() {
     });
 }
 
+/// Settings stored under another version (`v2`), or under the ID in lower
+/// case, are not read: the load gives every default and no problem.
 #[test]
 fn c_config_2() {
     puron_testkit::limit("C-config-2", LIMIT, || {
@@ -198,6 +213,9 @@ fn c_config_2() {
     });
 }
 
+/// An empty root loads as every default with no problem and stays as it
+/// was. Case `none` has an empty settings directory; case `cosmic` has
+/// only `cosmic/`, with no settings directory.
 fn c_config_3_case(name: &str) {
     let fx = cfg::build(name);
     let before = fx.tree();
@@ -217,6 +235,9 @@ fn c_config_3__cosmic() {
     puron_testkit::limit("C-config-3", LIMIT, || c_config_3_case("empty-cosmic"));
 }
 
+/// Four entries whose content is not of the key's type each take their
+/// default and record `WrongType`, in key order. An old `row_sources` entry
+/// of the wrong type records nothing. The load changes no entry.
 #[test]
 fn c_config_4() {
     puron_testkit::limit("C-config-4", LIMIT, || {
@@ -244,6 +265,8 @@ fn c_config_4() {
     });
 }
 
+/// A stored poll interval outside 1..=60 (0, or 61) loads as the nearest
+/// bound (`expected`) and records `Clamped`. The load changes no entry.
 fn c_config_5_case(name: &str, expected: u32) {
     let fx = cfg::build(name);
     let before = fx.tree();
@@ -272,6 +295,9 @@ fn c_config_5__61() {
     puron_testkit::limit("C-config-5", LIMIT, || c_config_5_case("range-61", 60));
 }
 
+/// An entry that cannot be opened (mode 000) and an entry that is not
+/// UTF-8 each take their default and record `Unreadable`. An old
+/// `row_sources` entry that is not UTF-8 records nothing.
 #[test]
 fn c_config_6() {
     puron_testkit::limit("C-config-6", LIMIT, || {
@@ -296,6 +322,9 @@ fn c_config_6() {
     });
 }
 
+/// Storing each value of `good` into an empty settings directory returns
+/// `Stored` every time, and a load in a new process reads all of them back
+/// with no problem.
 #[test]
 fn c_config_7() {
     puron_testkit::limit("C-config-7", LIMIT, || {
@@ -325,7 +354,7 @@ fn c_config_7() {
     });
 }
 
-/// The stores of `c_config_8`, in order.
+/// The store that the second process of `c_config_8` makes at each step.
 fn c_config_8_step(step: &str) -> (&'static str, Value) {
     match step {
         "1" => ("show_power", Value::Bool(false)),
@@ -335,6 +364,10 @@ fn c_config_8_step(step: &str) -> (&'static str, Value) {
     }
 }
 
+/// A watch in this process sees the stores of another process: one
+/// delivery per store, naming the changed key, with the settings after
+/// that store. The third store (a poll interval of 0) arrives as 1 with a
+/// `Clamped` problem. No fourth delivery comes within 500 ms.
 #[test]
 fn c_config_8() {
     puron_testkit::limit("C-config-8", LIMIT, || {
@@ -401,6 +434,8 @@ fn c_config_8() {
     });
 }
 
+/// Writing a file in the settings directory that is not one of `KEYS`
+/// brings no delivery within 2 s.
 #[test]
 fn c_config_9() {
     puron_testkit::limit("C-config-9", LIMIT, || {
@@ -413,6 +448,9 @@ fn c_config_9() {
     });
 }
 
+/// In a settings directory that is not writable, `store` returns `Failed`
+/// within 2 s, the entry keeps its old content, and a load still gives the
+/// `good` values with no problem.
 #[test]
 fn c_config_10() {
     puron_testkit::limit("C-config-10", LIMIT, || {
@@ -434,8 +472,13 @@ fn c_config_10() {
     });
 }
 
-/// The system-default test, run in a child whose `XDG_DATA_HOME` and
-/// `XDG_DATA_DIRS` are both the fixture's data directory.
+/// System-wide defaults are never read. The check runs in a second
+/// process whose `XDG_DATA_HOME` and `XDG_DATA_DIRS` both point to the
+/// fixture's data directory, which holds system entries for `show_power`
+/// and `poll_interval_secs`. Case `a` has no user entry: the load gives
+/// Puron's defaults with no problem, and changing a system entry brings no
+/// delivery. Case `b` adds a user `show_power` of the wrong type: it
+/// records `WrongType` and takes Puron's default, not the system entry.
 fn c_config_11_case(test: &str, fixture: &str) {
     if child().as_deref() == Some("sysdefault") {
         let root = child_root();

@@ -9,8 +9,8 @@ permissions:
 
 jobs:
   check:
-    # The package links glibc 2.39 at the oldest, which is what Ubuntu 24.04
-    # has. The job runs directly on the runner, not in a container, so the
+    # Ubuntu 24.04 has glibc 2.39, the oldest glibc the package supports.
+    # The job runs directly on the runner, not in a container, so that the
     # tests reach a real journald.
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -43,8 +43,9 @@ jobs:
           tar -xzf "$RUNNER_TEMP/cargo-deny.tar.gz" -C "$HOME/.cargo/bin" \
             --strip-components=1 --wildcards '*/cargo-deny'
 
-      # The icon check looks names up in the installed COSMIC theme, which
-      # Ubuntu does not package. This is the commit that our libcosmic pins.
+      # The icon check (tools/c_applet_panel_10.sh) looks names up in the
+      # installed COSMIC icon theme, which Ubuntu does not package. The
+      # commit is the one that the libcosmic revision in Cargo.toml pins.
       - name: Install the COSMIC icon theme
         run: |
           git init -q "$RUNNER_TEMP/icons"
@@ -54,13 +55,14 @@ jobs:
           sudo mkdir -p /usr/share/icons/Cosmic
           sudo cp -r freedesktop/scalable extra/scalable index.theme /usr/share/icons/Cosmic/
 
-      # Fails here, naming each need, before anything is built.
+      # Fails here, naming each missing need, before anything is built.
       - name: Check the host
         run: sh tools/check-test-host.sh
 
-      # The key covers the toolchain, the system headers the build binds to and
-      # the lock file, so a restored target directory holds no stale dependency;
-      # cargo still rebuilds the workspace crates from the checkout.
+      # The cache key covers the toolchain, the system packages whose headers
+      # the build binds to, and the lock file, so a restored target directory
+      # holds no stale dependency; cargo still rebuilds the workspace crates
+      # from the checkout.
       - name: Compute the cache key
         id: host
         run: |
@@ -78,8 +80,9 @@ jobs:
         run: cargo fmt --all --check
 
       # make check needs no sensor hardware: the tests run on umockdev
-      # testbeds and fixtures, and a test whose host need is missing fails.
-      # The package checks (make check-deb, tools/check-source-archive.sh) are
-      # not part of it and do not run here.
+      # testbeds and fixtures, and a test whose host need is missing fails
+      # rather than being skipped. The package checks (make check-deb,
+      # tools/check-source-archive.sh) are not part of make check and do not
+      # run here.
       - name: make check
         run: make check

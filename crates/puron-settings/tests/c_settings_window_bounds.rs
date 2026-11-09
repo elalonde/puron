@@ -1,8 +1,10 @@
-//! Layout tests of the settings window: the layout rectangles, in
-//! logical pixels at scale 1, of the widgets `view` builds from the plan
-//! of the cfg fixture good.txt, measured headless with the iced test
-//! simulator, and a pixel check of the tooltip. Each test builds its
-//! simulators inside the time limit.
+//! Layout tests of the settings window, run without a display.
+//!
+//! Each test draws the window that `view::view` builds for the `good`
+//! settings fixture in the iced test simulator, finds widgets by the ids
+//! that `view` gives them, and checks their rectangles in logical pixels
+//! at scale 1. The last test compares rendered pixels to check the
+//! tooltip. Building the simulators counts toward each test's time limit.
 #![allow(non_snake_case)]
 
 use cosmic::iced::mouse::{self, ScrollDelta};
@@ -16,14 +18,14 @@ use puron_settings::view;
 use puron_settings::window::{self, Event, Plan, Window};
 use puron_testkit::cfg;
 
-/// Time limit of each layout test, in seconds.
+/// The time limit of each test, in seconds.
 const LIMIT: u64 = 5;
-/// The tolerance of the checks that allow ±0.5.
+/// The tolerance, in logical pixels, of the checks that compare edges.
 const TOL: f32 = 0.5;
 
 type Sim<'a> = Simulator<'a, Event, Theme, cosmic::Renderer>;
 
-/// The window plan of the cfg fixture good.txt.
+/// The plan of a window opened on the `good` settings fixture.
 fn plan() -> Plan {
     let fx = cfg::build("good");
     let mut w = Window::new(Config::new(&fx.root));
@@ -31,7 +33,7 @@ fn plan() -> Plan {
     w.plan()
 }
 
-/// The content of a window `width` × 720.
+/// A simulator that draws `plan` in a window `width` wide and 720 high.
 fn sim(plan: &Plan, width: f32) -> Sim<'_> {
     Simulator::with_size(
         Default::default(),
@@ -40,9 +42,11 @@ fn sim(plan: &Plan, width: f32) -> Sim<'_> {
     )
 }
 
-/// The first widget with id `name`, skipping the marker a scroll area
-/// sends before its children (at the pinned iced revision the scroll
-/// area's own target comes after them).
+/// Selects the widget with a given id. A scroll area is visited twice:
+/// first as a `PreOperation` candidate before its children, then as its
+/// real target after them (at the iced revision this workspace pins). The
+/// selector ignores every `PreOperation`, so that `scroll` gets the real
+/// target with the scroll translation.
 struct ById(Id);
 
 impl Selector for ById {
@@ -61,6 +65,7 @@ impl Selector for ById {
     }
 }
 
+/// The widget with id `name`; the test fails if there is none.
 fn target(sim: &mut Sim, name: &str) -> Target {
     sim.find(ById(Id::new(name.to_string())))
         .unwrap_or_else(|e| panic!("find {name}: {e:?}"))
@@ -71,7 +76,7 @@ fn rect(sim: &mut Sim, name: &str) -> Rectangle {
     target(sim, name).bounds()
 }
 
-/// The scroll area: its rectangle and its translation.
+/// The scroll area's rectangle and its current scroll translation.
 fn scroll(sim: &mut Sim) -> (Rectangle, Vector) {
     match target(sim, "scroll") {
         Target::Scrollable {
@@ -83,8 +88,9 @@ fn scroll(sim: &mut Sim) -> (Rectangle, Vector) {
     }
 }
 
-/// Scrolls to the end: one wheel event, clamped by the scroll
-/// area to its last position. Returns the translation.
+/// Scrolls to the end with one wheel event far larger than the content;
+/// the scroll area stops at its last position. Returns the translation
+/// there.
 fn scroll_to_end(sim: &mut Sim) -> Vector {
     let (area, _) = scroll(sim);
     sim.point_at(area.center());
@@ -94,10 +100,12 @@ fn scroll_to_end(sim: &mut Sim) -> Vector {
     scroll(sim).1
 }
 
-/// The `skip`+1-th text widget, in depth-first order, whose content is
-/// `text` (a label can occur twice). Unlike the `&str`
-/// selector it never asks a text input for its text (libcosmic's
-/// `TextInput::text` is `todo!()` at the pinned revision).
+/// Selects the text widget whose content is `text`, after skipping the
+/// first `skip` such widgets in depth-first order; the same label can
+/// occur twice. It is used instead of iced's `&str` selector because that
+/// one also asks text inputs for their text, and libcosmic's
+/// `TextInput::text` panics (`todo!()`) at the revision this workspace
+/// pins.
 struct Nth {
     text: String,
     skip: usize,
@@ -127,7 +135,7 @@ impl Selector for Nth {
     }
 }
 
-/// The items of the plan, numbered 1 to 17.
+/// The label of each item of `plan`; item `n` is at index `n - 1`.
 fn labels(plan: &Plan) -> Vec<String> {
     plan.sections
         .iter()
@@ -135,7 +143,8 @@ fn labels(plan: &Plan) -> Vec<String> {
         .collect()
 }
 
-/// The rectangle of the label text of item `n`.
+/// The rectangle of item `n`'s label text. When an earlier item has the
+/// same label, the matching text is counted past it.
 fn label(sim: &mut Sim, plan: &Plan, n: usize) -> Rectangle {
     let all = labels(plan);
     let text = all[n - 1].clone();
@@ -144,7 +153,8 @@ fn label(sim: &mut Sim, plan: &Plan, n: usize) -> Rectangle {
         .unwrap_or_else(|e| panic!("label of item {n}: {e:?}"))
 }
 
-/// A heading by its content.
+/// The rectangle of the heading of section `s` (counted from 0), found as
+/// the first text with that content.
 fn heading(sim: &mut Sim, plan: &Plan, s: usize) -> Rectangle {
     let text = plan.sections[s].heading.clone();
     sim.find(Nth {
@@ -154,14 +164,17 @@ fn heading(sim: &mut Sim, plan: &Plan, s: usize) -> Rectangle {
     .unwrap_or_else(|e| panic!("heading {text}: {e:?}"))
 }
 
+/// The rectangle of item `n`'s row.
 fn item(sim: &mut Sim, n: usize) -> Rectangle {
     rect(sim, &format!("item-{n}"))
 }
 
+/// The rectangle of item `n`'s control.
 fn control(sim: &mut Sim, n: usize) -> Rectangle {
     rect(sim, &format!("control-{n}"))
 }
 
+/// The rectangle of section `s` (counted from 1).
 fn section(sim: &mut Sim, s: usize) -> Rectangle {
     rect(sim, &format!("section-{s}"))
 }
@@ -174,6 +187,7 @@ fn mid_y(r: Rectangle) -> f32 {
     r.y + r.height / 2.0
 }
 
+/// Whether `r` lies within `area`, give or take `TOL`.
 fn inside(r: Rectangle, area: Rectangle) -> bool {
     r.x >= area.x - TOL
         && r.y >= area.y - TOL
@@ -181,6 +195,8 @@ fn inside(r: Rectangle, area: Rectangle) -> bool {
         && r.y + r.height <= area.y + area.height + TOL
 }
 
+/// Where `r`, a layout rectangle inside the scroll area, is drawn once
+/// the content is scrolled by `t`.
 fn shifted(r: Rectangle, t: Vector) -> Rectangle {
     Rectangle {
         x: r.x - t.x,
@@ -189,9 +205,9 @@ fn shifted(r: Rectangle, t: Vector) -> Rectangle {
     }
 }
 
-/// Each section's top edge ≥ the bottom edge of the one before, at the
-/// top and at the end of the scroll (the drawn rectangle is the layout
-/// rectangle less the scroll translation).
+/// The sections do not overlap: each one's top edge is at or below the
+/// bottom edge of the one before, both before scrolling and scrolled to
+/// the end.
 #[test]
 fn c_settings_window_18() {
     puron_testkit::limit("C-settings.window-18", LIMIT, || {
@@ -218,8 +234,8 @@ fn c_settings_window_18() {
     });
 }
 
-/// In each section the heading is above the first item, and each item
-/// is below the one before.
+/// In each section the heading is above the first item, each item is
+/// below the one before, and there are 17 items in all.
 #[test]
 fn c_settings_window_19() {
     puron_testkit::limit("C-settings.window-19", LIMIT, || {
@@ -245,8 +261,8 @@ fn c_settings_window_19() {
     });
 }
 
-/// One column: the five sections share their left and right edges, at
-/// 480 and at 1440.
+/// The sections form one column: at 480 and at 1440 pixels wide, all five
+/// share the same left and right edges.
 #[test]
 fn c_settings_window_20() {
     puron_testkit::limit("C-settings.window-20", LIMIT, || {
@@ -265,7 +281,7 @@ fn c_settings_window_20() {
     });
 }
 
-/// Each label's left edge equals its item's left content edge.
+/// Each label starts at the left edge of its item row.
 #[test]
 fn c_settings_window_21() {
     puron_testkit::limit("C-settings.window-21", LIMIT, || {
@@ -278,7 +294,7 @@ fn c_settings_window_21() {
     });
 }
 
-/// Each control's right edge equals its item's right content edge.
+/// Each control ends at the right edge of its item row.
 #[test]
 fn c_settings_window_22() {
     puron_testkit::limit("C-settings.window-22", LIMIT, || {
@@ -294,7 +310,8 @@ fn c_settings_window_22() {
     });
 }
 
-/// Label and control are centered on the item's vertical center.
+/// Each item's label and control are centered vertically on the item
+/// row, within one pixel.
 #[test]
 fn c_settings_window_23() {
     puron_testkit::limit("C-settings.window-23", LIMIT, || {
@@ -316,14 +333,14 @@ fn c_settings_window_23() {
     });
 }
 
-/// At the minimum width the label ends before the control and the
-/// control (the item's rightmost content) inside the scroll area,
-/// at its width at 480 wide (the label gives way).
+/// At the minimum window width (360), every label still ends before its
+/// control, every control ends inside the scroll area, and every control
+/// keeps the width it has at 480: the label gives way, not the control.
 #[test]
 fn c_settings_window_24() {
     puron_testkit::limit("C-settings.window-24", LIMIT, || {
         let plan = plan();
-        // The control's width at 480 × 720, item by item.
+        // Each control's width in a window 480 wide.
         let mut wide = sim(&plan, 480.0);
         let w480: Vec<f32> = (1..=17).map(|n| control(&mut wide, n).width).collect();
         let mut sim = sim(&plan, 360.0);
@@ -349,8 +366,9 @@ fn c_settings_window_24() {
     });
 }
 
-/// The number field: − button, value input, + button, left to right,
-/// centered; input width 48; the icon names.
+/// The number field shows its − button, text input and + button from left
+/// to right, centered on one line, with a text input 48 pixels wide; the
+/// buttons use the expected icon names.
 #[test]
 fn c_settings_window_25() {
     puron_testkit::limit("C-settings.window-25", LIMIT, || {
@@ -376,8 +394,9 @@ fn c_settings_window_25() {
     });
 }
 
-/// Scrolled to the end, item 17 lies inside the scroll area; at the
-/// top, the first heading does.
+/// Every part of the window can be reached: scrolled to the end, the last
+/// item lies inside the scroll area, and before scrolling, the first
+/// heading does.
 #[test]
 fn c_settings_window_26() {
     puron_testkit::limit("C-settings.window-26", LIMIT, || {
@@ -397,8 +416,9 @@ fn c_settings_window_26() {
     });
 }
 
-/// The RGBA pixels of a snapshot of `sim`, in logical pixels at scale 1,
-/// dark theme.
+/// A snapshot of `sim` in the dark theme, as (width, height, RGBA bytes)
+/// at scale 1. The snapshot goes through a PNG file in a temporary
+/// directory, named after `tag`, which is removed afterwards.
 fn pixels(sim: &mut Sim, tag: &str) -> (u32, u32, Vec<u8>) {
     let snap = sim.snapshot(&Theme::dark()).expect("snapshot");
     let dir = std::env::temp_dir().join(format!("puron-sw27-{tag}-{}", std::process::id()));
@@ -440,8 +460,8 @@ fn changed(a: &(u32, u32, Vec<u8>), b: &(u32, u32, Vec<u8>), skip: Option<Rectan
     n
 }
 
-/// One hover at `at` on a fresh simulator: the cursor there,
-/// then one cursor move; returns the snapshot.
+/// Hovers the point `at` in a fresh simulator, by placing the cursor
+/// there and sending one cursor move, and returns the snapshot.
 fn hovered(plan: &Plan, at: Point, tag: &str) -> (u32, u32, Vec<u8>) {
     let mut sim = sim(plan, 480.0);
     sim.point_at(at);
@@ -449,9 +469,9 @@ fn hovered(plan: &Plan, at: Point, tag: &str) -> (u32, u32, Vec<u8>) {
     pixels(&mut sim, tag)
 }
 
-/// libcosmic's tooltip wraps the whole item: hovering item 8's label
-/// or its switch draws the tooltip outside the switch; item 11 has no
-/// tooltip, so its hover draws nothing.
+/// The tooltip belongs to the whole item row. Hovering item 8's label, or
+/// its switch, changes pixels outside the switch, where the tooltip is
+/// drawn. Item 11 has no tooltip, so hovering its label changes no pixel.
 #[test]
 fn c_settings_window_27() {
     puron_testkit::limit("C-settings.window-27", LIMIT, || {

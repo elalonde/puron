@@ -1,10 +1,16 @@
-//! config: settings storage and change notification.
+//! Stores Puron's settings, reads them back, and reports changes to them.
 //!
-//! Stores the settings per user through cosmic-config, reads them back
-//! as a `Settings` record, and watches the per-user entries. Only the
-//! per-user entry of a key is read; cosmic-config's system default for
-//! the ID never is, so every default is Puron's own. Problems are
-//! returned to the caller; `config` shows and logs nothing.
+//! The settings live in cosmic-config, one entry (file) per key, in the
+//! user's directory `<root>/cosmic/<CONFIG_ID>/v<VERSION>`. `Config::load`
+//! turns those entries into a `Settings` record, `Config::store` writes
+//! one entry, and `Config::watch` calls back when an entry changes.
+//!
+//! Only the user's own entry of a key is ever read. cosmic-config can
+//! also hold a system-wide default for each key, but this crate never
+//! falls back to it, so a missing entry always takes the default that
+//! `puron_core::settings` defines. An entry that cannot be used is
+//! reported as a `Problem` in the result; this crate shows and logs
+//! nothing itself.
 
 use std::io::ErrorKind;
 use std::path::PathBuf;
@@ -12,12 +18,16 @@ use std::path::PathBuf;
 use cosmic_config::{ConfigGet, ConfigSet};
 use puron_core::settings::{self, Settings, Stored, TemperatureUnit};
 
-/// The config ID.
+/// The cosmic-config ID under which the settings are stored. It is also
+/// the name of the settings directory.
 pub const CONFIG_ID: &str = "io.github.elalonde.Puron";
-/// The config version.
+/// The version of the settings layout. cosmic-config keeps each version
+/// in its own directory `v<VERSION>`; entries under another version are
+/// not read.
 pub const VERSION: u64 = 1;
 
-/// The key names, each the field of `Settings` of that name.
+/// The names of the keys. Each is the name of the `Settings` field it
+/// stores.
 pub const POLL_INTERVAL_SECS: &str = "poll_interval_secs";
 pub const SHOW_PANEL_ICONS: &str = "show_panel_icons";
 pub const TEMPERATURE_UNIT: &str = "temperature_unit";
@@ -37,14 +47,16 @@ pub const SHOW_VOLTAGE: &str = "show_voltage";
 pub const SHOW_POWER: &str = "show_power";
 pub const DEBUG_LOGGING: &str = "debug_logging";
 pub const PINNED: &str = "pinned";
-/// A development build's choices of what a row reads, as pairs of a row and a
-/// sensor key. No key of its own: read once, for a stored CPU pin that has yet
-/// to move, and never written.
+/// An entry left by development builds: a list of (row, sensor) pairs
+/// that chose which sensor each panel row reads. It is not one of
+/// `KEYS`. `load` reads it only to fill `Settings::old_cpu_source`, which
+/// moves an old CPU pin to the matching sensor; nothing writes it.
 const OLD_ROW_SOURCES: &str = "row_sources";
-/// The row in those pairs whose choice still matters.
+/// The only row of `OLD_ROW_SOURCES` whose choice is still read.
 const OLD_CPU_ROW: &str = "@cpu";
 
-/// The 19 keys, in the field order of `Settings`.
+/// Every key that `load` reads, `store` accepts and `watch` reports, in
+/// the field order of `Settings`. Problems are reported in this order.
 pub const KEYS: [&str; 19] = [
     POLL_INTERVAL_SECS,
     SHOW_PANEL_ICONS,
@@ -67,34 +79,43 @@ pub const KEYS: [&str; 19] = [
     PINNED,
 ];
 
-/// The kind of a Problem.
+/// Why an entry could not be used as stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProblemKind {
-    /// The entry exists but cannot be read.
+    /// The entry exists but cannot be read: for example its permissions
+    /// forbid it, or it is not valid UTF-8. The setting takes its default.
     Unreadable,
-    /// The content is not a value of the key's type.
+    /// The entry was read but does not parse as a value of the key's
+    /// type. The setting takes its default.
     WrongType,
-    /// `poll_interval_secs` stored out of range.
+    /// `poll_interval_secs` is outside the allowed range; the setting
+    /// takes the nearest value inside it.
     Clamped,
 }
 
-/// One Problem of a load. `key` is `None` only for a per-user
-/// directory that cannot be opened.
+/// One entry that `load` could not use as stored. `key` is `None` only
+/// when the settings directory itself exists but cannot be opened; then
+/// every setting takes its default.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Problem {
     pub key: Option<&'static str>,
     pub kind: ProblemKind,
 }
 
-/// The result of a load.
+/// What `Config::load` returns: the settings in effect and the problems
+/// found on the way.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Loaded {
     pub settings: Settings,
-    /// In the key order of [`KEYS`].
+    /// At most one per key, in the order of [`KEYS`]; empty when every
+    /// entry was usable or missing.
     pub problems: Vec<Problem>,
 }
 
-/// A value of a key's type, for `Config::store`.
+/// A value to store with `Config::store`. The variant must match the
+/// key's type: `U32` for `poll_interval_secs`, `TemperatureUnit` for
+/// `temperature_unit`, `List` for `pinned`, and `Bool` for every other
+/// key.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Bool(bool),
@@ -103,40 +124,45 @@ pub enum Value {
     List(Vec<String>),
 }
 
-/// The result of a store.
+/// Whether `Config::store` wrote the entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoreResult {
     Stored,
     Failed,
 }
 
-/// One delivery of the watch: the keys that changed, and the
-/// settings and Problems as a load at that moment returns them.
+/// What a watch passes to its callback for one change: the keys whose
+/// entries changed, in the order of [`KEYS`], and the result of a fresh
+/// `load` made at that moment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Delivery {
     pub keys: Vec<&'static str>,
     pub loaded: Loaded,
 }
 
-/// A running watch; dropping it stops the watch.
+/// A running watch, returned by `Config::watch`. Dropping it stops the
+/// watch.
 pub struct Watch {
     _watcher: Box<dyn std::any::Any + Send>,
 }
 
-/// A handle on the settings under one configuration root.
+/// The settings under one configuration root. Cloning it is cheap; it
+/// holds only the path.
 #[derive(Clone, Debug)]
 pub struct Config {
     root: PathBuf,
 }
 
 impl Config {
-    /// A handle on the configuration root `root` (production:
-    /// [`user_root`]; tests: a temporary directory).
+    /// The settings under `root`. The application passes [`user_root`];
+    /// tests pass a temporary directory.
     pub fn new(root: impl Into<PathBuf>) -> Config {
         Config { root: root.into() }
     }
 
-    /// Load. Writes no entry and creates no directory.
+    /// Reads every key and returns the settings in effect. A missing
+    /// entry, or a missing settings directory, takes the default and is
+    /// not a problem. Never writes an entry or creates a directory.
     pub fn load(&self) -> Loaded {
         let Some(config) = self.open() else {
             return Loaded {
@@ -157,7 +183,8 @@ impl Config {
             config,
             problems: Vec::new(),
         };
-        // Fields in key order, so that Problems are in key order.
+        // Each read records its own problem, so the fields are read in
+        // the order of `KEYS` to keep the problems in that order.
         let stored = Stored {
             poll_interval_secs: r.poll_interval(),
             show_panel_icons: r.bool(SHOW_PANEL_ICONS),
@@ -186,9 +213,10 @@ impl Config {
         }
     }
 
-    /// Store: replaces the entry of `key` as a whole. *Failed*
-    /// for a key that is not one of [`KEYS`], a value of another type,
-    /// or a write that fails; nothing is retried.
+    /// Replaces the entry of `key` with `value`. Returns `Failed`, and
+    /// writes nothing, for a key that is not one of [`KEYS`] or a value
+    /// of the wrong type (see [`Value`]); returns `Failed` also when the
+    /// write fails. A failed write is not retried.
     pub fn store(&self, key: &str, value: &Value) -> StoreResult {
         let Some(&key) = KEYS.iter().find(|&&k| k == key) else {
             return StoreResult::Failed;
@@ -209,7 +237,8 @@ impl Config {
         else {
             return StoreResult::Failed;
         };
-        // One atomic replace of the entry (atomicwrites).
+        // cosmic-config writes the entry to a temporary file and renames
+        // it over the old one, so a reader never sees half an entry.
         let result = match value {
             Value::Bool(v) => config.set(key, v),
             Value::U32(v) => config.set(key, v),
@@ -222,9 +251,11 @@ impl Config {
         }
     }
 
-    /// Watch: `deliver` is called once for each change of an
-    /// entry of [`KEYS`] in the per-user directory. `None` when the
-    /// per-user directory cannot be opened.
+    /// Starts watching the settings directory. `deliver` is called on
+    /// cosmic-config's watcher thread for each change that touches at
+    /// least one entry of [`KEYS`]; a change to any other file calls
+    /// nothing. Returns `None` when the settings directory cannot be
+    /// created or opened, or the watch cannot start.
     pub fn watch<F>(&self, deliver: F) -> Option<Watch>
     where
         F: Fn(Delivery) + Send + Sync + 'static,
@@ -235,9 +266,9 @@ impl Config {
             cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, self.root.clone()).ok()?;
         std::fs::read_dir(self.user_dir()).ok()?;
         let this = self.clone();
-        // cosmic-config watches the per-user directory only, and passes
-        // the entry names of each change (atomicwrites temporaries left
-        // out).
+        // cosmic-config watches only the user's directory, never the
+        // system defaults, and passes the names of the changed entries;
+        // the temporary files of its own writes are not among them.
         let watcher = config
             .watch(move |_, changed| {
                 let keys: Vec<&'static str> = KEYS
@@ -259,7 +290,7 @@ impl Config {
         })
     }
 
-    /// `<root>/cosmic/<ID>/v<VERSION>`.
+    /// The settings directory: `<root>/cosmic/<CONFIG_ID>/v<VERSION>`.
     fn user_dir(&self) -> PathBuf {
         self.root
             .join("cosmic")
@@ -267,11 +298,12 @@ impl Config {
             .join(format!("v{VERSION}"))
     }
 
-    /// The cosmic-config handle on the per-user directory: `Some(None)`
-    /// when the directory does not exist (no entry, no Problem), `None`
-    /// when it cannot be opened. Creates nothing: the directory exists
-    /// before `with_custom_path` is called. The handle has no system
-    /// path, so no read falls back to a system default.
+    /// Opens the settings directory for reading. Returns `Some(None)`
+    /// when it does not exist, which `load` treats as "nothing stored",
+    /// and `None` when it exists but cannot be opened. It creates
+    /// nothing: `with_custom_path` would create the directory, so it is
+    /// called only after the directory is known to exist. The handle has
+    /// no system path, so no read can fall back to a system default.
     fn open(&self) -> Option<Option<cosmic_config::Config>> {
         match std::fs::read_dir(self.user_dir()) {
             Ok(_) => {}
@@ -284,15 +316,17 @@ impl Config {
     }
 }
 
-/// Reads per-user entries, collecting Problems in call order.
+/// Reads the user's entries for `load` and collects a problem for each
+/// entry it cannot use, in the order of the reads.
 struct Reader {
     config: cosmic_config::Config,
     problems: Vec<Problem>,
 }
 
 impl Reader {
-    // The per-user value of a key, or `None` when it is not usable. Only
-    // `get_local` is called: `get` would fall back to the system default.
+    // Each reader returns the user's value of a key, or `None` when the
+    // entry is missing or not usable. They call only `get_local`: `get`
+    // would fall back to the system default.
 
     fn bool(&mut self, key: &'static str) -> Option<bool> {
         let read = self.config.get_local::<bool>(key);
@@ -309,8 +343,10 @@ impl Reader {
         self.usable(key, read)
     }
 
-    /// What a development build stored for its CPU row, the last one chosen.
-    /// An entry that cannot be read is no problem: it counts as absent.
+    /// The sensor that development builds last chose for their CPU row,
+    /// read from `OLD_ROW_SOURCES`. When the list has several choices for
+    /// that row, the last one wins. An entry that cannot be read or
+    /// parsed counts as absent and records no problem.
     fn old_cpu_source(&self) -> Option<String> {
         let read = self
             .config
@@ -320,6 +356,10 @@ impl Reader {
         last.map(|(_, source)| source)
     }
 
+    /// Turns the result of reading `key` into a value. A missing entry
+    /// gives `None` with no problem; content that does not parse as the
+    /// key's type records `WrongType`; any other error records
+    /// `Unreadable`.
     fn usable<T>(&mut self, key: &'static str, read: Result<T, cosmic_config::Error>) -> Option<T> {
         let kind = match read {
             Ok(value) => return Some(value),
@@ -336,8 +376,9 @@ impl Reader {
         None
     }
 
-    /// `poll_interval_secs`; a value out of range is passed on (core
-    /// clamps it) and reported as clamped.
+    /// Reads `poll_interval_secs`. A value outside the allowed range is
+    /// returned unchanged, for `puron_core::settings::settings` to clamp,
+    /// and is recorded as `Clamped`.
     fn poll_interval(&mut self) -> Option<u32> {
         let read = self.config.get_local::<u32>(POLL_INTERVAL_SECS);
         let value = self.usable(POLL_INTERVAL_SECS, read)?;
@@ -351,9 +392,12 @@ impl Reader {
     }
 }
 
-/// cosmic-config's per-user configuration root: in Flatpak
-/// `HOST_XDG_CONFIG_HOME` or `$HOME/.config`; else `XDG_CONFIG_HOME`
-/// when it is absolute, or `$HOME/.config`.
+/// The user's configuration root, chosen the way cosmic-config chooses
+/// it. Inside Flatpak (`FLATPAK_ID` set) it is `HOST_XDG_CONFIG_HOME`,
+/// else `$HOME/.config`. Outside Flatpak, or inside it when neither is
+/// set, it is `XDG_CONFIG_HOME` when that is an absolute path, else
+/// `$HOME/.config`. Empty variables count as unset. `None` when none of
+/// them gives a path.
 pub fn user_root() -> Option<PathBuf> {
     let env = |name| std::env::var_os(name).filter(|v| !v.is_empty());
     let home = || env("HOME").map(|h| PathBuf::from(h).join(".config"));

@@ -1,12 +1,12 @@
 #!/bin/sh
-# Checks the install step. Runs make install DESTDIR=<tmp>
-# PREFIX=/opt/puron-c15 (a release build in the workspace's target
-# directory), then checks under <tmp> the desktop entry (D in the
-# messages), the installed binary and Puron's four icon files, and that
-# nothing was put in <tmp>/usr. The release build has no time limit; the
-# checks after it run under timeout -k 5 120 (this script again with
-# --after <tmp>). Exits 0, or 1 naming the first failed check (124 at the
-# time limit).
+# Checks make install. Runs make install DESTDIR=<tmp>
+# PREFIX=/opt/puron-c15, which makes a release build in the workspace's
+# target directory, then checks under <tmp> the desktop entry (called D
+# in the messages), the installed applet binary and Puron's four icon
+# files, and that nothing was put in <tmp>/usr. The release build has no time
+# limit; the checks after it run under timeout -k 5 120, as this script
+# run again with --after <tmp>. Exits 0, or 1 naming the first failed
+# check (124 at the time limit).
 # Usage: tools/c_applet_panel_15.sh
 cd "$(dirname "$0")/.." || exit 2
 prefix=/opt/puron-c15
