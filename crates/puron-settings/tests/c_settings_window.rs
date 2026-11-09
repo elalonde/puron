@@ -489,15 +489,17 @@ fn make_writable(path: &Path) {
 }
 
 /// In a read-only settings directory, flipping a switch reports one
-/// failed store, the switch keeps its new position, and the entry keeps
-/// its old value. Once the directory is writable again, the next two
-/// flips store and succeed.
+/// failed store, the switch keeps its new position, the entry keeps its
+/// old value, and the window shows a notice. Once the directory is
+/// writable again, the next two flips store and succeed, and the first
+/// of them removes the notice.
 #[test]
 fn c_settings_window_11() {
     puron_testkit::limit("C-settings.window-11", LIMIT, || {
         not_root();
         let fx = cfg::build("readonly");
         let mut w = open(&fx);
+        assert_eq!(w.plan().notice, None, "no notice at open");
         let first = w.handle(Event::Switch { item: 8, on: false });
         assert_eq!(
             first,
@@ -510,10 +512,16 @@ fn c_settings_window_11() {
         );
         assert!(!switch_of(&w.plan(), 8), "switch shown off");
         assert_eq!(fx.entry("show_decimals"), b"true", "entry still true");
+        assert_eq!(
+            w.plan().notice.as_deref(),
+            Some("Settings could not be saved"),
+            "notice after the failed store"
+        );
         // Make the settings directory and its parent writable again.
         make_writable(&fx.root.join("cosmic/io.github.elalonde.Puron"));
         make_writable(&fx.id_dir());
         let mut out = w.handle(Event::Switch { item: 8, on: true });
+        assert_eq!(w.plan().notice, None, "notice gone after a stored value");
         out.extend(w.handle(Event::Switch { item: 8, on: false }));
         assert_eq!(
             stores(&out),
@@ -524,6 +532,43 @@ fn c_settings_window_11() {
         );
         assert_eq!(results(&out), vec![StoreResult::Stored; 2], "stored");
         assert_eq!(fx.entry("show_decimals"), b"false", "entry false");
+    });
+}
+
+/// Closing the window commits typed text as a focus loss does, then the
+/// program exits. An emptied field stores nothing, and text already
+/// committed by Enter is not stored a second time.
+#[test]
+fn c_settings_window_29() {
+    puron_testkit::limit("C-settings.window-29", LIMIT, || {
+        let fx = cfg::build("empty-none");
+        let mut w = open(&fx);
+        assert_eq!(w.handle(Event::Typed("30".to_string())), vec![]);
+        assert_eq!(
+            w.handle(Event::Close),
+            vec![
+                Output::Store {
+                    key: "poll_interval_secs",
+                    value: Value::U32(30),
+                    result: StoreResult::Stored
+                },
+                Output::Exit
+            ],
+            "typed text stored, then exit"
+        );
+        assert_eq!(fx.entry("poll_interval_secs"), b"30", "entry 30");
+
+        let fx = cfg::build("empty-none");
+        let mut w = open(&fx);
+        w.handle(Event::Typed(String::new()));
+        assert_eq!(w.handle(Event::Close), vec![Output::Exit], "empty text");
+
+        let fx = cfg::build("empty-none");
+        let mut w = open(&fx);
+        w.handle(Event::Typed("12".to_string()));
+        let out = w.handle(Event::Commit);
+        assert_eq!(stores(&out), [("poll_interval_secs", Value::U32(12))]);
+        assert_eq!(w.handle(Event::Close), vec![Output::Exit], "committed");
     });
 }
 

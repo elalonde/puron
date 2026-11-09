@@ -922,3 +922,53 @@ fn c_applet_app_30() {
         assert_eq!(waiting_line(&popup_of(&out, a.pinned()).unwrap()), None);
     });
 }
+
+/// The forced flag of each layout among an event's outputs.
+fn layouts(out: &[Output]) -> Vec<bool> {
+    out.iter()
+        .filter_map(|o| match o {
+            Output::Layout { forced, .. } => Some(*forced),
+            _ => None,
+        })
+        .collect()
+}
+
+/// With every provider off the engine's poll reads nothing, so no
+/// snapshot follows. A Show Sensors change must still reach the panel in
+/// the delivery's own event: temperatures off drops both temperature
+/// pins, temperatures on brings them back, still with no reading. The
+/// forced rebuild is used up there, so a later snapshot is not forced.
+#[test]
+fn c_applet_app_31() {
+    puron_testkit::limit("C-applet.app-31", LIMIT, || {
+        let c = cfg::build("p5");
+        let config = Config::new(c.root.clone());
+        for e in puron_engine::registry::PROVIDERS {
+            let r = config.store(e.key, &puron_config::Value::Bool(false));
+            assert_eq!(r, StoreResult::Stored);
+        }
+        let h = handle(0);
+        let mut a = app(&c.root, &h);
+        let out = a.handle(Event::Start);
+        assert_eq!(values(&panel_of(&out).unwrap()), ["⚠", "⚠"]);
+
+        let out = a.handle(delivery(&a, &["show_temperature"], |s| {
+            s.show_temperature = false
+        }));
+        assert_eq!(commands(&out), [Command::PollNow]);
+        assert_eq!(layouts(&out), [true]);
+        let p = panel_of(&out).expect("panel rebuilt at once");
+        assert_eq!(values(&p), ["∅state"]);
+
+        let out = a.handle(delivery(&a, &["show_temperature"], |s| {
+            s.show_temperature = true
+        }));
+        assert_eq!(commands(&out), [Command::PollNow]);
+        assert_eq!(layouts(&out), [true]);
+        let p = panel_of(&out).expect("panel rebuilt at once");
+        assert_eq!(values(&p), ["⚠", "⚠"]);
+
+        let out = a.handle(Event::Snapshot(capture()));
+        assert_eq!(layouts(&out), [false]);
+    });
+}

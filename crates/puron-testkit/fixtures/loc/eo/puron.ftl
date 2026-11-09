@@ -39,3 +39,4 @@ label-decimals = EO Show Decimal Values
 tip-decimals = EO Show additional digits after decimal point
 tip-lm-sensors = EO Read sensors from lm-sensors
 tip-liquidctl = EO Read sensors from liquidctl (requires v1.7.0 or later)
+notice-store-failed = EO Settings could not be saved
