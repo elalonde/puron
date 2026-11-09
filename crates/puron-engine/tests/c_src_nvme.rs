@@ -1,5 +1,7 @@
-//! Tests of the nvme source, through `start`, `read` and `stop` with a fake
-//! sysfs tree as the sysfs root.
+//! Tests of the NVMe adapter (`puron_engine::nvme`), through its `start`,
+//! `read` and `stop`. Each test builds a fake sysfs tree from a fixture
+//! in `fixtures/sys/` (see `sys::build`) and gives it to the adapter as
+//! its sysfs root.
 
 use std::os::fd::AsFd;
 use std::path::Path;
@@ -10,17 +12,22 @@ use puron_engine::nvme::Nvme;
 use puron_engine::registry::{self, ReadOutcome, Source, StartOutcome};
 use puron_testkit::{cfg, fixture, sys, temp_dir, umd};
 
-/// Test time limit: 5 s.
+/// The time limit of each test here, in seconds.
 const LIMIT: u64 = 5;
 
-/// One expected reading: name, value, key; the Position is its index.
+/// One expected reading: its name, value and key. Its position is its
+/// index in the list of expected readings.
 type Exp = (&'static str, Option<f64>, &'static str);
 
+/// The readings of the `nvme-capture` tree, which holds the files of one
+/// real drive: a controller with `temp2` and `temp3`, so two readings.
 const CAPTURE: [Exp; 2] = [
     ("Example SSD 1TB S1", Some(37.85), "0000:01:00.0/temp2"),
     ("Example SSD 1TB S2", Some(43.85), "0000:01:00.0/temp3"),
 ];
 
+/// Reads once with a stop descriptor that is never raised, and returns
+/// the readings. Panics if the read gives anything else.
 fn read(src: &mut Nvme) -> Vec<RawReading> {
     let stop = umd::stop_fd();
     match src.read(stop.as_fd()) {
@@ -29,9 +36,9 @@ fn read(src: &mut Nvme) -> Vec<RawReading> {
     }
 }
 
-/// Every field of the readings: nvme-cli, Positions 0, 1, ..., kind
-/// temperature, no chip, device, item or unit, and the expected name,
-/// value and key.
+/// Checks every field of `readings`: name, value and key as in `exp`, in
+/// that order; provider `NvmeCli`; positions 0, 1, 2 and so on; kind
+/// temperature; and no chip, device, item or unit.
 fn check(readings: &[RawReading], exp: &[Exp]) {
     let got: Vec<(String, Option<f64>, String)> = readings
         .iter()
@@ -54,13 +61,15 @@ fn check(readings: &[RawReading], exp: &[Exp]) {
     }
 }
 
+/// An adapter on the sysfs root `root`, started; panics unless the start
+/// reports it available.
 fn started(root: &Path) -> Nvme {
     let mut src = Nvme::new(root);
     assert_eq!(src.start(), StartOutcome::Available);
     src
 }
 
-/// The exit code of `cmp a b`.
+/// The exit code of `cmp a b`: 0 when the two files are equal.
 fn cmp(a: &Path, b: &Path) -> i32 {
     Command::new("cmp")
         .arg(a)
@@ -71,6 +80,11 @@ fn cmp(a: &Path, b: &Path) -> i32 {
         .unwrap_or(-1)
 }
 
+/// The tree of a real drive, with the attribute files and `nvme list`
+/// output captured from it. Expects the tree's `model` file to equal the
+/// captured one byte for byte, the read to give `CAPTURE`, and the first
+/// reading's name without its " S1" to equal the `ModelNumber` that
+/// `nvme list` reported for the drive. Needs `jq` on the host.
 #[test]
 fn c_src_nvme_1() {
     puron_testkit::limit("C-src.nvme-1", LIMIT, || {
@@ -86,7 +100,9 @@ fn c_src_nvme_1() {
         let mut src = started(&t.root);
         let r = read(&mut src);
         check(&r, &CAPTURE);
-        // The S1 name without " S1" against nvme-cli's ModelNumber.
+        // Compare the first name, without " S1", with the ModelNumber in
+        // the captured `nvme list` output (`nvme-list.json`), each written
+        // as one line.
         let out = Command::new("jq")
             .args(["-r", ".Devices[0].ModelNumber"])
             .arg(capture.join("nvme-list.json"))
@@ -104,6 +120,11 @@ fn c_src_nvme_1() {
     });
 }
 
+/// Five controllers whose `model` files hold "A  B" padded with spaces,
+/// " A" padded, only spaces, "A" with no newline, and "A", byte 0xFF,
+/// "B" padded. Expects the names "A  B", " A", "", "A" and "A\u{FFFD}B":
+/// trailing spaces and the newline are removed, inner and leading spaces
+/// kept, and an invalid byte becomes U+FFFD.
 #[test]
 fn c_src_nvme_2() {
     puron_testkit::limit("C-src.nvme-2", LIMIT, || {
@@ -116,6 +137,9 @@ fn c_src_nvme_2() {
     });
 }
 
+/// Two controllers without `temp3_input`, the second with a `temp2_input`.
+/// Expects one reading each, named by the model alone and read from
+/// `temp1`: `temp2` alone does not make two readings.
 #[test]
 fn c_src_nvme_3() {
     puron_testkit::limit("C-src.nvme-3", LIMIT, || {
@@ -132,6 +156,9 @@ fn c_src_nvme_3() {
     });
 }
 
+/// A controller with `temp1_input` and `temp3_input` but no
+/// `temp2_input`. Expects two readings, "S1" without a value and "S2"
+/// from `temp3`: the presence of `temp3` decides.
 #[test]
 fn c_src_nvme_4() {
     puron_testkit::limit("C-src.nvme-4", LIMIT, || {
@@ -148,6 +175,12 @@ fn c_src_nvme_4() {
     });
 }
 
+/// Controllers created out of order (`nvme10`, `nvme2`, `nvme0`, ...),
+/// some with namespace directories such as `nvme2n1`, together with
+/// controllers that lack a hwmon directory (`nvme3`), a model (`nvme4`)
+/// or an address (`nvme5`), and the entry `nvme-fabrics`. Expects one
+/// reading for each complete controller, in the order of the controller
+/// number: 0, 1, 2, 10.
 #[test]
 fn c_src_nvme_5() {
     puron_testkit::limit("C-src.nvme-5", LIMIT, || {
@@ -166,6 +199,10 @@ fn c_src_nvme_5() {
     });
 }
 
+/// Two trees without a usable controller: one without `class/nvme/` at
+/// all, and one with only a directory whose name has no number
+/// (`nvme-fabrics`) and a controller without a hwmon directory. Expects
+/// `start` to report unavailable for both.
 #[test]
 fn c_src_nvme_6() {
     puron_testkit::limit("C-src.nvme-6", LIMIT, || {
@@ -178,6 +215,11 @@ fn c_src_nvme_6() {
     });
 }
 
+/// After a start on the `nvme-capture` tree, a new controller appears,
+/// the drive's model changes, its `temp3_input` is removed and its
+/// `temp1_input` is written. Expects the read to give the controllers,
+/// names and sensors found at start: the same two readings, with "S2"
+/// now without a value, and no reading for the new controller.
 #[test]
 fn c_src_nvme_7() {
     puron_testkit::limit("C-src.nvme-7", LIMIT, || {
@@ -203,6 +245,11 @@ fn c_src_nvme_7() {
     });
 }
 
+/// Temperatures that do not parse. Expects -5 and 0 to be read first.
+/// Then, with `temp2_input` removed and `temp3_input` holding in turn
+/// "garbage", nothing, a trailing space, a leading "+" and an exponent,
+/// expects both readings without values, and the read itself still to
+/// succeed. With the files restored, the values are read again.
 #[test]
 fn c_src_nvme_8() {
     puron_testkit::limit("C-src.nvme-8", LIMIT, || {
@@ -233,6 +280,8 @@ fn c_src_nvme_8() {
     });
 }
 
+/// Expects millidegrees to be divided by 1000: 37850 and 43850 give
+/// 37.85 and 43.85, -5000 and 0 give -5 and 0.
 #[test]
 fn c_src_nvme_9() {
     puron_testkit::limit("C-src.nvme-9", LIMIT, || {
@@ -248,6 +297,10 @@ fn c_src_nvme_9() {
     });
 }
 
+/// The `nvme-capture` tree made read-only, so that any write fails.
+/// Expects three reads to give `CAPTURE`, and the tree afterwards to
+/// equal an untouched copy. Root may write to read-only files, so the
+/// test needs a user who is not root.
 #[test]
 fn c_src_nvme_10() {
     puron_testkit::limit("C-src.nvme-10", LIMIT, || {
@@ -263,6 +316,8 @@ fn c_src_nvme_10() {
     });
 }
 
+/// Expects the adapter that the registry builds for production to use
+/// `/sys` as its sysfs root.
 #[test]
 fn c_src_nvme_11() {
     puron_testkit::limit("C-src.nvme-11", LIMIT, || {

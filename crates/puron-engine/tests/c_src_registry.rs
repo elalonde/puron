@@ -1,14 +1,21 @@
-//! Tests of the provider registry, 5 s each. `c_src_registry_6` is run
-//! by `tools/read-only-run.sh`; one more registry check is the script
-//! `tools/c_src_registry_7.sh`.
+//! Tests of the provider registry (`puron_engine::registry`): the table
+//! of providers and the start and stop actions a change of settings
+//! asks for. The engine tests of those actions are in `c_engine.rs`.
+//!
+//! `c_src_registry_6` is also run by `tools/read-only-run.sh`, and one
+//! more registry test is the script `tools/c_src_registry_7.sh`.
 
 use puron_core::order::PROVIDER_RANK;
 use puron_core::rows::Provider::{self, *};
 use puron_core::settings::Settings;
 use puron_engine::registry::{self, Action, Entry, ProviderKind, PROVIDERS};
 
+/// The time limit of each test here, in seconds.
 const LIMIT: u64 = 5;
 
+/// Expects the provider table to hold exactly these five entries, each
+/// with its settings key and kind, and its order to be the provider
+/// order of `PROVIDER_RANK`.
 #[test]
 fn c_src_registry_1() {
     puron_testkit::limit("C-src.registry-1", LIMIT, || {
@@ -17,7 +24,7 @@ fn c_src_registry_1() {
             key,
             kind,
         };
-        // The five entries of the provider table, written out.
+        // The provider table as it must be, written out in full.
         let expected = [
             entry(LmSensors, "provider_lm_sensors", ProviderKind::InProcess),
             entry(Liquidctl, "provider_liquidctl", ProviderKind::ChildRun),
@@ -31,6 +38,7 @@ fn c_src_registry_1() {
     });
 }
 
+/// The default settings with every provider switched on.
 fn all_on() -> Settings {
     Settings {
         provider_lm_sensors: true,
@@ -42,7 +50,8 @@ fn all_on() -> Settings {
     }
 }
 
-/// `s` with every key that is not a switch changed from its default.
+/// `s` with every setting that is not a provider switch changed to a
+/// value other than its default; the switches stay as in `s`.
 fn other_keys_changed(s: &Settings) -> Settings {
     let d = Settings::default();
     Settings {
@@ -65,6 +74,12 @@ fn other_keys_changed(s: &Settings) -> Settings {
     }
 }
 
+/// The actions for a change of settings. Expects, at engine start with
+/// the default settings, a start of lm-sensors only; from the defaults
+/// to every provider on, a start of the other four in provider order;
+/// no action when only settings other than the switches change; and
+/// from every provider on back to the defaults, a stop of the four that
+/// the defaults switch off.
 #[test]
 fn c_src_registry_2() {
     puron_testkit::limit("C-src.registry-2", LIMIT, || {
@@ -94,10 +109,12 @@ fn c_src_registry_2() {
     });
 }
 
-/// The provider table has five entries and the table of
-/// `tools/read-only-run.sh` names each provider once. The script runs
-/// this test after the five adapters' read-only tests and exits 0 only
-/// when all six pass.
+/// Keeps `tools/read-only-run.sh` in step with the provider table. The
+/// script runs the read-only test of each adapter, listed in its own
+/// `# provider=<key> test=<name>` lines, then this test, and exits 0
+/// only when all six pass. Expects five entries in the provider table,
+/// five such lines in the script, and each entry's settings key named
+/// by exactly one of them.
 #[test]
 fn c_src_registry_6() {
     puron_testkit::limit("C-src.registry-6", LIMIT, || {

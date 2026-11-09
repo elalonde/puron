@@ -1,10 +1,15 @@
-//! Sending never fails: with no socket at the path, one of each event:
-//! every call returns, no panic, nothing created at the path.
-//! Own test binary: diag's switch and socket are per process.
+//! Diagnostics: sending an event never fails, even with no journal.
+//!
+//! This test has a test binary of its own because the diagnostics switch
+//! and socket are set for the whole process.
 
 use puron_engine::diag;
 use puron_testkit::jrn;
 
+/// Points diagnostics at a path in an empty directory where no socket
+/// exists, and sends one event of each of the 29 kinds. Expects every
+/// call to return without a panic, and nothing to be created, neither at
+/// the path nor anywhere else in its directory.
 #[test]
 fn c_diag_8() {
     puron_testkit::limit("C-diag-8", 5, || {

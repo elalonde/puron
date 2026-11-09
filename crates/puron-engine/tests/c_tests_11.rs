@@ -1,6 +1,9 @@
-//! A hung liquidctl run does not hold up another provider. Real clock:
-//! the liquidctl worker waits in a real poll(2) during its run, so the
-//! virtual clock cannot advance. Time limit 15 s.
+//! A liquidctl run that hangs must not hold up another provider, and
+//! must leave no process behind.
+//!
+//! The engine runs on the system clock here, not the virtual one: during
+//! a run the liquidctl worker waits in poll(2), not on the clock, and the
+//! virtual clock cannot move while a thread does that.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -14,9 +17,11 @@ use puron_engine::nvme::Nvme;
 use puron_engine::registry::Source;
 use puron_testkit::{fixture, sys, temp_dir};
 
+/// The environment variable that names the file the fake liquidctl
+/// appends one line to at each run.
 const LOG_ENV: &str = "PURON_TEST_LQC_LOG";
-/// The nvme readings that `c_src_nvme_1` expects: name, value, key.
-/// The nvme readings of the captured sysfs tree: name, value, key.
+/// The NVMe readings of the `nvme-capture` sysfs tree, as (name, value,
+/// key).
 const CAPTURE: [(&str, f64, &str); 2] = [
     ("Example SSD 1TB S1", 37.85, "0000:01:00.0/temp2"),
     ("Example SSD 1TB S2", 43.85, "0000:01:00.0/temp3"),
@@ -53,6 +58,8 @@ fn children() -> Vec<i32> {
     out
 }
 
+/// Whether the NVMe readings of `s` are exactly those of `CAPTURE`, with
+/// their values.
 fn holds_nvme(s: &puron_engine::engine::Snapshot) -> bool {
     let got: Vec<(&str, Option<f64>, &str)> = s
         .readings
@@ -65,13 +72,21 @@ fn holds_nvme(s: &puron_engine::engine::Snapshot) -> bool {
     got == want
 }
 
+/// Runs the engine with NVMe, on the `nvme-capture` tree, and liquidctl,
+/// whose program (`fixtures/lqc/slow`) logs its run, prints the start of
+/// its output and then sleeps for 100 s, at a 1 s interval. Every 100 ms
+/// for 5.5 s the test takes the new snapshots and lists this process's
+/// child processes. Expects at least 3 snapshots with the NVMe readings,
+/// none with a liquidctl reading, a single run of the program, never
+/// more than one child at a time, and no child left after shutdown.
 #[test]
 fn c_tests_11() {
     puron_testkit::limit("C-tests-11", 15, || {
         puron_testkit::host_need("/proc", "test -r /proc/self/stat");
         let tmp = temp_dir("c-tests-11");
         let log = tmp.join("lqc.log");
-        // One test in this binary: no other thread reads the environment.
+        // This binary has only this one test, so no other thread reads
+        // the environment while it is changed.
         std::env::set_var(LOG_ENV, &log);
         let t = sys::build("nvme-capture");
         let root = t.root.clone();

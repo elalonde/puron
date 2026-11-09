@@ -1,15 +1,16 @@
-//! One entry per event: 8 threads each send 500 `read-deadline` events
-//! to a test journal socket. Every datagram received is one whole entry
-//! of one event, and each thread's entries arrive in order. Entries may
-//! be dropped on a full buffer, so neither the count nor an entry per
-//! thread is checked; the receive must not be empty, or no datagram is
-//! checked. Own test binary: diag's switch and socket are per process.
+//! Diagnostics: each event is sent whole, as one datagram, while many
+//! threads send at once.
+//!
+//! This test has a test binary of its own because the diagnostics switch
+//! and socket are set for the whole process.
 
 use std::time::Duration;
 
 use puron_engine::diag::{self, engine};
 use puron_testkit::jrn::{self, Journal};
 
+/// The fields of an engine `read-deadline` entry, in the order they are
+/// written.
 const NAMES: [&str; 6] = [
     "MESSAGE",
     "PRIORITY",
@@ -19,6 +20,15 @@ const NAMES: [&str; 6] = [
     "PURON_PROVIDER",
 ];
 
+/// Starts 8 threads that each send 500 `read-deadline` events to a test
+/// journal socket; the provider name of each event is `t<thread>-<n>`,
+/// with `n` counting up from 0. Expects every datagram received to be
+/// one whole entry with the fields of `NAMES` in order and a `MESSAGE`
+/// that names its provider, and the entries of each thread to arrive in
+/// the order they were sent. A full socket buffer may drop events, so
+/// the test checks neither the total nor that every thread is seen; it
+/// does require at least one datagram, since otherwise nothing would be
+/// checked.
 #[test]
 fn c_diag_9() {
     puron_testkit::limit("C-diag-9", 5, || {
@@ -37,7 +47,8 @@ fn c_diag_9() {
         for t in threads {
             t.join().unwrap();
         }
-        // Every send is done; wait until all 4000 or the reader is idle.
+        // Every thread has finished sending. Take what has arrived once
+        // all 4000 are in, or after 1 s, since some may have been dropped.
         let raw = j.wait_raw(4000, Duration::from_secs(1));
         assert!(!raw.is_empty());
         let mut last = [-1i64; 8];
