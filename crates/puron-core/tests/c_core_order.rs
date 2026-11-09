@@ -1,6 +1,8 @@
-//! Tests of the row order, 2 s each. Fixtures are under
-//! crates/puron-testkit/fixtures/raw/. Every input runs as given and
-//! reversed: `order` takes its rows in any order.
+//! Tests of the display order of rows. Each test must finish within 2
+//! seconds (`puron_testkit::limit`). The fixtures are under
+//! crates/puron-testkit/fixtures/raw/. Every input is ordered twice, as
+//! given and reversed, and both results must be the expected order: the
+//! order may not depend on the order of the input.
 
 // The cases of one test are named `<name>__<case>`.
 #![allow(non_snake_case)]
@@ -12,7 +14,8 @@ use puron_core::rows::{self, Class, Provider, RawReading, Row, ShownClasses};
 
 const LIMIT: u64 = 2;
 
-/// Set in the re-executed child of the locale test (c_core_order_10).
+/// An environment variable set in the child process that the locale test
+/// (c_core_order_10) starts, so that the child runs the checks.
 const LOCALE_CHILD: &str = "PURON_ORDER_LOCALE_CHILD";
 
 fn text(name: &str) -> String {
@@ -29,7 +32,8 @@ fn load_set(name: &str, set: &str) -> Vec<RawReading> {
     sets.remove(set).expect("set in fixture")
 }
 
-/// `rows`, then `order`; once as given, once reversed.
+/// The rows of `raw` in display order, twice: ordered from the rows as
+/// given, and from the rows reversed.
 fn ordered(raw: &[RawReading]) -> [Vec<Row>; 2] {
     let given = rows::rows(raw, &ShownClasses::ALL);
     let mut reversed = given.clone();
@@ -41,14 +45,15 @@ fn names(rows: &[Row]) -> Vec<String> {
     rows.iter().map(|r| r.name.clone()).collect()
 }
 
-/// Asserts the names of both runs.
+/// Asserts that both orderings of `raw` give the names `want`.
 fn assert_names(raw: &[RawReading], want: &[&str]) {
     for out in ordered(raw) {
         assert_eq!(names(&out), want);
     }
 }
 
-/// Asserts name, provider and position of both runs.
+/// Asserts that both orderings of `raw` give `want`: name, provider and
+/// position of each row.
 fn assert_rows(raw: &[RawReading], want: &[(&str, Provider, u32)]) {
     for out in ordered(raw) {
         let got: Vec<(&str, Provider, u32)> = out
@@ -116,7 +121,7 @@ fn c_core_order_6() {
 #[test]
 fn c_core_order_7() {
     puron_testkit::limit("C-core.order-7", LIMIT, || {
-        // One row per class, in reverse class order.
+        // One row of each class, given in reverse class order.
         let raw: Vec<RawReading> = serde_json::from_str(
             r#"[
             {"provider": "lm-sensors", "position": 0, "kind": "power", "chip": "amdgpu-pci-0300", "name": "p0", "key": "k0", "value": 10},
@@ -155,9 +160,11 @@ fn c_core_order_9() {
     });
 }
 
-/// The c_core_order_10 checks under `LC_ALL=<locale>`: the parent re-runs
-/// in a child with that setting; the child takes the locale for the
-/// process (as a program that calls `setlocale` does) and checks.
+/// Checks that name order does not change with the process locale. The
+/// test starts its own binary again as a child with `LC_ALL=<locale>`. The
+/// child sets the locale with `setlocale`, as a program does, and checks
+/// the order of capture.json and of set N5 (`i1` before `I2`). The test
+/// passes when the child exits with success.
 fn locale_case(test: &str, locale: &str) {
     if std::env::var_os(LOCALE_CHILD).is_some() {
         let set = unsafe { libc::setlocale(libc::LC_ALL, c"".as_ptr()) };

@@ -1,30 +1,48 @@
-//! Raw sensor readings to rows: class, family and display name.
+//! Turns raw sensor readings into rows. A row has a class (temperature,
+//! fan, voltage or power), a family when it is a temperature (GPU, drive
+//! or general), and a display name. Each row also has an identity, the
+//! text `<class>/<provider>/<key>` that names it in the pinned list and in
+//! the popup (see [`identities`]).
+//!
+//! The module also finds the readings that belong to the CPU
+//! ([`cpu_roles`]), each drive's Composite reading ([`composites`]), and
+//! the NVMe readings that lm-sensors reports too ([`repeats`]).
 
 use serde::Deserialize;
 
-/// Chip-name words that mark a GPU chip.
+/// Words that mark an lm-sensors chip as a GPU when its name contains one;
+/// case matters.
 pub const GPU_WORDS: [&str; 3] = ["radeon", "amdgpu", "nouveau"];
-/// Chip-name words that mark a drive chip.
+/// Words that mark an lm-sensors chip as a drive when its name contains
+/// one; case matters.
 pub const DRIVE_WORDS: [&str; 2] = ["drivetemp", "nvme"];
 /// Separator between the parts of an identity.
 pub const IDENTITY_SEPARATOR: &str = "/";
-/// The first part of a Maximum line's identity. Alone, it is the pin that
-/// version 1.0.0 stored for its one Maximum row.
+/// The first part of the identity of a Maximum line, the popup line that
+/// shows the highest temperature of one device. On its own, `@maximum` is
+/// the pin that version 1.0.0 stored for its single Maximum row.
 pub const MAXIMUM_WORD: &str = "@maximum";
-/// The pin that development builds stored for their CPU row.
+/// The pin that development builds stored for their single CPU row. It
+/// moves to a line of the CPU group (see `pins::moved`).
 pub const OLD_CPU_PIN: &str = "@cpu";
-/// The CPU heading in name order; the popup shows its translation.
+/// The CPU group's heading before translation. It is also the word that
+/// marks a board sensor's reading of the CPU (see [`cpu_roles`]).
 pub const CPU_NAME: &str = "CPU";
 /// The kernel label of the reading that stands for a whole drive.
 pub const COMPOSITE_LABEL: &str = "Composite";
-/// The most characters a shown name has.
+/// The longest shown name, in characters; [`shown_name`] shortens longer
+/// names.
 pub const NAME_LIMIT: usize = 44;
-/// liquidctl units: temperature, fan, voltage.
+/// The liquidctl units that make a row: temperature, fan speed and
+/// voltage. A reading with any other unit is dropped.
 pub const LIQUIDCTL_UNITS: [&str; 3] = ["°C", "rpm", "V"];
-/// liquidctl item words, each with its leading space.
+/// Words removed from a liquidctl item name to make the row name, each
+/// with its leading space. Only the leftmost one found is removed (see
+/// `item_part`).
 pub const LIQUIDCTL_ITEM_WORDS: [&str; 3] = [" temperature", " speed", " voltage"];
 
-/// The five providers.
+/// A source of readings. The serde names are the provider words of
+/// [`Provider::word`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 pub enum Provider {
     #[serde(rename = "lm-sensors")]
@@ -40,7 +58,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    /// The provider word of an identity.
+    /// The provider's word, the middle part of an identity.
     pub fn word(self) -> &'static str {
         match self {
             Provider::LmSensors => "lm-sensors",
@@ -52,7 +70,8 @@ impl Provider {
     }
 }
 
-/// Kind of a raw reading.
+/// What a raw reading measures, as its provider reports it. liquidctl
+/// readings have no kind: their unit decides the class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -62,7 +81,8 @@ pub enum Kind {
     Power,
 }
 
-/// Class of a row.
+/// What a row measures. The class decides the popup section, the value
+/// format and the settings switch that can hide the row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
     Temperature,
@@ -82,7 +102,7 @@ impl Class {
         }
     }
 
-    /// The class of a class word, character for character.
+    /// The class whose word is exactly `word`; case matters.
     fn from_word(word: &str) -> Option<Class> {
         [Class::Temperature, Class::Fan, Class::Voltage, Class::Power]
             .into_iter()
@@ -90,7 +110,8 @@ impl Class {
     }
 }
 
-/// Family of a temperature row.
+/// The kind of device that a temperature row belongs to. It decides the
+/// row's icon and its place in display order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Family {
     Gpu,
@@ -102,9 +123,13 @@ pub enum Family {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct RawReading {
     pub provider: Provider,
+    /// The reading's place in its provider's output; it breaks the last
+    /// ties in display order.
     pub position: u32,
     #[serde(default)]
     pub kind: Option<Kind>,
+    /// lm-sensors: the chip name as libsensors gives it, such as
+    /// `nvme-pci-0100`.
     #[serde(default)]
     pub chip: Option<String>,
     #[serde(default)]
@@ -115,14 +140,17 @@ pub struct RawReading {
     pub item: Option<String>,
     #[serde(default)]
     pub unit: Option<String>,
+    /// The provider's key for the sensor, the last part of the identity.
     pub key: String,
     /// `None` is "no value".
     pub value: Option<f64>,
-    /// lm-sensors: the label the kernel driver gives, whatever the
-    /// configuration calls the sensor.
+    /// lm-sensors: the label that the kernel driver gives, whatever label
+    /// the lm-sensors configuration file sets for the sensor.
     #[serde(default)]
     pub kernel_label: Option<String>,
-    /// lm-sensors: the chip's own device is on the platform bus.
+    /// lm-sensors: true when the chip's device is on the platform bus.
+    /// Only such a chip's reading labeled with the word CPU is taken as
+    /// the board's reading of the CPU (see [`cpu_roles`]).
     #[serde(default)]
     pub platform: bool,
     /// How many leading characters of `name` are the device part; 0 for
@@ -131,7 +159,8 @@ pub struct RawReading {
     pub device_chars: usize,
 }
 
-/// The shown classes: the Show Sensors switches.
+/// Which classes are shown, from the settings' class switches. Rows of a
+/// class that is not shown are dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShownClasses {
     pub temperature: bool,
@@ -164,7 +193,7 @@ impl ShownClasses {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
     pub class: Class,
-    /// Temperature rows only.
+    /// `Some` for temperature rows only.
     pub family: Option<Family>,
     pub name: String,
     /// `None` is "no value".
@@ -177,8 +206,9 @@ pub struct Row {
     pub device_chars: usize,
 }
 
-/// Rows from raw readings: one row per reading that is kept, in input
-/// order. An NVMe reading that lm-sensors also reports is not kept.
+/// One row per raw reading that is kept, in input order. A reading is
+/// dropped when it makes no row (see `row`) and when it is an NVMe reading
+/// that lm-sensors also reports (see [`repeats`]).
 pub fn rows(raw: &[RawReading], shown: &ShownClasses) -> Vec<Row> {
     raw.iter()
         .filter(|r| lm_sensors_twin(r, raw).is_none())
@@ -208,8 +238,9 @@ fn nvme_chip(address: &str) -> Option<String> {
     Some(format!("nvme-pci-{chip:04x}"))
 }
 
-/// The lm-sensors key of the same file as NVMe reading `r`, when lm-sensors
-/// reports it: the chip at the controller's address, and the same `temp<N>`.
+/// For an NVMe reading `r`, the key of the lm-sensors temperature that
+/// reads the same sysfs file, when `raw` holds one. The match uses only
+/// the chip at the controller's PCI address and the file name `temp<N>`.
 /// Names and values play no part: a wrong match would hide a sensor.
 fn lm_sensors_twin(r: &RawReading, raw: &[RawReading]) -> Option<String> {
     if r.provider != Provider::NvmeCli {
@@ -224,8 +255,9 @@ fn lm_sensors_twin(r: &RawReading, raw: &[RawReading]) -> Option<String> {
         .then_some(key)
 }
 
-/// The identity of each NVMe reading that is not kept, and of the
-/// lm-sensors row that stays for it.
+/// For each NVMe reading that [`rows`] drops because lm-sensors reports
+/// the same sensor: its identity, and the identity of the lm-sensors row
+/// that stays. A pin on the first moves to the second (see `pins::moved`).
 pub fn repeats(raw: &[RawReading]) -> Vec<(String, String)> {
     let identity = |provider: Provider, key: &str| {
         [Class::Temperature.word(), provider.word(), key].join(IDENTITY_SEPARATOR)
@@ -241,8 +273,10 @@ pub fn repeats(raw: &[RawReading]) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The key of each chip's first temperature with the kernel label
-/// "Composite", whatever the configuration calls it. A CPU reading is not one.
+/// The keys of the lm-sensors temperatures that the kernel labels
+/// "Composite", the first one per chip, whatever label the configuration
+/// sets. A reading of the CPU group is never one. In a device with two
+/// or more readings, this reading is the default line.
 pub fn composites(raw: &[RawReading]) -> Vec<String> {
     let roles = cpu_roles(raw);
     let mut chips: Vec<&str> = Vec::new();
@@ -283,7 +317,6 @@ fn row(r: &RawReading, shown: &ShownClasses) -> Option<Row> {
             )
         }
     };
-    // The class is decided first, then checked against the shown classes.
     if !shown.contains(class) {
         return None;
     }
@@ -299,10 +332,11 @@ fn row(r: &RawReading, shown: &ShownClasses) -> Option<Row> {
     })
 }
 
-/// The name as shown: at most [`NAME_LIMIT`] characters. A longer name is
-/// cut inside its device part, so the rest stays whole; a name with no
-/// device, or whose rest leaves no room for any of the device, is cut at
-/// its end.
+/// The name as shown, at most [`NAME_LIMIT`] characters. A longer name is
+/// cut inside its device part, with "…" in place of the cut, so that the
+/// reading label after it stays whole. A name with no device part, or
+/// whose label leaves no room for any of the device part, is cut at its
+/// end instead (see [`cut_at_end`]).
 pub fn shown_name(row: &Row) -> String {
     let name = row.name.as_str();
     let total = name.chars().count();
@@ -325,7 +359,7 @@ pub fn shown_name(row: &Row) -> String {
 }
 
 /// `text` when it has at most `limit` characters, else its start and "…"
-/// in `limit` characters.
+/// in `limit` characters. Spaces before the "…" are dropped.
 pub fn cut_at_end(text: &str, limit: usize) -> String {
     if text.chars().count() <= limit {
         return text.to_string();
@@ -335,8 +369,9 @@ pub fn cut_at_end(text: &str, limit: usize) -> String {
     format!("{}…", text[..end].trim_end())
 }
 
-/// What follows the device in a row's name: the configured label if there
-/// is one, else the kernel's.
+/// The part of a row's name after its device part, without leading
+/// spaces. A name set by a label in the lm-sensors configuration has no
+/// device part, so this is the whole name.
 pub fn reading_label(row: &Row) -> &str {
     let at = row
         .name
@@ -355,13 +390,14 @@ pub fn device_name(row: &Row) -> String {
     row.name.chars().take(row.device_chars).collect()
 }
 
-/// The name of the key's chip up to its first `-`, without a final
-/// `_<digits>`.
+/// The short name of the chip in a row's key (see [`chip_stem`]); for the
+/// key `coretemp-isa-0000/temp1` it is `coretemp`.
 pub fn chip_word(row: &Row) -> &str {
     chip_stem(&row.key)
 }
 
-/// A chip's name up to its first `-`, without a final `_<digits>`.
+/// The short name of a chip: the text before the first `-` or `/`,
+/// without a final `_<digits>`.
 pub fn chip_stem(chip: &str) -> &str {
     let chip = chip.split(['/', '-']).next().unwrap_or_default();
     match chip.rsplit_once('_') {
@@ -370,28 +406,35 @@ pub fn chip_stem(chip: &str) -> &str {
     }
 }
 
-/// A line that names its chip: `<chip>: <label>`.
+/// A line name that also names the chip: `<short chip name>: <reading
+/// label>`, such as `coretemp: Core 0`.
 pub fn chip_line_name(row: &Row) -> String {
     format!("{}: {}", chip_word(row), reading_label(row))
 }
 
-/// What a reading is to the CPU's group.
+/// The part that a reading plays in the CPU group, the popup group that
+/// collects the CPU's temperatures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CpuRole {
-    /// The CPU's own sensor of the whole package, with its number: the lowest
-    /// is the default line.
+    /// A sensor of a whole CPU package, with the package number: `Package
+    /// id N` on Intel (`coretemp`); 0 for AMD's Tdie, or for Tctl when the
+    /// chip has no Tdie. The lowest number gives the default line.
     Package(u64),
-    /// The board controller's reading of the CPU.
+    /// A board controller's reading of the CPU. It gives the default line
+    /// when there is no package sensor.
     Board,
-    /// The control value of a chip that also has its real one: never the
-    /// default line.
+    /// AMD's Tctl, the control value, on a chip that also reports Tdie, the
+    /// real temperature. It never gives the default line.
     Control,
-    /// Any other reading of a CPU's own chip, such as one core.
+    /// Any other reading of the CPU's own chip, such as one core.
     Part,
 }
 
-/// The role of each lm-sensors temperature of the CPU, by key. The kernel
-/// label decides, so a label from the configuration changes nothing.
+/// The role of each lm-sensors temperature that belongs to the CPU group,
+/// as (key, role) pairs; other readings are not listed. Intel (`coretemp`)
+/// and AMD (`k10temp`, `zenpower`) chips give packages and parts, and a
+/// platform-bus chip gives a board reading. The kernel label decides, so a
+/// label set in the lm-sensors configuration changes nothing.
 pub fn cpu_roles(raw: &[RawReading]) -> Vec<(String, CpuRole)> {
     let label = |r: &RawReading| -> Option<(String, String)> {
         let usable = r.provider == Provider::LmSensors && r.kind == Some(Kind::Temperature);
@@ -427,21 +470,25 @@ pub fn cpu_roles(raw: &[RawReading]) -> Vec<(String, CpuRole)> {
         .collect()
 }
 
-/// The number after `prefix`, when digits and nothing else follow it.
+/// The number after `prefix`, when digits and nothing else follow it. A
+/// number too large for `u64` becomes `u64::MAX`.
 fn numbered(label: &str, prefix: &str) -> Option<u64> {
     let digits = label.strip_prefix(prefix)?;
     let all_digits = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
     all_digits.then(|| digits.parse().unwrap_or(u64::MAX))
 }
 
-/// The word "CPU" on its own, case ignored; "CPUTIN" does not hold it.
+/// Whether `label` holds "CPU" as a whole word, ignoring ASCII case.
+/// Words end at any character that is not a letter or digit, so "CPU
+/// Temp" holds it and "CPUTIN" does not.
 fn holds_cpu_word(label: &str) -> bool {
     label
         .split(|c: char| !c.is_alphanumeric())
         .any(|w| w.eq_ignore_ascii_case(CPU_NAME))
 }
 
-/// Class and family of a reading of every provider but liquidctl.
+/// The class and family of a reading from any provider but liquidctl, or
+/// `None` when the reading makes no row.
 fn class_of(provider: Provider, kind: Kind, chip: &str) -> Option<(Class, Option<Family>)> {
     match kind {
         Kind::Temperature => {
@@ -455,8 +502,8 @@ fn class_of(provider: Provider, kind: Kind, chip: &str) -> Option<(Class, Option
         }
         Kind::Fan => Some((Class::Fan, None)),
         Kind::Voltage => Some((Class::Voltage, None)),
-        // Power rows come from lm-sensors GPU chips only; drive words are not
-        // tested.
+        // Power rows come from lm-sensors GPU chips only. Unlike for
+        // temperatures, a chip that also has a drive word still counts.
         Kind::Power => {
             if provider != Provider::LmSensors || !is_gpu_chip(chip) {
                 return None;
@@ -466,17 +513,18 @@ fn class_of(provider: Provider, kind: Kind, chip: &str) -> Option<(Class, Option
     }
 }
 
-/// A GPU chip's name contains a GPU word; case is significant.
+/// Whether `chip` contains one of [`GPU_WORDS`]; case matters.
 fn is_gpu_chip(chip: &str) -> bool {
     GPU_WORDS.iter().any(|w| chip.contains(w))
 }
 
+/// Whether `chip` contains one of [`DRIVE_WORDS`]; case matters.
 fn is_drive_chip(chip: &str) -> bool {
     DRIVE_WORDS.iter().any(|w| chip.contains(w))
 }
 
-/// The family of an lm-sensors temperature; none for a chip with
-/// both a GPU word and a drive word.
+/// The family of an lm-sensors temperature. `None` for a chip with both a
+/// GPU word and a drive word: such a reading makes no row.
 fn chip_family(chip: &str) -> Option<Family> {
     match (is_gpu_chip(chip), is_drive_chip(chip)) {
         (true, true) => None,
@@ -486,7 +534,8 @@ fn chip_family(chip: &str) -> Option<Family> {
     }
 }
 
-/// The class of a liquidctl unit, matched character for character.
+/// The class and family of a liquidctl reading from its unit, compared
+/// exactly; `None` for any other unit. liquidctl temperatures are general.
 fn liquidctl_class(unit: &str) -> Option<(Class, Option<Family>)> {
     let [celsius, rpm, volt] = LIQUIDCTL_UNITS;
     if unit == celsius {
@@ -505,21 +554,26 @@ fn liquidctl_name(device: &str, item: &str) -> String {
     format!("{} {}", device_part(device), item_part(item))
 }
 
-/// The device part: the manufacturer cut, then the " (" cut.
+/// The device part of a liquidctl device description: the first word, taken
+/// to be the manufacturer, is removed, and so is everything from the first " (" on.
 fn device_part(description: &str) -> &str {
-    // A space after at least one character: cut up to and including it.
+    // Remove everything up to and including the first space that is not
+    // the first character.
     let rest = match description.char_indices().find(|&(i, c)| i > 0 && c == ' ') {
         Some((i, _)) => &description[i + 1..],
         None => description,
     };
-    // The first " (" with at least one character after it.
+    // Cut at the first " (", but only when at least one character
+    // follows it.
     match rest.find(" (") {
         Some(i) if i + 2 < rest.len() => &rest[..i],
         _ => rest,
     }
 }
 
-/// The item part: the leftmost item word removed, once.
+/// The item part of a liquidctl item name: the leftmost of
+/// [`LIQUIDCTL_ITEM_WORDS`] is removed, once, so "Fan 1 speed" becomes
+/// "Fan 1".
 fn item_part(item: &str) -> String {
     let first = LIQUIDCTL_ITEM_WORDS
         .iter()
@@ -531,17 +585,21 @@ fn item_part(item: &str) -> String {
     }
 }
 
-/// Identities: one per row, in the same order.
+/// The identity of each row, in the same order.
 pub fn identities(rows: &[Row]) -> Vec<String> {
     rows.iter().map(identity).collect()
 }
 
-/// An identity: class word, `/`, provider, `/`, key.
+/// A row's identity, `<class word>/<provider word>/<key>`, such as
+/// `temperature/lm-sensors/coretemp-isa-0000/temp1`. It is the text that
+/// the pinned list stores.
 fn identity(row: &Row) -> String {
     [row.class.word(), row.provider.word(), row.key.as_str()].join(IDENTITY_SEPARATOR)
 }
 
-/// Class of an identity: the class of a pinned entry, or none.
+/// The class of a pinned entry, from its text: the class word that starts
+/// an identity. `@maximum` entries and the older `@cpu` pin are
+/// temperatures. `None` when the first part is no class word.
 pub fn class_of_identity(text: &str) -> Option<Class> {
     if text == MAXIMUM_WORD || text == OLD_CPU_PIN {
         return Some(Class::Temperature);

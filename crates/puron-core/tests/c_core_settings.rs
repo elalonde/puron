@@ -1,12 +1,13 @@
-//! Tests of the setting defaults and ranges, 2 s each. Stored values are
-//! given inline.
+//! Tests of the setting defaults and of the poll interval range. Each test
+//! must finish within 2 seconds (`puron_testkit::limit`). Stored values
+//! are given inline.
 
 use puron_core::settings::{self, Settings, Stored, TemperatureUnit};
 
 const LIMIT: u64 = 2;
 
-/// The default of each key, written out here rather than taken from the
-/// code under test.
+/// The default of each setting, written out here rather than taken from
+/// the code under test, so that a changed default fails a test.
 fn defaults() -> Settings {
     Settings {
         poll_interval_secs: 5,
@@ -36,9 +37,9 @@ fn defaults() -> Settings {
 fn c_core_settings_1() {
     puron_testkit::limit("C-core.settings-1", LIMIT, || {
         let s = settings::settings(&Stored::default());
-        // Never stored: a new install.
+        // Nothing stored, as on a new install: there is no pinned list.
         assert_eq!(s.pinned, None);
-        // Stored empty stays empty.
+        // A stored empty list stays empty, unlike a list never stored.
         let empty = settings::settings(&Stored {
             pinned: Some(Vec::new()),
             ..Stored::default()
@@ -126,8 +127,8 @@ fn c_core_settings_5() {
             pinned: Some(vec!["a".to_string(), "a".to_string()]),
             old_cpu_source: Some("k".to_string()),
         };
-        // Every value differs from its default, so a stored value ignored
-        // for any one key shows.
+        // Every stored value differs from its default, so a stored value
+        // that is ignored for any one setting makes the comparison fail.
         assert_ne!(want.poll_interval_secs, defaults().poll_interval_secs);
         assert_eq!(settings::settings(&stored), want);
 

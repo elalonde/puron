@@ -1,6 +1,9 @@
-//! Tests of the Maximum and invalid temperatures, 2 s each. Fixtures are
-//! under crates/puron-testkit/fixtures/raw/ (capture.json,
-//! summary.json). Rows reach `summary` through `rows`; a Maximum line is
+//! Tests of the temperature value rules: which values count, and the
+//! Maximum line, the popup line with the highest temperature of a device.
+//! Each test must finish within 2 seconds (`puron_testkit::limit`). The
+//! fixtures are capture.json and summary.json under
+//! crates/puron-testkit/fixtures/raw/; the sets of summary.json are named
+//! by letters. Rows reach `summary` through `rows`, and Maximum lines are
 //! read from `menu::shown`.
 
 use std::collections::BTreeMap;
@@ -19,8 +22,8 @@ fn capture() -> Vec<RawReading> {
     serde_json::from_str(&text).expect("parse fixture")
 }
 
-/// The sets of summary.json; set G's non-finite values come from the
-/// testkit loader, since JSON has no NaN or infinity.
+/// The sets of summary.json, by name. JSON has no NaN or infinity, so the
+/// testkit loader builds set G's non-finite values from strings.
 fn sets() -> BTreeMap<String, Vec<RawReading>> {
     puron_testkit::raw_sets("summary.json", |r: &mut RawReading, v| r.value = Some(v))
 }
@@ -33,13 +36,13 @@ fn values(rows: &[Row]) -> Vec<Option<f64>> {
     rows.iter().map(|r| r.value).collect()
 }
 
-/// The highest temperature of `rows`.
+/// The highest temperature of `rows` that counts.
 fn highest(rows: &[Row]) -> Option<f64> {
     let temperatures = rows.iter().filter(|r| r.class == Class::Temperature);
     summary::highest(temperatures.map(|r| r.value))
 }
 
-/// The values of the Maximum lines that `raw` gives.
+/// The values of the Maximum lines that the popup shows for `raw`.
 fn maximum_lines(raw: &[RawReading], settings: &Settings) -> Vec<Option<f64>> {
     menu::shown(raw, settings)
         .lines()
@@ -52,7 +55,8 @@ fn set_maximum_lines(set: &str) -> Vec<Option<f64>> {
     maximum_lines(&sets()[set], &Settings::default())
 }
 
-/// Rows equal in all fields; values compared by bits (negative zero, NaN).
+/// Asserts that the rows are equal in every field but `device_chars`, with
+/// values compared bit for bit, so that negative zero differs from zero.
 fn assert_same_rows(got: &[Row], want: &[Row]) {
     assert_eq!(got.len(), want.len());
     for (g, w) in got.iter().zip(want) {
@@ -109,7 +113,7 @@ fn c_core_summary_4() {
         let out = summary::summary(set_rows("C"));
         assert_eq!(values(&out), [None, None]);
         assert_eq!(highest(&out), None);
-        // The line stays, with no value.
+        // The device's Maximum line is still shown, with no value.
         assert_eq!(set_maximum_lines("C"), [None]);
     });
 }
@@ -131,7 +135,8 @@ fn c_core_summary_5() {
         let max = highest(&e).expect("a number");
         assert!(max == 0.0 && max.is_sign_negative(), "maximum {max:?}");
 
-        // H: 0 is above negative zero in any order.
+        // Set H holds negative zero and zero: in either order, the highest
+        // is zero.
         let h = set_rows("H");
         assert!(
             h[0].value.expect("H has a value").is_sign_negative(),

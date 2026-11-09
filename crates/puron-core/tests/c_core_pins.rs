@@ -1,7 +1,8 @@
-//! Tests of the pin and unpin rules, 2 s each. Fixtures are under
-//! crates/puron-testkit/fixtures/raw/ (capture.json, pins.json,
-//! menuids.json). Menu identities are set M1 and all four classes are
-//! shown unless a test says otherwise.
+//! Tests of the pinned list (`pins`). Each test must finish within 2
+//! seconds (`puron_testkit::limit`). The fixtures are capture.json,
+//! pins.json and menuids.json under crates/puron-testkit/fixtures/raw/.
+//! Unless a test says otherwise, the popup's identities are set M1 of
+//! menuids.json and all four classes are shown.
 
 use std::collections::BTreeMap;
 
@@ -29,8 +30,8 @@ fn menu_ids(set: &str) -> Vec<String> {
         .expect("X-raw-menuids set")
 }
 
-/// The identity of the capture.json row `name`; other texts stand for
-/// themselves.
+/// The identity of the lm-sensors reading of capture.json named `name`; a
+/// text that names no reading is returned as it is.
 fn id(name: &str) -> String {
     let raw: Vec<RawReading> = json("capture.json");
     match raw.iter().find(|r| r.name.as_deref() == Some(name)) {
@@ -95,7 +96,9 @@ fn c_core_pins_4() {
     puron_testkit::limit("C-core.pins-4", LIMIT, || {
         let list = ids(&["@maximum", "@maximum/cpu", "@cpu", "CPU fan"]);
         let m2 = menu_ids("M2");
-        // The older pins wait to move and stay; a Maximum line goes.
+        // Clicking "CPU fan" unpins it. The CPU group's Maximum line has no
+        // line in set M2, so its pin goes; the older pins stay because they
+        // wait to move. With temperatures hidden, the Maximum pin stays too.
         assert_eq!(
             pins::click(&list, &id("CPU fan"), &m2, &ShownClasses::ALL),
             ids(&["@maximum", "@cpu"])
@@ -110,7 +113,7 @@ fn c_core_pins_4() {
 #[test]
 fn c_core_pins_5() {
     puron_testkit::limit("C-core.pins-5", LIMIT, || {
-        // M1 is what the popup shows of capture.json.
+        // Set M1 is the identities of the popup's lines for capture.json.
         let shown = menu::shown(
             &json::<Vec<RawReading>>("capture.json"),
             &Settings::default(),
@@ -187,7 +190,8 @@ fn c_core_pins_11() {
     });
 }
 
-/// A line of the temperature group in `pins_moved`.
+/// A temperature line with the value 50, for the CPU group that
+/// `pins_moved` builds.
 fn line(identity: &str, word: Option<LineWord>, default: bool) -> ShownLine {
     ShownLine {
         class: Class::Temperature,
@@ -220,26 +224,28 @@ fn pins_moved() {
         };
         let list = |l: &[&str]| l.iter().map(|e| e.to_string()).collect::<Vec<_>>();
         let moved = |l: &[&str], source| pins::moved(&list(l), &shown, source, true);
-        // A repeat moves in its place, once; other pins and the order stay.
+        // A pin on a repeat ("a") moves to the line that stays ("b") in its
+        // own place, and a later copy is dropped; other pins keep their order.
         assert_eq!(moved(&["x", "a", "y", "b"], None), list(&["x", "b", "y"]));
         assert_eq!(moved(&["b", "a"], None), list(&["b"]));
         assert_eq!(moved(&["x"], None), list(&["x"]));
-        // The old Maximum pin moves to the default line, in its place.
+        // `@maximum` moves to the default line, the package, in its place.
         assert_eq!(moved(&["x", "@maximum"], None), list(&["x", PACKAGE]));
         assert_eq!(moved(&["@maximum", PACKAGE], None), list(&[PACKAGE]));
-        // The old CPU pin moves to what its row read, else to the default line.
+        // `@cpu` moves to the line of the sensor that its row read
+        // (`cpu_source`), else to the default line.
         let key = Some("coretemp-isa-0000/temp2");
         assert_eq!(moved(&["@cpu"], key), list(&[CORE]));
         assert_eq!(moved(&["@cpu"], Some("@maximum")), list(&[MAXIMUM]));
         assert_eq!(moved(&["@cpu"], Some("gone/temp1")), list(&[PACKAGE]));
         assert_eq!(moved(&["@cpu"], None), list(&[PACKAGE]));
-        // Before the sensors are ready, only repeats move.
+        // While `ready` is false, only repeats move.
         let old = list(&["@maximum", "@cpu", "a"]);
         assert_eq!(
             pins::moved(&old, &shown, None, false),
             list(&["@maximum", "@cpu", "b"])
         );
-        // With no temperature line there is nowhere to move to.
+        // With no temperature line, the older pins stay as they are.
         let none = Shown {
             devices: Vec::new(),
             ..shown.clone()

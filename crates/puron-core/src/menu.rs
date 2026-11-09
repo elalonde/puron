@@ -1,5 +1,11 @@
-//! Popup view model. No text, no state: the caller passes the last key
-//! back in.
+//! What the popup shows. [`shown`] turns a snapshot's readings into
+//! lines: temperatures grouped by device, each device under a heading,
+//! then fans, voltages and power. [`menu_with`] lays those lines out as
+//! popup entries. The module returns no translated text: the words and
+//! headings that need a translation are values (`LineWord`,
+//! `Heading::Cpu`) for the popup to translate. It keeps no state; the
+//! caller passes back the previous layout's `Key`, which tells whether
+//! the popup must be rebuilt.
 
 use crate::format::{format, Text};
 use crate::order;
@@ -10,34 +16,45 @@ use crate::rows::{
 use crate::settings::Settings;
 use crate::summary;
 
-/// The page the message and the homepage link open.
+/// The project homepage. The no-readings message and the homepage link
+/// at the bottom of the popup open it.
 pub const HOMEPAGE_URL: &str = "https://elalonde.dev/software/puron/";
 
-/// A word of a line, for the popup to translate.
+/// A word shown after a line's name, which the popup translates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineWord {
+    /// A device's Composite reading (see `rows::composites`).
     Composite,
+    /// A CPU package reading whose name is a label from the lm-sensors
+    /// configuration.
     Package,
+    /// The temperature of an NVIDIA or udisks2 device, or an NVMe reading
+    /// whose name has no device part; such a line has no name of its own.
     Temperature,
+    /// The highest temperature of a device.
     Maximum,
-    /// A stored older pin that waits for lm-sensors: the whole text of its
-    /// line, in the CPU group.
+    /// The line of a stored older pin (`@maximum` or `@cpu`) that waits
+    /// for lm-sensors readings. The word is the line's whole text; the
+    /// line is in the CPU group.
     Waiting,
 }
 
-/// One line: a reading, or the Maximum of a device's readings.
+/// One line of the popup: a reading, or the Maximum line of a device,
+/// which shows the highest of its temperatures.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShownLine {
     pub class: Class,
     pub family: Option<Family>,
     pub identity: String,
-    /// The name in the popup, without its word.
+    /// The name shown in the popup, without its word.
     pub name: String,
-    /// Goes after the name, with one space.
+    /// A word shown after the name, with one space.
     pub word: Option<LineWord>,
-    /// The value after `summary`; `None` is "no value".
+    /// The value after the temperature rules of `summary`; `None` is "no
+    /// value".
     pub value: Option<f64>,
-    /// The line a new install checks.
+    /// Whether this is its device's default line, the one that a new
+    /// install pins (see `Shown::new_install_pins`).
     pub default: bool,
 }
 
@@ -47,25 +64,26 @@ impl ShownLine {
     }
 }
 
-/// The CPU's heading in text with no translation.
+/// The CPU group's heading before translation.
 pub const CPU_HEADING: &str = rows::CPU_NAME;
 
-/// A device's heading.
+/// The heading above a device's temperatures.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Heading {
-    /// The popup shows its translation.
+    /// The CPU group; the popup shows a translation of [`CPU_HEADING`].
     Cpu,
+    /// A device name, shown as it is.
     Name(String),
 }
 
-/// A device's temperatures.
+/// The temperature lines of one device, under one heading.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Device {
     pub heading: Heading,
     pub lines: Vec<ShownLine>,
 }
 
-/// What the popup can show.
+/// Every line that the popup can show for one snapshot, before layout.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shown {
     /// The temperatures, in popup order.
@@ -94,7 +112,8 @@ impl Shown {
         self.lines().position(|l| l.identity == identity)
     }
 
-    /// What a new install checks: each default line, or with none, the first
+    /// The pins of a new install: every default line, or, when no device
+    /// has one, the first temperature line. Empty when there is no
     /// temperature line.
     pub fn new_install_pins(&self) -> Vec<String> {
         let defaults = self.devices.iter().flat_map(|d| &d.lines);
@@ -109,9 +128,10 @@ impl Shown {
         }
     }
 
-    /// The line that stands in for the whole machine: the first device's
-    /// default line, or its first line when it has only one; a machine with a
-    /// CPU group has that group first.
+    /// The line that stands for the whole machine, where a stored
+    /// `@maximum` pin moves: the first device's default line, or its first
+    /// line when it has none (a device with a single reading has none).
+    /// The CPU group, when there is one, is the first device.
     pub fn default_line(&self) -> Option<&str> {
         let first = self.devices.first()?;
         let line = first.lines.iter().find(|l| l.default);
@@ -124,7 +144,8 @@ impl Shown {
     }
 }
 
-/// The outcome of the latest lm-sensors report.
+/// The latest state of lm-sensors, as the engine reports it. It decides
+/// which message the popup shows when there are no lines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Report {
     NoneYet,
@@ -132,14 +153,20 @@ pub enum Report {
     Answered,
 }
 
-/// Message kind, shown when there are no rows.
+/// The message that the popup shows when there are no lines.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageKind {
+    /// lm-sensors is switched on and has not reported that it is
+    /// unavailable: the message suggests running `sensors-detect`.
     SensorsDetect,
+    /// lm-sensors is switched off or unavailable: the message suggests
+    /// installing it.
     Install,
 }
 
-/// What the popup shows, as a key; the caller passes it back as `last_key`.
+/// A summary of the popup's content: the message kind, or the identities
+/// of its lines in order. The caller passes it back as `last_key`; while
+/// it is unchanged, the popup can be updated in place.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Key {
     Message(MessageKind),
@@ -153,7 +180,7 @@ pub enum Update {
     InPlace,
 }
 
-/// Icon kind of a line.
+/// The icon of a line, by class and, for temperatures, by family.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IconKind {
     GeneralTemperature,
@@ -173,13 +200,15 @@ pub enum Section {
     Power,
 }
 
-/// A line of the popup; `value` `None` is "no value".
+/// A line of the popup layout, with its value as text; `value` is `None`
+/// when the line has no value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Item {
     pub identity: String,
-    /// The name, not yet cut, without its word.
+    /// The name, without its word. It is not yet shortened: the popup
+    /// shortens it to fit.
     pub name: String,
-    /// Goes after the name, with one space.
+    /// A word shown after the name, with one space.
     pub word: Option<LineWord>,
     pub default: bool,
     pub value: Option<Text>,
@@ -192,6 +221,7 @@ pub enum Entry {
     Device(Heading),
     Line(Item),
     Separator,
+    /// The message shown when there are no lines, with the homepage.
     Message {
         kind: MessageKind,
         url: &'static str,
@@ -202,7 +232,7 @@ pub enum Entry {
     SettingsLink,
 }
 
-/// The output of `menu`.
+/// The popup layout that [`menu`] and [`menu_with`] return.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Menu {
     pub entries: Vec<Entry>,
@@ -212,10 +242,12 @@ pub struct Menu {
     pub update: Update,
 }
 
-/// What the popup can show of a snapshot's raw readings.
+/// Every line that the popup can show for a snapshot's raw readings: the
+/// rows of the classes that `settings` shows, in display order, with the
+/// temperatures grouped by device.
 pub fn shown(raw: &[RawReading], settings: &Settings) -> Shown {
     let s = settings;
-    // The Show Sensors switches are the shown classes.
+    // The settings' class switches decide which classes make rows.
     let classes = ShownClasses {
         temperature: s.show_temperature,
         fan: s.show_rotation_rate,
@@ -252,7 +284,8 @@ pub fn shown(raw: &[RawReading], settings: &Settings) -> Shown {
     }
 }
 
-/// Where a temperature belongs.
+/// The popup group of a temperature: the CPU group, or one device of a
+/// provider, named by its chip or by its key.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Group {
     Cpu,
@@ -271,8 +304,8 @@ impl Group {
                 .find(|r| r.provider == Provider::LmSensors && r.key == row.key)
                 .and_then(|r| r.chip.as_deref())
                 .unwrap_or(key),
-            // A whole key names one device; on udisks2 it also holds the
-            // separator.
+            // The whole key names the device. A udisks2 key can itself
+            // contain `/`, so it is not split.
             Provider::Nvidia | Provider::Udisks2 => key,
             Provider::Liquidctl | Provider::NvmeCli => key
                 .rsplit_once(IDENTITY_SEPARATOR)
@@ -281,7 +314,9 @@ impl Group {
         Group::Device(row.provider, device.to_string())
     }
 
-    /// The stable identity of the group's Maximum line.
+    /// The identity of the group's Maximum line: `@maximum/cpu` for the
+    /// CPU group, `@maximum/<provider>/<device>` for any other. It depends
+    /// only on the group, so a pin on it holds while the readings change.
     fn maximum_identity(&self) -> String {
         match self {
             Group::Cpu => format!("{MAXIMUM_WORD}{IDENTITY_SEPARATOR}cpu"),
@@ -292,6 +327,7 @@ impl Group {
     }
 }
 
+/// The CPU role of an lm-sensors row; `None` for any other row.
 fn role(row: &Row, roles: &[(String, CpuRole)]) -> Option<CpuRole> {
     if row.provider != Provider::LmSensors {
         return None;
@@ -302,8 +338,10 @@ fn role(row: &Row, roles: &[(String, CpuRole)]) -> Option<CpuRole> {
         .map(|&(_, role)| role)
 }
 
-/// The temperatures by device, in popup order: the CPU, then GPUs, drives and
-/// other chips, each by name.
+/// Groups the temperature rows by device, in popup order: the CPU group,
+/// then GPU devices, drive devices and all other devices, each kind sorted
+/// by heading in name order. The family of a device's first row decides
+/// its kind.
 fn devices(temperatures: Vec<(Row, String)>, raw: &[RawReading]) -> Vec<Device> {
     let roles = rows::cpu_roles(raw);
     let composites = rows::composites(raw);
@@ -340,7 +378,7 @@ fn devices(temperatures: Vec<(Row, String)>, raw: &[RawReading]) -> Vec<Device> 
     devices.into_iter().map(|(_, d)| d).collect()
 }
 
-/// A line of the temperature row `pair`.
+/// The line of a temperature row, given with its identity in `pair`.
 fn line(pair: &(Row, String), name: String, word: Option<LineWord>, default: bool) -> ShownLine {
     let (row, identity) = pair;
     ShownLine {
@@ -354,7 +392,9 @@ fn line(pair: &(Row, String), name: String, word: Option<LineWord>, default: boo
     }
 }
 
-/// The Maximum line of `members`, when they are two or more.
+/// The Maximum line of a group: the highest value of its members that
+/// counts (see `summary::highest`). Only a group of two or more readings
+/// has one.
 fn maximum_line(group: &Group, members: &[(Row, String)], default: bool) -> Option<ShownLine> {
     (members.len() >= 2).then(|| ShownLine {
         class: Class::Temperature,
@@ -367,8 +407,12 @@ fn maximum_line(group: &Group, members: &[(Row, String)], default: bool) -> Opti
     })
 }
 
-/// The CPU group. Lines: the default line, the other readings of the whole CPU,
-/// the other readings, each in row order, then Maximum.
+/// The CPU group. Its lines: the default line, then the other readings of
+/// the whole CPU (packages, Tctl and the board's reading), then the rest
+/// (cores and other parts), each set in row order, then the Maximum line.
+/// The default line is the lowest-numbered package, else the board's
+/// reading. A group with one reading has no default line; in a larger
+/// group with neither, the Maximum line is the default.
 fn cpu_device(members: Vec<(Row, String)>, roles: &[(String, CpuRole)]) -> Device {
     let role_of = |pair: &(Row, String)| role(&pair.0, roles);
     let package = |pair: &(Row, String)| match role_of(pair) {
@@ -410,9 +454,10 @@ fn cpu_device(members: Vec<(Row, String)>, roles: &[(String, CpuRole)]) -> Devic
     }
 }
 
-/// The heading of a device's readings: a label configured on its Composite
-/// reading, else the device part of a name; else, with one reading, its
-/// configured label; else the chip's name.
+/// The heading of a device: the configured label of its Composite
+/// reading, if it has one; else the device part of the first name that
+/// has one; else, for a single reading, that reading's name; else the
+/// short name of the chip (see `rows::chip_stem`).
 fn heading_of(group: &Group, members: &[(Row, String)], composite: Option<usize>) -> String {
     let configured = composite
         .map(|i| &members[i].0)
@@ -430,8 +475,10 @@ fn heading_of(group: &Group, members: &[(Row, String)], composite: Option<usize>
     }
 }
 
-/// A device's own group. Lines: the default line (its Composite reading, else
-/// its first), the others in row order, then Maximum.
+/// The group of a device other than the CPU. Its lines: the default line
+/// (its Composite reading, else its first reading), the others in row
+/// order, then the Maximum line. A device with one reading has no default
+/// line.
 fn other_device(group: &Group, members: Vec<(Row, String)>, composites: &[String]) -> Device {
     let composite = members
         .iter()
@@ -474,7 +521,7 @@ fn other_device(group: &Group, members: Vec<(Row, String)>, composites: &[String
     }
 }
 
-/// The menu layout. `last_key` `None` is "none".
+/// The popup layout when no older pin waits; see [`menu_with`].
 pub fn menu(
     shown: &Shown,
     settings: &Settings,
@@ -497,10 +544,12 @@ fn waiting_item(pin: &str) -> Item {
     }
 }
 
-/// The menu layout with a line for each pin of `waiting`, the stored older
-/// pins that wait for lm-sensors: at the end of the CPU group, or in a CPU
-/// group of their own before the other devices. Each such line can be
-/// clicked like any other, so the pin can be removed while it waits.
+/// The popup layout, with a line for each pin of `waiting`, the stored
+/// older pins that wait for lm-sensors: at the end of the CPU group, or in
+/// a CPU group of their own before the other devices. Each such line can
+/// be clicked like any other, so the pin can be removed while it waits.
+/// `last_key` is the `key` of the previous layout, `None` before the
+/// first. `forced` asks for a rebuild even when the key is unchanged.
 pub fn menu_with(
     shown: &Shown,
     settings: &Settings,
@@ -577,8 +626,8 @@ pub fn menu_with(
         Entry::HomepageLink { url: HOMEPAGE_URL },
         Entry::SettingsLink,
     ]);
-    // Rebuild unless the key is unchanged: the same message kind, or the
-    // same identities in the same order.
+    // Rebuild when forced or when the key has changed; the key is unchanged
+    // for the same message kind, or the same identities in the same order.
     let update = if forced || last_key != Some(&key) {
         Update::Rebuild
     } else {
@@ -592,6 +641,7 @@ pub fn menu_with(
     }
 }
 
+/// The layout item of a line, with its value formatted under `settings`.
 fn item(line: &ShownLine, settings: &Settings) -> Item {
     Item {
         identity: line.identity.clone(),
