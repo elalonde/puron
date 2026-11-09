@@ -4113,7 +4113,7 @@ checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
 
 [[package]]
 name = "puron-applet"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
@@ -4132,7 +4132,7 @@ dependencies = [
 
 [[package]]
 name = "puron-config"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "cosmic-config 1.0.0 (git+https://github.com/pop-os/libcosmic?rev=430f3d48a97d8779f9c1985473912e594ccca1ae)",
  "puron-core",
@@ -4141,7 +4141,7 @@ dependencies = [
 
 [[package]]
 name = "puron-core"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "libc",
  "puron-testkit",
@@ -4151,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "puron-engine"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "libc",
  "lm-sensors",
@@ -4165,7 +4165,7 @@ dependencies = [
 
 [[package]]
 name = "puron-settings"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
@@ -4182,7 +4182,7 @@ dependencies = [
 
 [[package]]
 name = "puron-testkit"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "libc",
  "lm-sensors",
