@@ -1,15 +1,18 @@
-//! The NVML fake of the NVIDIA provider: scripts in code. Per PCI
-//! address a name and a temperature, or an error for one call; per `open` call
-//! (the n-th `open` of the fake, which is the n-th read that opens NVML)
-//! an outcome. Every call is logged in order with its address; Open
-//! takes no argument.
+//! A fake of NVML, the NVIDIA management library, for the tests of the
+//! NVIDIA provider. [`Fake`] implements `puron_engine::nvidia::Interface`
+//! and answers from a [`Script`] written in code: the outcome of each
+//! `open` call in turn (the n-th `open` of the fake is the n-th read that
+//! opens NVML), and, per PCI address, the GPU's name and temperature or
+//! an error from one of its calls. Every call is logged in order, with
+//! the address it names.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use puron_engine::nvidia::{Gpu, Interface, OpenError, Session};
 
-/// One entry of the call log.
+/// One entry of the call log: the call and, for the calls about one
+/// GPU, its PCI address.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Call {
     Open,
@@ -19,7 +22,9 @@ pub enum Call {
     Close,
 }
 
-/// What one `open` call gives.
+/// What one `open` call gives: a session (`Ok`),
+/// `OpenError::LibraryMissing` (`Missing`), or `OpenError::InitFailed`
+/// (`InitFail`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Opens {
     Ok,
@@ -27,7 +32,11 @@ pub enum Opens {
     InitFail,
 }
 
-/// What one address gives.
+/// What the GPU at one PCI address gives. `Good` holds its name and its
+/// temperature in degrees Celsius. With `DeviceError` the session's
+/// `device` call fails; with `NameError` or `TemperatureError` that one
+/// call fails, and the other answers as the default GPU of [`good`] does
+/// (name `GPU <address>`, 50 °C).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Answer {
     Good(String, u32),
@@ -36,16 +45,19 @@ pub enum Answer {
     TemperatureError,
 }
 
-/// A script of the fake.
+/// What the fake answers.
 #[derive(Clone, Debug)]
 pub struct Script {
-    /// The outcome of the n-th `open`; the last one repeats.
+    /// The outcomes of the first, second, ... `open` calls; the last one
+    /// repeats for every later call. Must not be empty.
     pub opens: Vec<Opens>,
-    /// Per address; any other address as [`good`] gives it.
+    /// The answer per PCI address. An address not listed answers as in
+    /// [`good`].
     pub gpus: HashMap<String, Answer>,
 }
 
-/// The [`good`] answer for `pci`.
+/// The answer of [`good`] for `pci`: `NVIDIA GeForce RTX 3060` at
+/// 45 °C for `0000:01:00.0`, `GPU <pci>` at 50 °C for any other address.
 fn good_answer(pci: &str) -> Answer {
     if pci == "0000:01:00.0" {
         Answer::Good("NVIDIA GeForce RTX 3060".into(), 45)
@@ -77,31 +89,34 @@ fn good_name(name: &str, temperature: u32) -> Answer {
     Answer::Good(name.into(), temperature)
 }
 
-/// Every `open` succeeds; every address gives a name and a temperature.
+/// Every `open` succeeds, and every address gives a name and a
+/// temperature (see `good_answer`).
 pub fn good() -> Script {
     script(&[Opens::Ok], &[])
 }
 
-/// NVML is missing at every `open`.
+/// Every `open` fails as if the NVML library were not installed.
 pub fn missing() -> Script {
     script(&[Opens::Missing], &[])
 }
 
-/// NVML fails to initialize at every `open`.
+/// Every `open` finds the library, but its initialization fails.
 pub fn initfail() -> Script {
     script(&[Opens::InitFail], &[])
 }
 
-/// Missing at the first `open`, then as [`good`].
+/// The library is missing at the first `open`; from the second `open`
+/// on, everything answers as in [`good`].
 pub fn flaky() -> Script {
     script(&[Opens::Missing, Opens::Ok], &[])
 }
 
-/// NVML results for the GPUs that are left out (an empty or blank name,
-/// a temperature of 0, a device, name or temperature error) and for the
-/// edge case kept (a name with spaces, read untrimmed, at 1 degree), for
-/// the first seven addresses of the sysfs fixture `pci-status`, in its
-/// address order.
+/// Answers for the first seven addresses of the sysfs fixture
+/// `pci-status`, in its address order. The first six are GPUs that the
+/// provider must leave out: an empty name, a name of spaces only, a
+/// temperature of 0, and an error from `device`, from `name` and from
+/// `temperature`. The seventh must be kept: a name with spaces around
+/// it, at 1 °C.
 pub fn left() -> Script {
     script(
         &[Opens::Ok],
@@ -117,7 +132,8 @@ pub fn left() -> Script {
     )
 }
 
-/// Two named GPUs, for the sysfs fixture `pci-two`.
+/// Two GPUs, for the sysfs fixture `pci-two`: `A` at 0 °C and `B` at
+/// 50 °C.
 pub fn names() -> Script {
     script(
         &[Opens::Ok],
@@ -128,7 +144,9 @@ pub fn names() -> Script {
     )
 }
 
-/// The fake interface; clones share the script position and the log.
+/// The fake NVML. Clones share the count of `open` calls and the log,
+/// so a test can keep one clone to read the log while the provider owns
+/// another.
 #[derive(Clone)]
 pub struct Fake {
     script: Arc<Script>,
@@ -137,6 +155,8 @@ pub struct Fake {
 }
 
 impl Fake {
+    /// A fake that answers from `script`, with no `open` call counted
+    /// and an empty log.
     pub fn new(script: Script) -> Self {
         Fake {
             script: Arc::new(script),
@@ -145,12 +165,13 @@ impl Fake {
         }
     }
 
-    /// The calls so far.
+    /// The calls so far, in order.
     pub fn log(&self) -> Vec<Call> {
         self.log.lock().unwrap().clone()
     }
 
-    /// Empties the log.
+    /// Empties the log. The count of `open` calls is kept, so the script
+    /// goes on where it was.
     pub fn clear(&self) {
         self.log.lock().unwrap().clear();
     }
@@ -181,6 +202,7 @@ impl Interface for Fake {
     }
 }
 
+/// A session opened by the fake; it logs each call into the fake's log.
 struct FakeSession(Fake);
 
 impl Session for FakeSession {
@@ -202,6 +224,7 @@ impl Session for FakeSession {
     }
 }
 
+/// The GPU at `pci` in a session; it answers from `answer`.
 struct FakeGpu<'a> {
     fake: &'a Fake,
     pci: String,

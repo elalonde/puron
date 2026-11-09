@@ -1,19 +1,24 @@
-//! The limit helper's self-test.
-//! Each case runs itself again as a child under `timeout 10`; the child
-//! takes the case's body under a limit of 1 s.
+//! Tests of `puron_testkit::limit`, which must end a hung test.
+//!
+//! Each case runs its own test again in a child process, under
+//! `timeout 10` as a backstop, and the child runs the case's body under a
+//! limit of 1 s. The parent then checks how the child ended.
 
 #![allow(non_snake_case)] // case names: c_<id>__<case>
 
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+/// Set in the child, which then runs the case's body under the limit.
 const MODE: &str = "PURON_C_TESTS_4_CHILD";
 
 fn is_child() -> bool {
     std::env::var_os(MODE).is_some()
 }
 
-/// Runs `test_name` again under `timeout 10`: exit code, time, stderr.
+/// Runs the test `test_name` of this binary again in a child process,
+/// under `timeout 10`, and returns its exit code (`None` if a signal ended
+/// it), the time it took and its standard error.
 fn child(test_name: &str) -> (Option<i32>, Duration, String) {
     let exe = std::env::current_exe().expect("current test binary");
     let start = Instant::now();
@@ -31,6 +36,9 @@ fn child(test_name: &str) -> (Option<i32>, Duration, String) {
     )
 }
 
+/// A body that sleeps 60 s under a limit of 1 s: the child must exit
+/// with code 124 within 1.5 s and print the time-limit line with its ID
+/// and the limit to standard error.
 #[test]
 fn c_tests_4__timeout() {
     if is_child() {
@@ -47,6 +55,8 @@ fn c_tests_4__timeout() {
     });
 }
 
+/// A body that returns at once under a limit of 1 s: the child must exit
+/// with code 0.
 #[test]
 fn c_tests_4__quick() {
     if is_child() {

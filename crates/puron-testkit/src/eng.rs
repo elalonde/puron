@@ -1,5 +1,8 @@
-//! Engine test fixtures: a virtual clock, a scripted fake provider whose
-//! calls can hang, and a recorded engine handle.
+//! Fixtures for the tests of the engine and of the code that drives it: a
+//! virtual clock that moves only when the test moves it, a fake provider
+//! that follows a script (its calls can take time, hang or panic) and
+//! records its calls, and a stand-in engine handle that records its
+//! calls.
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, VecDeque};
@@ -14,15 +17,22 @@ use puron_engine::engine::Adapters;
 use puron_engine::registry::{ProviderKind, ReadOutcome, Source, StartOutcome, PROVIDERS};
 
 thread_local! {
-    /// The thread is one of the clock's (an engine thread, or one of
-    /// `VirtualClock::spawn`): its waits count as idle.
+    /// Whether the current thread is counted by the virtual clock: an
+    /// engine thread, or one started by `VirtualClock::spawn`. The clock
+    /// moves only while every counted thread waits on it.
     static COUNTED: Cell<bool> = const { Cell::new(false) };
 }
 
-/// The virtual clock: time 0 at creation, moved only by `advance_to`. The
-/// clock moves only when every counted thread waits on it, so each
-/// wait that ends at or before the new time runs, in time order,
-/// before `advance_to` returns.
+/// A clock for engine tests whose time moves only when the test calls
+/// `advance_to`; it starts at 0. It implements `puron_engine::clock::Clock`,
+/// so an engine built on it blocks only in this clock's `wait_until`.
+///
+/// The clock counts the engine's threads through the `Clock` hooks. It
+/// moves only when every counted thread is waiting on it, and it stops
+/// at each waiting thread's deadline on the way. So when `advance_to`
+/// returns, every wait that ends at or before the new time has ended,
+/// in time order, and every counted thread is waiting again (or has
+/// ended): the test sees a settled engine at a known time.
 pub struct VirtualClock {
     nanos: AtomicU64,
     m: Mutex<Inner>,
@@ -30,15 +40,20 @@ pub struct VirtualClock {
 }
 
 struct Inner {
-    /// Counted threads that do not wait.
+    /// Counted threads that are not waiting on the clock.
     running: usize,
-    /// Counted threads that wait.
+    /// Counted threads that are waiting on the clock.
     waiting: usize,
+    /// The number of wake-ups so far; a waiting thread sleeps until it
+    /// changes.
     epoch: u64,
+    /// The deadlines of the waiting threads, each with the number of
+    /// threads that wait for it.
     deadlines: BTreeMap<Duration, usize>,
 }
 
 impl VirtualClock {
+    /// A clock at time 0, with no counted thread.
     pub fn new() -> Arc<VirtualClock> {
         Arc::new(VirtualClock {
             nanos: AtomicU64::new(0),
@@ -52,10 +67,13 @@ impl VirtualClock {
         })
     }
 
+    /// The same clock as the `Arc<dyn Clock>` that the engine takes.
     pub fn dyn_clock(self: &Arc<Self>) -> Arc<dyn Clock> {
         Arc::clone(self) as Arc<dyn Clock>
     }
 
+    /// Wakes every waiting thread. They count as running until they wait
+    /// again.
     fn broadcast(&self, g: &mut Inner) {
         g.running += g.waiting;
         g.waiting = 0;
@@ -63,7 +81,11 @@ impl VirtualClock {
         self.cv.notify_all();
     }
 
-    /// Moves the clock to `t` seconds, through every deadline before it.
+    /// Moves the clock to `t` seconds. It first waits until every counted
+    /// thread waits; then it moves to the earliest deadline up to `t`,
+    /// wakes the waiting threads, and repeats until it has reached `t`
+    /// and every counted thread waits again. Panics if `t` is before the
+    /// current time. A counted thread that never waits makes it block.
     pub fn advance_to(&self, t: f64) {
         let t = secs(t);
         assert!(t >= self.now(), "the clock does not go back");
@@ -84,16 +106,19 @@ impl VirtualClock {
         }
     }
 
-    /// Lets every counted thread run until it waits; the clock stays.
+    /// Waits until every counted thread waits on the clock, without
+    /// moving it.
     pub fn settle(&self) {
         self.advance_to(self.secs());
     }
 
+    /// The current time in seconds.
     pub fn secs(&self) -> f64 {
         self.now().as_secs_f64()
     }
 
-    /// A counted thread: `settle` and `advance_to` wait for it.
+    /// Runs `body` on a new counted thread, which `settle` and
+    /// `advance_to` wait for, as for an engine thread.
     pub fn spawn<F: FnOnce() + Send + 'static>(self: &Arc<Self>, body: F) {
         puron_engine::clock::spawn(&self.dyn_clock(), "test".into(), body);
     }
@@ -161,11 +186,14 @@ impl Clock for VirtualClock {
     }
 }
 
+/// `t` seconds as a `Duration`.
 pub fn secs(t: f64) -> Duration {
     Duration::from_secs_f64(t)
 }
 
-/// A temperature reading of `provider`.
+/// A temperature reading of `provider` at `position`, named `name`, with
+/// `name` also as its key and the value `value`; the other fields are
+/// empty.
 pub fn reading(provider: Provider, position: u32, name: &str, value: f64) -> RawReading {
     RawReading {
         provider,
@@ -184,33 +212,48 @@ pub fn reading(provider: Provider, position: u32, name: &str, value: f64) -> Raw
     }
 }
 
-/// R1: `a` 40 and `b` 50.
+/// A read that gives two temperatures of `p`: `a` at 40 and `b` at 50.
 pub fn r1(p: Provider) -> ReadOutcome {
     ReadOutcome::Readings(vec![reading(p, 0, "a", 40.0), reading(p, 1, "b", 50.0)])
 }
 
-/// R2: `a` 41 and `b` 51.
+/// The two readings of `r1` with other values: `a` at 41 and `b` at 51.
 pub fn r2(p: Provider) -> ReadOutcome {
     ReadOutcome::Readings(vec![reading(p, 0, "a", 41.0), reading(p, 1, "b", 51.0)])
 }
 
+/// What one `start` call of a [`Fake`] does. `Available` and
+/// `Unavailable` return that outcome at once; `Panics` panics.
 #[derive(Clone, Debug)]
 pub enum StartStep {
     Available,
     Unavailable,
-    /// Available after `d` seconds.
+    /// Returns `Available` after the given number of seconds of clock
+    /// time.
     Takes(f64),
-    /// Available when released.
+    /// Waits until the test calls `Fake::release_start`, then returns
+    /// `Available`.
     Hangs,
     Panics,
 }
 
+/// What one `read` call of a [`Fake`] does.
+///
+/// A provider of kind `ProviderKind::ChildRun` watches the stop
+/// descriptor while a read waits: when it becomes readable, the read
+/// returns `ReadOutcome::Failed` at once and the call records
+/// `stop_seen`. An in-process provider does not watch it.
 #[derive(Clone, Debug)]
 pub enum ReadStep {
+    /// Returns the outcome at once.
     Gives(ReadOutcome),
+    /// Returns the outcome after the given number of seconds of clock
+    /// time.
     Takes(f64, ReadOutcome),
-    /// Gives what `release_read` passes.
+    /// Waits until the test calls `Fake::release_read`, then returns the
+    /// outcome given there.
     Hangs,
+    /// Panics with the message `fake read panics`.
     Panics,
     /// Panics with this text as the payload (`&'static str`).
     PanicsText(&'static str),
@@ -218,12 +261,14 @@ pub enum ReadStep {
     PanicsValue,
 }
 
+/// What one `stop` call of a [`Fake`] does: return at once, or panic.
 #[derive(Clone, Debug)]
 pub enum StopStep {
     AtOnce,
     Panics,
 }
 
+/// Which method of `Source` a recorded call was.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CallKind {
     Start,
@@ -231,20 +276,31 @@ pub enum CallKind {
     Stop,
 }
 
-/// One entry of the call record.
+/// One call of the engine to a [`Fake`], as recorded. Times are in
+/// seconds of clock time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Call {
     pub provider: Provider,
     pub call: CallKind,
-    /// The number of `start` calls up to this call.
+    /// The number of `start` calls so far, this one included; it tells
+    /// which start of the provider a read belongs to.
     pub generation: u32,
+    /// When the call began.
     pub start: f64,
+    /// When the call returned, or was about to panic; `None` while it
+    /// runs.
     pub end: Option<f64>,
+    /// When a waiting read saw the stop descriptor become readable (see
+    /// [`ReadStep`]); `None` if it did not.
     pub stop_seen: Option<f64>,
 }
 
-/// A scripted fake provider. Each script is used in turn; its
-/// last step repeats.
+/// A fake provider adapter (`Source`) that follows three scripts, one
+/// each for `start`, `read` and `stop`, and records every call. Each
+/// call takes the next step of its script; the last step repeats for
+/// every later call. Clones share the scripts and the record, so the
+/// test keeps one clone and gives another to the engine (see
+/// [`adapters`]).
 #[derive(Clone)]
 pub struct Fake(Arc<FakeInner>);
 
@@ -255,6 +311,7 @@ struct FakeInner {
     s: Mutex<FakeState>,
 }
 
+/// The scripts, the record, and the two release signals of a [`Fake`].
 struct FakeState {
     starts: VecDeque<StartStep>,
     reads: VecDeque<ReadStep>,
@@ -265,6 +322,8 @@ struct FakeState {
     read_gate: Option<ReadOutcome>,
 }
 
+/// The next step of a script; the last step stays to repeat. Panics on
+/// an empty script.
 fn step<T: Clone>(q: &mut VecDeque<T>) -> T {
     if q.len() > 1 {
         q.pop_front().unwrap()
@@ -274,8 +333,10 @@ fn step<T: Clone>(q: &mut VecDeque<T>) -> T {
 }
 
 impl Fake {
-    /// A fake with `start` available, every `read` empty readings, `stop`
-    /// at once.
+    /// A fake for `provider` that waits on `clock`. Every `start` returns
+    /// `Available`, every `read` returns an empty list of readings, and
+    /// every `stop` returns at once, until a script is set. The provider's
+    /// kind comes from `PROVIDERS`.
     pub fn new(clock: Arc<dyn Clock>, provider: Provider) -> Fake {
         let kind = PROVIDERS
             .iter()
@@ -298,6 +359,7 @@ impl Fake {
         }))
     }
 
+    /// Sets the `start` script; `reads` and `stops` set the other two.
     pub fn starts(self, steps: impl IntoIterator<Item = StartStep>) -> Fake {
         self.0.s.lock().unwrap().starts = steps.into_iter().collect();
         self
@@ -313,7 +375,8 @@ impl Fake {
         self
     }
 
-    /// Replaces the scripts of the steps not yet used.
+    /// Replaces the rest of the `read` script, while the fake is in use;
+    /// `script_starts` and `script_stops` do the same for the other two.
     pub fn script_reads(&self, steps: impl IntoIterator<Item = ReadStep>) {
         self.0.s.lock().unwrap().reads = steps.into_iter().collect();
     }
@@ -330,23 +393,26 @@ impl Fake {
         self.0.provider
     }
 
-    /// Releases a hung `start` (available).
+    /// Lets a hanging `start` return `Available`. If no `start` hangs
+    /// yet, the next one that hangs returns at once.
     pub fn release_start(&self) {
         self.0.s.lock().unwrap().start_gate = true;
         self.0.clock.wake();
     }
 
-    /// Releases a hung `read` with `outcome`.
+    /// Lets a hanging `read` return `outcome`. If no `read` hangs yet, the
+    /// next one that hangs returns it at once.
     pub fn release_read(&self, outcome: ReadOutcome) {
         self.0.s.lock().unwrap().read_gate = Some(outcome);
         self.0.clock.wake();
     }
 
+    /// Every call so far, in the order the calls began.
     pub fn calls(&self) -> Vec<Call> {
         self.0.s.lock().unwrap().calls.clone()
     }
 
-    /// The start times of the calls of `kind`.
+    /// The times at which the calls of `kind` began, in order.
     pub fn times(&self, kind: CallKind) -> Vec<f64> {
         self.calls()
             .iter()
@@ -355,6 +421,7 @@ impl Fake {
             .collect()
     }
 
+    /// The number of calls of `kind` so far.
     pub fn count(&self, kind: CallKind) -> usize {
         self.times(kind).len()
     }
@@ -363,6 +430,7 @@ impl Fake {
         self.0.clock.now().as_secs_f64()
     }
 
+    /// Records the start of a call and returns its index in the record.
     fn begin(&self, call: CallKind) -> usize {
         let start = self.now();
         let mut s = self.0.s.lock().unwrap();
@@ -386,8 +454,10 @@ impl Fake {
         self.0.s.lock().unwrap().calls[i].end = Some(t);
     }
 
-    /// Waits until `gate` gives a value, `until` passes, or (child-run)
-    /// the stop signal fires. `None` when stopped or timed out.
+    /// Waits on the clock until `gate` gives a value, the clock reaches
+    /// `until`, or, for a child-run provider, `stop` becomes readable,
+    /// which is recorded in the call `i`. Returns the value, or `None` in
+    /// the two other cases.
     fn wait<T>(
         &self,
         i: usize,
@@ -423,6 +493,7 @@ impl Fake {
     }
 }
 
+/// Whether `fd` can be read now, without waiting.
 fn readable(fd: BorrowedFd<'_>) -> bool {
     let mut p = libc::pollfd {
         fd: fd.as_raw_fd(),
@@ -501,7 +572,9 @@ impl Source for Fake {
     }
 }
 
-/// The adapters of the engine: each provider's fake from `fakes`.
+/// The `Adapters` for an engine under test: for each provider, a clone of
+/// its fake from `fakes`. Panics when the engine asks for a provider that
+/// has no fake.
 pub fn adapters(fakes: &[Fake]) -> Adapters {
     let fakes = fakes.to_vec();
     Box::new(move |p| {
@@ -514,7 +587,7 @@ pub fn adapters(fakes: &[Fake]) -> Adapters {
     })
 }
 
-/// One call on the recorded engine handle, in order.
+/// One recorded call on a [`Handle`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum HandleCall {
     Start(puron_core::settings::Settings),
@@ -522,17 +595,19 @@ pub enum HandleCall {
     SetInterval(u32),
     SetProviders(puron_core::settings::Settings),
     Shutdown,
-    /// The subscription's wait began.
+    /// A `next` call began to wait for a snapshot.
     WaitBegin,
-    /// The subscription's wait ended with a snapshot.
+    /// A `next` call got a snapshot and returns it.
     WaitEnd,
-    /// A read of the subscription without waiting.
+    /// A `try_next` call.
     TryNext,
 }
 
-/// An engine handle that records its calls; the test hands it snapshots
-/// (`deliver`), each of which wakes one subscription wait; `shutdown`
-/// sleeps the given real time.
+/// A stand-in for the engine's handle, for the tests of the code that
+/// drives the engine. It has the handle's methods, and each records the
+/// call. It makes no snapshot of its own: the test hands one over with
+/// `deliver`, and the next `next` or `try_next` takes it. `shutdown`
+/// blocks for the real time given to `new`.
 pub struct Handle {
     m: Mutex<(Vec<HandleCall>, Option<puron_engine::engine::Snapshot>)>,
     cv: Condvar,
@@ -540,6 +615,7 @@ pub struct Handle {
 }
 
 impl Handle {
+    /// A handle with an empty record whose `shutdown` takes `shutdown`.
     pub fn new(shutdown: Duration) -> Arc<Handle> {
         Arc::new(Handle {
             m: Mutex::new((Vec::new(), None)),
@@ -553,6 +629,8 @@ impl Handle {
         self.cv.notify_all();
     }
 
+    /// Records the call. `poll_now`, `set_interval` and `set_providers`
+    /// likewise only record theirs.
     pub fn start(&self, s: &puron_core::settings::Settings) {
         self.rec(HandleCall::Start(s.clone()));
     }
@@ -565,10 +643,13 @@ impl Handle {
     pub fn set_providers(&self, s: &puron_core::settings::Settings) {
         self.rec(HandleCall::SetProviders(s.clone()));
     }
+    /// Records the call, then sleeps for the time given to `new`.
     pub fn shutdown(&self) {
         self.rec(HandleCall::Shutdown);
         std::thread::sleep(self.shutdown);
     }
+    /// Records `WaitBegin`, waits without a limit until a snapshot is
+    /// delivered, records `WaitEnd` and returns the snapshot.
     pub fn next(&self) -> puron_engine::engine::Snapshot {
         let mut g = self.m.lock().unwrap();
         g.0.push(HandleCall::WaitBegin);
@@ -582,20 +663,26 @@ impl Handle {
             g = self.cv.wait(g).unwrap();
         }
     }
+    /// Records `TryNext` and returns the delivered snapshot not yet
+    /// taken, if there is one.
     pub fn try_next(&self) -> Option<puron_engine::engine::Snapshot> {
         let mut g = self.m.lock().unwrap();
         g.0.push(HandleCall::TryNext);
         g.1.take()
     }
-    /// Hands a snapshot to the subscription (it replaces an unread one).
+    /// Hands over a snapshot for `next` or `try_next` to take. It replaces
+    /// a delivered snapshot that was not taken yet, as the engine keeps
+    /// only its latest snapshot.
     pub fn deliver(&self, s: puron_engine::engine::Snapshot) {
         self.m.lock().unwrap().1 = Some(s);
         self.cv.notify_all();
     }
+    /// The record so far, in order.
     pub fn calls(&self) -> Vec<HandleCall> {
         self.m.lock().unwrap().0.clone()
     }
-    /// Waits (real time, at most `max`) until `f` holds for the record.
+    /// Waits, in real time and at most `max`, until `f` holds for the
+    /// record; returns whether it did.
     pub fn wait_for(&self, max: Duration, f: impl Fn(&[HandleCall]) -> bool) -> bool {
         let end = std::time::Instant::now() + max;
         let mut g = self.m.lock().unwrap();

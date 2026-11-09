@@ -1,33 +1,46 @@
-//! Builder of the Config fixtures.
+//! Builds settings directories for the tests of `puron_config::Config`
+//! and of the programs that use it.
 //!
-//! A fixture is built at test time into a fresh temporary directory
-//! `<tmp>` from its description `fixtures/cfg/<name>.txt`, because git
-//! keeps no mode 000 and no read-only directory. The configuration root
-//! is `<tmp>/config`, the system data directory of the `sysdefault`
-//! fixtures is `<tmp>/data`.
+//! The settings are stored the way cosmic-config stores them: one file
+//! per key (an entry), holding the value in RON, in the directory
+//! `<root>/cosmic/io.github.elalonde.Puron/v1`. A fixture is built at
+//! test time, into a fresh temporary directory `<tmp>`, from its
+//! description `fixtures/cfg/<name>.txt`, because git cannot keep a file
+//! of mode 000 or a read-only directory. The configuration root is
+//! `<tmp>/config`; the system data directory, which holds the system
+//! defaults (the `sysdefault-*` fixtures use it), is `<tmp>/data`.
 //!
-//! Description lines, in order (`#` starts a comment):
-//! - `<key> <RON value>`: the entry `<key>` holds the value, no newline;
-//! - `@base <name>`: the lines of another description, here;
-//! - `@dir <path>`: entries go under `<root>/<path>` (each `@dir` adds
-//!   one; without one, `cosmic/io.github.elalonde.Puron/v1`);
-//! - `@hex <key> <hex bytes>`: the entry holds these bytes;
-//! - `@mode <key> <octal>`: the entry's mode, set after writing;
+//! A description has one item per line; blank lines and lines that start
+//! with `#` are skipped:
+//! - `<key> <value>`: the entry `<key>` holds the rest of the line as it
+//!   is (a RON value), without a newline;
+//! - `@base <name>`: the lines of the description `<name>`, read at this
+//!   point;
+//! - `@dir <path>`: the entries are written under `<root>/<path>`. Each
+//!   `@dir` adds one more directory that gets every entry; without any,
+//!   the one directory is `ID_DIR`;
+//! - `@hex <key> <hex bytes>`: the entry holds these bytes, for content
+//!   that is not text;
+//! - `@mode <key> <octal>`: the entry's mode, set after all entries are
+//!   written;
 //! - `@mkdir <path>`: an empty directory `<root>/<path>`;
-//! - `@data <key> <RON value>`: the entry in
-//!   `<tmp>/data/cosmic/io.github.elalonde.Puron/v1/`;
-//! - `@readonly`: `chmod a-w` on the ID directory, the version
-//!   directory and each entry.
+//! - `@data <key> <value>`: an entry in the system data directory, under
+//!   `ID_DIR`;
+//! - `@readonly`: `chmod a-w` on `<root>/cosmic/io.github.elalonde.Puron`,
+//!   on `<root>/ID_DIR` and on each entry in it.
 
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-/// The entry directory, relative to a root.
+/// The directory of Puron's entries, relative to a configuration root or
+/// to the system data directory.
 pub const ID_DIR: &str = "cosmic/io.github.elalonde.Puron/v1";
 
-/// A built fixture; dropping it makes its tree writable and removes it.
+/// A built fixture. Dropping it makes its whole tree writable again and
+/// removes it.
 pub struct Cfg {
+    /// The temporary directory that holds the fixture.
     pub tmp: PathBuf,
     /// The configuration root, `<tmp>/config`.
     pub root: PathBuf,
@@ -36,20 +49,25 @@ pub struct Cfg {
 }
 
 impl Cfg {
-    /// `<root>/cosmic/io.github.elalonde.Puron/v1`.
+    /// The directory of the entries under the configuration root,
+    /// `<root>/ID_DIR`.
     pub fn id_dir(&self) -> PathBuf {
         self.root.join(ID_DIR)
     }
 
-    /// The bytes of the entry `key` under the ID directory.
+    /// The bytes of the entry `key` in `id_dir`; panics if it cannot be
+    /// read.
     pub fn entry(&self, key: &str) -> Vec<u8> {
         let path = self.id_dir().join(key);
         std::fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
     }
 
-    /// Every path under the root with its kind and content (`d` for a
-    /// directory, `f <bytes>` for a file); entries that cannot be read
-    /// are listed with their mode only.
+    /// Every path under the configuration root, relative to it, with a
+    /// description: `d <mode>` for a directory, `f <mode> <bytes>` for
+    /// anything else (mode in octal, bytes as a debug-printed list). Tests
+    /// compare the trees before and after an operation. A file that cannot
+    /// be read is listed with an empty content; the contents of a
+    /// directory that cannot be read are not listed.
     pub fn tree(&self) -> BTreeMap<PathBuf, String> {
         let mut out = BTreeMap::new();
         walk(&self.root, &self.root, &mut out);
@@ -57,6 +75,7 @@ impl Cfg {
     }
 }
 
+/// Adds every path under `dir` to `out`, for `Cfg::tree`.
 fn walk(base: &Path, dir: &Path, out: &mut BTreeMap<PathBuf, String>) {
     let Ok(list) = std::fs::read_dir(dir) else {
         return;
@@ -85,6 +104,8 @@ impl Drop for Cfg {
     }
 }
 
+/// Gives every directory under `path` mode 700 and every file mode 600,
+/// so that a fixture with read-only or unreadable parts can be removed.
 fn make_writable(path: &Path) {
     let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
     if let Ok(list) = std::fs::read_dir(path) {
@@ -99,6 +120,7 @@ fn make_writable(path: &Path) {
     }
 }
 
+/// A parsed description, with every `@base` included.
 #[derive(Default)]
 struct Desc {
     dirs: Vec<String>,
@@ -109,6 +131,8 @@ struct Desc {
     readonly: bool,
 }
 
+/// Adds the lines of the description `name` to `desc`; a later line for
+/// the same entry replaces an earlier one.
 fn parse(name: &str, desc: &mut Desc) {
     let path = crate::fixture("cfg", &format!("{name}.txt"));
     let text =
@@ -149,7 +173,8 @@ fn parse(name: &str, desc: &mut Desc) {
     }
 }
 
-/// Builds the fixture described by `fixtures/cfg/<name>.txt`.
+/// Builds the fixture described by `fixtures/cfg/<name>.txt` into a new
+/// temporary directory. Panics on a malformed description.
 pub fn build(name: &str) -> Cfg {
     let mut desc = Desc::default();
     parse(name, &mut desc);
@@ -206,7 +231,8 @@ fn set_readonly(path: &Path) {
     std::fs::set_permissions(path, perms).expect("chmod a-w");
 }
 
-/// Writes `bytes` to `path` (for a test that changes an entry by hand).
+/// Writes `bytes` to `path`, creating its parent directories, for a test
+/// that changes an entry by hand.
 pub fn write(path: &Path, bytes: &[u8]) {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).expect("create dir");
@@ -214,10 +240,12 @@ pub fn write(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).expect("write");
 }
 
-/// The `puron-cfg-writer` helper: stores `key` = `ron` (the value in
-/// RON, as a description line holds it) into the configuration root
-/// `root` through `Config::store`. Returns the exit code: 0 on *stored*,
-/// 1 otherwise (a value this helper cannot read included).
+/// The work of the `puron-cfg-writer` program: stores the value `ron`
+/// (written as a description line writes it) for `key` into the
+/// configuration root `root` through `Config::store`, as another process
+/// would. Returns the exit code: 0 when `store` returns
+/// `StoreResult::Stored`, 1 otherwise. A value it cannot parse also gives
+/// 1, and so does the key `PINNED`, whose values it does not handle.
 #[cfg(feature = "cfg-writer")]
 pub fn writer_main(root: &Path, key: &str, ron: &str) -> i32 {
     use puron_config::{Config, StoreResult, Value};

@@ -1,15 +1,18 @@
-//! `puron-soak`, for the leak runs: the engine and the view-model
-//! building without a GUI, at poll interval 1 s, with a fake liquidctl
-//! that hangs every tenth run.
+//! A long-running load for finding leaks: it runs the engine with the
+//! real providers, polling every second, and builds from each snapshot
+//! what the applet would show, without a GUI. By default liquidctl is a
+//! fake (see `FAKE`) that hangs on every tenth run.
 //!
 //! `puron-soak [--on <keys>] [--seconds <n>] [--liquidctl fake|real]`
 //!
-//! `<keys>`: a comma list of `lmsensors`, `liquidctl`, `nvidia`,
-//! `udisks2`, `nvme` (default all five). Runs until SIGTERM or for
-//! `<n>` seconds, then shuts the engine down and exits 0.
+//! `<keys>` is a comma-separated list of `lmsensors`, `liquidctl`,
+//! `nvidia`, `udisks2` and `nvme` (default: all five). It runs until
+//! SIGTERM or for `<n>` seconds, then shuts the engine down, prints the
+//! number of snapshots it handled and exits 0.
 //!
-//! `puron-soak --dump <root>`: the rows dump, with the settings of the
-//! configuration root `<root>` (`puron_testkit::d5`).
+//! `puron-soak --dump <root>` instead prints the text dump of what Puron
+//! would show, with the settings stored under the configuration root
+//! `<root>` (see `puron_testkit::d5`).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,8 +26,9 @@ use puron_engine::clock::SystemClock;
 use puron_engine::engine::{Engine, LmReport};
 use puron_engine::registry::{self, Source};
 
-/// The good fake liquidctl and the slow one in one script, the slow one
-/// at every tenth run; the count is kept in a file beside the script.
+/// A fake `liquidctl` program. It counts its runs in the file `count`
+/// beside it. Every tenth run prints the start of a JSON list, `[{`, and
+/// then hangs for 100 s; every other run prints `G.json` and exits 0.
 const FAKE: &str = "#!/bin/sh
 # Fake liquidctl of puron-soak.
 d=$(dirname \"$0\")
@@ -35,6 +39,7 @@ cat \"$d/G.json\"; exit 0
 ";
 const G_JSON: &str = include_str!("../../fixtures/lqc/G.json");
 
+/// Set by SIGTERM; the main loop then ends.
 static STOP: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn on_sigterm(_: libc::c_int) {
@@ -47,8 +52,9 @@ fn usage() -> ! {
     std::process::exit(2);
 }
 
-/// Writes the fake into a new directory and puts it first on `PATH`;
-/// the liquidctl provider looks up `PATH` when it starts.
+/// Writes the fake and its `G.json` into a new temporary directory, puts
+/// that directory first on `PATH`, and returns it. The liquidctl provider
+/// looks up `PATH` when it starts, so it finds the fake.
 fn install_fake() -> PathBuf {
     let dir = std::env::temp_dir().join(format!("puron-soak-{}", std::process::id()));
     std::fs::create_dir(&dir).expect("puron-soak: fake directory");
@@ -68,6 +74,9 @@ fn install_fake() -> PathBuf {
     dir
 }
 
+/// The settings of a run: a poll interval of 1 s, the providers in `on`
+/// switched on and every other provider switched off; the remaining
+/// settings keep their defaults.
 fn settings(on: &[Provider]) -> Settings {
     Settings {
         poll_interval_secs: 1,
@@ -157,7 +166,10 @@ fn main() {
         }),
     );
 
-    // The view-model of each snapshot (rows, panel, popup), dropped.
+    // From each new snapshot, build what the applet would show (the shown
+    // rows, the menu and the panel items) and drop it at once, so that a
+    // leak in that code grows with the length of the run. A snapshot is
+    // looked for every 100 ms.
     let start = Instant::now();
     let mut last_key = None;
     let mut snapshots = 0u64;
