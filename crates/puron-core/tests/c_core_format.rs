@@ -1,6 +1,7 @@
-//! Tests of the value text, 2 s each. Values are given inline;
-//! c_core_format_1 reads the raw fixture capture.json. Output is written
-//! as the row text: number text, then the English suffix, or
+//! Tests of value text. Each test must finish within 2 seconds
+//! (`puron_testkit::limit`). Values are given inline, except in
+//! c_core_format_1, which reads the fixture capture.json. Each result is
+//! compared as one string: the number, then an English unit symbol, or
 //! "no value".
 
 use puron_core::format::{self, Unit};
@@ -14,7 +15,7 @@ const F: Class = Class::Fan;
 const V: Class = Class::Voltage;
 const P: Class = Class::Power;
 
-/// The English unit suffixes.
+/// An English symbol for each unit; empty when the unit is hidden.
 fn suffix(unit: Option<Unit>) -> &'static str {
     match unit {
         None => "",
@@ -33,7 +34,7 @@ fn text(class: Class, value: Option<f64>, settings: &Settings) -> String {
     }
 }
 
-/// Texts of `values`, all of `class`.
+/// The texts of `values`, each formatted as a value of `class`.
 fn texts(class: Class, values: &[f64], settings: &Settings) -> Vec<String> {
     values
         .iter()
@@ -70,8 +71,8 @@ fn c_core_format_1() {
             .iter()
             .map(|r| text(r.class, r.value, &defaults()))
             .collect();
-        // In fixture order: the temperatures, then the fan, the CPU temp
-        // and the voltage.
+        // The rows in fixture order under the default settings: whole
+        // degrees Celsius, whole rpm, and volts with a sign and two decimals.
         assert_eq!(
             got,
             [

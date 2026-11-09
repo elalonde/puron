@@ -1,8 +1,9 @@
-//! Tests of the popup view model, 2 s each. Fixtures are under
+//! Tests of the popup's lines and layout (`menu`). Each test must finish
+//! within 2 seconds (`puron_testkit::limit`). The fixtures are under
 //! crates/puron-testkit/fixtures/raw/ (capture.json, summary.json,
-//! menu.json, rebuild.json). Settings are the defaults, the lm-sensors
-//! report is answered and `forced` is false unless a test says
-//! otherwise.
+//! menu.json, rebuild.json, cpu.json, drives.json). Unless a test says
+//! otherwise, the settings are the defaults, lm-sensors has completed a
+//! read (`Report::Answered`), and no rebuild is forced.
 
 use std::collections::BTreeMap;
 
@@ -29,7 +30,8 @@ fn menu_set(set: &str) -> Vec<RawReading> {
     sets("menu.json").remove(set).expect("X-raw-menu set")
 }
 
-/// A set of rebuild.json; its set S1 is capture.json.
+/// A set of rebuild.json. It first asserts that set S1 holds the same
+/// readings as capture.json.
 fn snapshot(set: &str) -> Vec<RawReading> {
     let json = |name| -> serde_json::Value {
         let text =
@@ -44,7 +46,7 @@ fn snapshot(set: &str) -> Vec<RawReading> {
     sets("rebuild.json").remove(set).expect("X-raw-rebuild set")
 }
 
-/// The full call: shown rows, then the menu layout.
+/// The popup layout for `raw`: `menu::shown`, then `menu::menu`.
 fn run(
     raw: &[RawReading],
     settings: &Settings,
@@ -79,8 +81,7 @@ fn settings_with(change: impl FnOnce(&mut Settings)) -> Settings {
     s
 }
 
-/// A value text as the popup would show it, unit suffix appended;
-/// `N/A` for "no value".
+/// A value text with an English unit symbol; `N/A` for "no value".
 fn text(value: &Option<Text>) -> String {
     match value {
         None => "N/A".to_string(),
@@ -98,7 +99,8 @@ fn text(value: &Option<Text>) -> String {
     }
 }
 
-/// A line as the popup would show it: name, word, default mark, value.
+/// A line as one string: the name, an English word, `(default)` on the
+/// default line, and the value, joined by spaces, empty parts left out.
 fn line(i: &Item) -> String {
     let word = match i.word {
         None => "",
@@ -118,8 +120,10 @@ fn line(i: &Item) -> String {
     parts.join(" ")
 }
 
-/// The entries in a short text notation: `# section`, `## device`, a line,
-/// `—`; the two links are `homepage` and `settings`.
+/// The entries as short strings: `# <section>` for a section title,
+/// `## <heading>` for a device heading, a line as `line` writes it, `—`
+/// for a separator, `msg sensors-detect` or `msg install` for the message,
+/// and `homepage` and `settings` for the two links.
 fn render(m: &Menu) -> Vec<String> {
     m.entries
         .iter()
@@ -150,8 +154,9 @@ fn assert_entries(m: &Menu, want: &[&str]) {
     assert_eq!(render(m), want);
 }
 
-/// The identity of the reading named `name` (all fixtures here are
-/// lm-sensors readings).
+/// The identity in class `class` of the reading of `raw` named `name`. It
+/// is built as an lm-sensors identity; the fixtures used with it hold
+/// lm-sensors readings only.
 fn id(raw: &[RawReading], class: &str, name: &str) -> String {
     let r = raw
         .iter()
@@ -160,7 +165,9 @@ fn id(raw: &[RawReading], class: &str, name: &str) -> String {
     format!("{class}/lm-sensors/{}", r.key)
 }
 
-/// What the capture shows at the default settings. It has no kernel labels.
+/// The popup entries for capture.json at the default settings.
+/// capture.json has no kernel labels, so no reading is a CPU package, and
+/// the CPU group's Maximum line is its default line.
 const CAPTURE: [&str; 26] = [
     "# temperature",
     "## CPU",
@@ -369,7 +376,8 @@ fn c_core_menu_12() {
             ],
         );
         assert!(!m.identities.iter().any(|i| i.starts_with("@maximum")));
-        // Each other class hides its whole section, and its separator.
+        // Hiding fans or voltages removes that section: its title, its line
+        // and the separator before it.
         let no_fans = lay_with(&raw, &settings_with(|s| s.show_rotation_rate = false));
         assert!(!render(&no_fans).contains(&"# fan".to_string()));
         assert_eq!(render(&no_fans).len(), CAPTURE.len() - 3);
@@ -393,7 +401,9 @@ fn c_core_menu_13() {
                 }
             }
         }
-        // F: the message and the homepage link; A: the homepage link.
+        // Set F has no lines, so its layout has the message and the
+        // homepage link; set A has only the homepage link. All three open
+        // the homepage.
         assert_eq!(urls, [url, url, url]);
     });
 }
@@ -619,7 +629,7 @@ fn c_core_menu_26() {
     });
 }
 
-/// Set `name` of the CPU fixture.
+/// Set `name` of cpu.json.
 fn cpu_set(name: &str) -> Vec<RawReading> {
     sets("cpu.json").remove(name).expect("X-raw-cpu set")
 }
@@ -628,7 +638,8 @@ fn drive_set(name: &str) -> Vec<RawReading> {
     sets("drives.json").remove(name).expect("X-raw-drives set")
 }
 
-/// The lines under the heading `heading`.
+/// The rendered entries after the entry `heading`, up to the next heading,
+/// section title or separator.
 fn under(m: &Menu, heading: &str) -> Vec<String> {
     let rendered = render(m);
     let start = rendered
@@ -640,8 +651,10 @@ fn under(m: &Menu, heading: &str) -> Vec<String> {
     rest.cloned().collect()
 }
 
-/// Sections and device headings, the groups in order, CPU first. A waiting
-/// pin's line ends the CPU group, ahead of the other device groups.
+/// The full layout of a set with many devices: the CPU group first, then
+/// GPUs, drives and the other devices, each kind by heading, then fans,
+/// voltages and power. A waiting pin's line ends the CPU group, ahead of
+/// the other device groups.
 #[test]
 fn c_core_menu_32() {
     puron_testkit::limit("C-core.menu-32", LIMIT, || {
@@ -693,7 +706,8 @@ fn c_core_menu_32() {
             "settings",
         ];
         assert_entries(&m, &want);
-        // A section heading and a device heading are labels: no identity.
+        // Section titles and device headings are not lines and have no
+        // identity.
         assert!(!m.identities.iter().any(|i| i.is_empty()));
         let settings = Settings::default();
         let shown = menu::shown(&raw, &settings);
@@ -723,7 +737,8 @@ fn c_core_menu_32() {
         let rendered = render(&w);
         assert_eq!(rendered.iter().filter(|e| *e == "## CPU").count(), 1);
         assert_eq!(rendered.iter().filter(|e| *e == waiting).count(), 1);
-        // The line counts as a line: its identity follows the CPU group's.
+        // The waiting line is a line like the others: its identity comes
+        // right after those of the CPU group's lines.
         let cpu_lines = under(&m, "## CPU").len();
         let mut want_ids = m.identities.clone();
         want_ids.insert(cpu_lines, pin.clone());
@@ -731,7 +746,8 @@ fn c_core_menu_32() {
     });
 }
 
-/// The default lines, and what a new install checks.
+/// Which line of each group is the default, and which lines a new install
+/// pins.
 #[test]
 fn c_core_menu_33() {
     puron_testkit::limit("C-core.menu-33", LIMIT, || {
@@ -754,7 +770,8 @@ fn c_core_menu_33() {
         for (set, want) in cases {
             assert_eq!(defaults(&cpu_set(set)), [want], "{set}");
         }
-        // No package: the board controller's reading goes first.
+        // With the package reading removed, the board controller's reading
+        // is the default and comes first.
         let mut raw = cpu_set("example");
         raw.retain(|r| r.key != "coretemp-isa-0000/temp1");
         assert_eq!(
@@ -764,12 +781,15 @@ fn c_core_menu_33() {
                 "coretemp: Core 0 44°C"
             ]
         );
-        // The board controller's reading alone is a group of one line.
+        // A board controller's reading alone makes a CPU group of one line,
+        // with no default mark.
         assert_eq!(
             under(&lay(&cpu_set("board")), "## CPU"),
             ["example_acpi: CPU temp 46°C"]
         );
-        // Tdie goes first, Tctl beside it stays a line, Tccd is under CPU.
+        // With Tdie, Tdie is the default line and Tctl an ordinary line.
+        // Without Tdie, Tctl is the default, and Tccd1, a part of the CPU,
+        // is in the CPU group too.
         let m = lay(&cpu_set("k10temp-tdie"));
         assert_eq!(
             under(&m, "## CPU"),
@@ -796,14 +816,15 @@ fn c_core_menu_33() {
             Some("Maximum (default) 38°C")
         );
         assert_eq!(lines.len(), 5);
-        // A chip that names no CPU has no place in its group.
+        // A reading labeled CPU on a chip that is not on the platform bus is
+        // not the board's reading of the CPU: this set has no CPU group.
         let m = lay(&cpu_set("board-label-not-platform"));
         assert!(
             !render(&m).contains(&"## CPU".to_string()),
             "{:?}",
             render(&m)
         );
-        // Each drive has its Composite.
+        // A new install pins each drive's Composite reading.
         let raw = drive_set("two-drives");
         let d = Settings::default();
         let shown = menu::shown(&raw, &d);
@@ -814,7 +835,7 @@ fn c_core_menu_33() {
                 "{pins:?}"
             );
         }
-        // No Composite: the first reading.
+        // A drive with no Composite reading still has a default line.
         let m = lay(&drive_set("no-composite"));
         assert!(
             render(&m)
@@ -823,8 +844,10 @@ fn c_core_menu_33() {
                 .count()
                 >= 1
         );
-        // A group of one line: no mark, and a new install does not check it,
-        // unless no default line exists at all.
+        // A drive with one reading has no default mark, and a new install
+        // does not pin it when another device has a default line. When no
+        // line is a default (set no-cpu), the first temperature line is
+        // pinned.
         let m = lay(&drive_set("one-sensor"));
         assert_eq!(
             render(&m)
@@ -851,14 +874,16 @@ fn c_core_menu_33() {
             shown.new_install_pins(),
             ["temperature/lm-sensors/iwlwifi_1-virtual-0/temp1"]
         );
-        // Fans and voltages never have one, and none temperature means none.
+        // Fans and voltages are never default lines: with no temperature
+        // line, a new install pins nothing.
         let shown = menu::shown(&menu_set("D"), &d);
         assert!(shown.new_install_pins().is_empty());
         assert!(shown.lines().all(|l| !l.default));
     });
 }
 
-/// A group's Maximum follows the higher reading at each poll.
+/// A group's Maximum line takes the highest value that counts each time
+/// the readings change, and covers only its own group's readings.
 #[test]
 fn c_core_menu_34() {
     puron_testkit::limit("C-core.menu-34", LIMIT, || {
@@ -878,7 +903,8 @@ fn c_core_menu_34() {
         assert_eq!(maximum(&raw, cpu), Some(60.0));
         set_value(&mut raw, "example_acpi-isa-0000/temp1", Some(40.0));
         assert_eq!(maximum(&raw, cpu), Some(48.0));
-        // A reading that does not count is left out; with none left: no value.
+        // Negative readings do not count and are left out; with no reading
+        // left, the line has no value.
         for key in ["temp1", "temp2", "temp3", "temp4", "temp5"] {
             let key = format!("coretemp-isa-0000/{key}");
             set_value(&mut raw, &key, Some(-5.0));
@@ -888,14 +914,16 @@ fn c_core_menu_34() {
         assert_eq!(maximum(&raw, cpu), None);
         let m = lay(&raw);
         assert!(under(&m, "## CPU").contains(&"Maximum N/A".to_string()));
-        // Its own group's readings only, and one reading has no such line.
+        // The drive's Maximum line covers only the drive's readings. In set
+        // no-cpu no group has two readings, so there is no Maximum line.
         let raw = drive_set("example");
         let drive = "@maximum/lm-sensors/nvme-pci-0100";
         assert_eq!(maximum(&raw, drive), Some(43.85));
         assert_eq!(maximum(&raw, cpu), Some(48.0));
         let shown = menu::shown(&cpu_set("no-cpu"), &d);
         assert!(shown.lines().all(|l| !l.is_maximum()));
-        // The identity does not depend on the rows' values or order.
+        // In another set, the CPU group's Maximum line has the same
+        // identity, `@maximum/cpu`.
         let raw = cpu_set("two-packages");
         assert_eq!(
             menu::shown(&raw, &d).line(cpu).map(|l| l.is_maximum()),
@@ -904,15 +932,16 @@ fn c_core_menu_34() {
     });
 }
 
-/// The set's nvme-cli readings, with lm-sensors off.
+/// The nvme-cli readings of set `set` of drives.json, as if lm-sensors
+/// were switched off.
 fn nvme_cli_only(set: &str) -> Vec<RawReading> {
     let mut raw = drive_set(set);
     raw.retain(|r| r.provider == Provider::NvmeCli);
     raw
 }
 
-/// An nvme-cli line has the word when its name has no device part, and the
-/// reading's label when it has one.
+/// An nvme-cli line shows the word "temperature" when its name has no
+/// device part, and the reading's label when it has one.
 #[test]
 fn nvme_cli_line_names() {
     puron_testkit::limit("nvme_cli_line_names", LIMIT, || {

@@ -1,4 +1,7 @@
-//! Tests of raw readings to rows, 2 s each. Fixtures are under
+//! Tests of turning raw readings into rows (`rows`): classes, families,
+//! names and identities, NVMe readings left out as repeats of lm-sensors
+//! readings, and the CPU roles. Each test must finish within 2 seconds
+//! (`puron_testkit::limit`). The fixtures are under
 //! crates/puron-testkit/fixtures/raw/.
 
 use std::collections::BTreeMap;
@@ -19,7 +22,7 @@ fn load(name: &str) -> Vec<RawReading> {
     serde_json::from_str(&text(name)).expect("parse fixture")
 }
 
-/// One set of a fixture with sets.
+/// One named set of a fixture that holds several sets of raw readings.
 fn load_set(name: &str, set: &str) -> Vec<RawReading> {
     let mut sets: BTreeMap<String, Vec<RawReading>> =
         serde_json::from_str(&text(name)).expect("parse fixture");
@@ -48,7 +51,7 @@ fn names(rows: &[Row]) -> Vec<String> {
     rows.iter().map(|r| r.name.clone()).collect()
 }
 
-/// The readings of families.json on `chip` of `kind`.
+/// The readings of families.json from chip `chip` with kind `kind`.
 fn families(chip: &str, kind: Kind) -> Vec<RawReading> {
     load("families.json")
         .into_iter()
@@ -240,8 +243,8 @@ fn c_core_rows_14() {
 fn c_core_rows_15() {
     puron_testkit::limit("C-core.rows-15", LIMIT, || {
         let out = rows::rows(&load_set("lqc.json", "devices"), &ShownClasses::ALL);
-        // " NZXT X": a leading space is not "after at least one character",
-        // so the cut is at the space after "NZXT".
+        // In the description " NZXT X…", the leading space does not end the
+        // manufacturer, so the cut is at the space after "NZXT".
         assert_eq!(
             names(&out),
             vec![
@@ -336,8 +339,8 @@ fn c_core_rows_20() {
 #[test]
 fn c_core_rows_21() {
     puron_testkit::limit("C-core.rows-21", LIMIT, || {
-        // Rows, order, identities; the input as given and reversed, since no
-        // identity depends on the order.
+        // Rows, order and identities, from the input as given and reversed:
+        // no identity may depend on the input order.
         let raw = load_set("dupes.json", "B");
         let fan_id = |shown: &ShownClasses| -> Vec<String> {
             let mut input = raw.clone();
@@ -499,7 +502,8 @@ fn c_core_rows_27() {
     });
 }
 
-/// The keys of the NVMe rows that are kept.
+/// The keys of the NVMe rows that `rows` keeps for set `set` of
+/// drives.json.
 fn nvme_keys(set: &str) -> Vec<String> {
     rows::rows(&load_set("drives.json", set), &ShownClasses::ALL)
         .into_iter()
@@ -508,7 +512,8 @@ fn nvme_keys(set: &str) -> Vec<String> {
         .collect()
 }
 
-/// The (left out, stays) identities of the set.
+/// The (left out, stays) identity pairs that `rows::repeats` gives for set
+/// `set` of drives.json.
 fn repeats(set: &str) -> Vec<(String, String)> {
     rows::repeats(&load_set("drives.json", set))
 }
@@ -522,7 +527,8 @@ fn c_core_rows_28() {
                 format!("temperature/lm-sensors/{lm}"),
             )
         };
-        // The same bus, device and function, and the same file: left out.
+        // Same domain, bus, device and function, and the same file: the
+        // NVMe readings are left out as repeats.
         assert!(nvme_keys("example").is_empty());
         assert_eq!(
             repeats("example"),
@@ -531,7 +537,7 @@ fn c_core_rows_28() {
                 pair("0000:01:00.0/temp3", "nvme-pci-0100/temp3"),
             ]
         );
-        // The rows of lm-sensors are all there.
+        // The drive's lm-sensors rows are all kept.
         let raw = load_set("drives.json", "example");
         let kept = rows::rows(&raw, &ShownClasses::ALL);
         let lm: Vec<&str> = kept
@@ -547,13 +553,14 @@ fn c_core_rows_28() {
                 "Example SSD 1TB Sensor 2",
             ]
         );
-        // The one-sensor case, through temp1.
+        // A drive with a single sensor, temp1, is matched too.
         assert!(nvme_keys("one-sensor").is_empty());
         assert_eq!(
             repeats("one-sensor"),
             [pair("0000:01:00.0/temp1", "nvme-pci-0100/temp1")]
         );
-        // How the chip name encodes the address: device, function, domain.
+        // The chip name encodes the device and function in its low bits
+        // and the domain above the bus, in lowercase hex.
         assert!(nvme_keys("encodings").is_empty());
         assert_eq!(
             repeats("encodings"),
@@ -563,7 +570,7 @@ fn c_core_rows_28() {
                 pair("0000:e1:00.0/temp2", "nvme-pci-e100/temp2"),
             ]
         );
-        // Names and values play no part.
+        // The readings match although their names and values differ.
         assert!(nvme_keys("values-differ").is_empty());
     });
 }
@@ -572,7 +579,8 @@ fn c_core_rows_28() {
 fn c_core_rows_29() {
     puron_testkit::limit("C-core.rows-29", LIMIT, || {
         let both = ["0000:01:00.0/temp2", "0000:01:00.0/temp3"];
-        // No lm-sensors reading, or no chip for this address: as today.
+        // With no matching lm-sensors reading, both NVMe rows stay and
+        // nothing is a repeat.
         for set in [
             "lm-sensors-off",
             "no-such-chip",
@@ -582,7 +590,8 @@ fn c_core_rows_29() {
             assert_eq!(nvme_keys(set), both, "{set}");
             assert!(repeats(set).is_empty(), "{set}");
         }
-        // Another function or domain is another device.
+        // A different function or domain is a different device, so its
+        // NVMe rows stay.
         assert_eq!(
             nvme_keys("other-function"),
             ["0000:01:00.1/temp2", "0000:01:00.1/temp3"]
@@ -591,9 +600,10 @@ fn c_core_rows_29() {
             nvme_keys("other-domain"),
             ["0001:01:00.0/temp2", "0001:01:00.0/temp3"]
         );
-        // An address that is no PCI address proves nothing.
+        // A key whose address is not a PCI address matches nothing.
         assert_eq!(nvme_keys("no-address").len(), 2);
-        // The same chip without that file: only the matching file leaves.
+        // When lm-sensors has the chip but not every file, only the NVMe
+        // reading of the matching file is left out.
         assert_eq!(nvme_keys("other-file"), ["0000:01:00.0/temp3"]);
     });
 }
@@ -613,32 +623,37 @@ fn shown_names() {
                 device_chars,
             })
         };
-        // 44 stays; 42 is the longest real name known.
+        // A name of exactly 44 characters is kept whole. The longest real
+        // name known has 42.
         let at_limit = "x".repeat(44);
         assert_eq!(name(&at_limit, 10), at_limit);
-        // 45 with a device: cut inside it to 44, the label whole.
+        // 45 characters with a 36-character device part: the device part is
+        // cut so that the name has 44 characters, and the label stays whole.
         let long = format!("{} Sensor 1", "d".repeat(36));
         let got = name(&long, 36);
         assert_eq!(got, format!("{}… Sensor 1", "d".repeat(34)));
         assert_eq!(got.chars().count(), 44);
-        // No space is left before the mark.
+        // A space just before the "…" is dropped.
         let spaced = format!("{} {} Sensor 1", "d".repeat(33), "e".repeat(5));
         assert_eq!(name(&spaced, 39), format!("{}… Sensor 1", "d".repeat(33)));
-        // No device, or no room for it: at the end.
+        // With no device part, or a label that leaves no room for any of
+        // it, the name is cut at its end.
         assert_eq!(name(&"y".repeat(50), 0), format!("{}…", "y".repeat(43)));
         let no_room = format!("dev {}", "z".repeat(45));
         assert_eq!(name(&no_room, 3), format!("dev {}…", "z".repeat(39)));
-        // The rest takes all 43 characters before the mark: still at the end.
+        // The label fills all 43 characters before the "…", so the name is
+        // cut at its end.
         let no_room_left = format!("dd{}", "z".repeat(43));
         assert_eq!(name(&no_room_left, 2), format!("dd{}…", "z".repeat(41)));
-        // Characters, not bytes.
+        // The limit counts characters, not bytes.
         let wide = format!("{} °C", "é".repeat(50));
         assert_eq!(name(&wide, 50), format!("{}… °C", "é".repeat(40)));
     });
 }
 
-/// How many nvme-cli rows `example` has, with its controller's address
-/// and its lm-sensors chip replaced.
+/// How many nvme-cli rows `rows` keeps for set `example` of drives.json
+/// after its controller's address is replaced by `address` and its
+/// lm-sensors chip by `chip`.
 fn nvme_rows_at(address: &str, chip: &str) -> usize {
     let mut raw = load_set("drives.json", "example");
     for r in &mut raw {
@@ -656,10 +671,13 @@ fn nvme_rows_at(address: &str, chip: &str) -> usize {
 #[test]
 fn nvme_address_limits() {
     puron_testkit::limit("nvme_address_limits", LIMIT, || {
-        // The chip of the address: the nvme-cli rows leave.
+        // When the chip is the one the address encodes, the nvme-cli rows
+        // are left out.
         assert_eq!(nvme_rows_at("0000:01:00.0", "nvme-pci-0100"), 0);
         assert_eq!(nvme_rows_at("0000:01:1f.7", "nvme-pci-01ff"), 0);
-        // No PCI address, though its number would name that chip: both stay.
+        // Not a valid PCI address (a one-digit bus, device 0x20, function
+        // 8): both nvme-cli rows stay, even where the number the address
+        // encodes would name the chip.
         assert_eq!(nvme_rows_at("0000:1:00.0", "nvme-pci-0100"), 2);
         assert_eq!(nvme_rows_at("0000:01:20.0", "nvme-pci-0100"), 2);
         assert_eq!(nvme_rows_at("0000:01:00.8", "nvme-pci-0108"), 2);
@@ -722,12 +740,16 @@ fn cpu_roles_of_the_cpu_drivers() {
         // Every other label of a CPU driver is a part of the CPU.
         role("Core 0");
         role("Core x");
-        // "Package id " with no number, or more than a number after it.
+        // So is "Package id " with no number, or with more than a number
+        // after it.
         role("Package id ");
         role("Package id 1x");
-        // Board is for another chip.
+        // On a CPU driver's own chip, a label with the word CPU is a part
+        // too, although this chip is on the platform bus: the board role
+        // is for other chips.
         role("CPU Temp");
-        // Only a temperature has a role: the board's fan is named after the CPU.
+        // Only temperatures get a role: a fan labeled "CPU fan" on a
+        // platform chip has none.
         let fan = RawReading {
             kind: Some(Kind::Fan),
             chip: Some("example_acpi-isa-0000".to_string()),

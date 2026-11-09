@@ -1,8 +1,9 @@
-//! Tests of the panel view model, 2 s each. Fixtures are under
+//! Tests of the panel items (`panel`). Each test must finish within 2
+//! seconds (`puron_testkit::limit`). The fixtures are under
 //! crates/puron-testkit/fixtures/raw/ (capture.json, summary.json,
-//! dupes.json, rebuild.json, pins.json, kinds.json). Settings are the
-//! defaults and the panel state is the start state unless a test says
-//! otherwise.
+//! dupes.json, rebuild.json, pins.json, kinds.json, cpu.json). Unless a
+//! test says otherwise, the settings are the defaults and the icon memory
+//! starts empty.
 
 use std::collections::BTreeMap;
 
@@ -29,8 +30,8 @@ fn set(file: &str, name: &str) -> Vec<RawReading> {
         .expect("fixture set")
 }
 
-/// A set of rebuild.json; its set S1 is capture.json (checked in
-/// c_core_menu.rs).
+/// A set of rebuild.json. Set S1 holds the readings of capture.json; a
+/// test in c_core_menu.rs checks that.
 fn snapshot(name: &str) -> Vec<RawReading> {
     set("rebuild.json", name)
 }
@@ -41,8 +42,9 @@ fn pinned(name: &str) -> Vec<String> {
         .expect("X-raw-pins set")
 }
 
-/// The identity of the row `name` of `raw` (lm-sensors readings only);
-/// other texts stand for themselves.
+/// The identity of the reading of `raw` named `name`. It is built as an
+/// lm-sensors identity, so it is right for lm-sensors readings only. A
+/// text that names no reading is returned as it is.
 fn id(raw: &[RawReading], name: &str) -> String {
     match raw.iter().find(|r| r.name.as_deref() == Some(name)) {
         Some(r) => {
@@ -76,7 +78,7 @@ fn lay(raw: &[RawReading], pinned: &[String]) -> Panel {
     run(raw, pinned, &Settings::default(), &State::default())
 }
 
-/// A value text with its unit suffix; `N/A` for "no value".
+/// A value text with an English unit symbol; `N/A` for "no value".
 fn text(value: &Option<Text>) -> String {
     match value {
         None => "N/A".to_string(),
@@ -105,9 +107,10 @@ fn kind(k: IconKind) -> &'static str {
     }
 }
 
-/// The items in a short text notation: icon kind and text, `∅` the empty
-/// slot, `⚠` missing; no icon word with icons off; `empty` the
-/// empty-state item.
+/// The items as short strings: the icon kind and the value text, such as
+/// `general 45°C`. `∅` stands for an icon whose kind is not known, `⚠` for
+/// a pin with no line, and `empty` for the empty-state item. With icons
+/// off, the icon word is left out.
 fn render(p: &Panel) -> Vec<String> {
     p.items
         .iter()
@@ -143,7 +146,7 @@ fn c_core_panel_1() {
     });
 }
 
-/// The value of `identity` in the menu layout.
+/// The value text of the line of `identity` in the popup layout.
 fn menu_value(raw: &[RawReading], settings: &Settings, identity: &str) -> Option<Text> {
     let m = menu::menu(
         &menu::shown(raw, settings),
@@ -224,7 +227,8 @@ fn c_core_panel_5() {
             &raw,
             &["@maximum/lm-sensors/nvme-pci-0100", "WiFi", "@maximum/cpu"],
         );
-        // In popup order, each with the icon of its device.
+        // The items follow popup order, not pinned order, and each Maximum
+        // line has the icon of its device's family.
         assert_items(
             &lay(&raw, &pins),
             &["general 73°C", "drive 45°C", "general 33°C"],
@@ -283,7 +287,10 @@ fn c_core_panel_10() {
 #[test]
 fn c_core_panel_11() {
     puron_testkit::limit("C-core.panel-11", LIMIT, || {
-        // Sets D and C have two temperatures on this chip, set F none.
+        // The pin is the Maximum line of chip puron-isa-0000. Sets D and C
+        // have two temperatures on that chip, set F none. The item keeps
+        // its icon through the three snapshots: a value, no value, then no
+        // line at all.
         let pins = ["@maximum/lm-sensors/puron-isa-0000".to_string()];
         let s = Settings::default();
         let d = set("summary.json", "D");
@@ -421,7 +428,8 @@ fn c_core_panel_17() {
 #[test]
 fn c_core_panel_18() {
     puron_testkit::limit("C-core.panel-18", LIMIT, || {
-        // A copy of set D of dupes.json, with values 50 and 60.
+        // Set D of dupes.json, two readings with the same key `k`, given
+        // the values 50 and 60. The pin shows the first one's value.
         let mut raw = set("dupes.json", "D");
         assert_eq!(raw.len(), 2);
         raw[0].value = Some(50.0);
@@ -446,7 +454,8 @@ fn c_core_panel_19() {
             let state = puron_core::panel::State::default();
             puron_core::panel::panel(&shown, &pinned, s, &state).items
         };
-        // Shown: the line's value on the panel.
+        // Temperatures shown: the pin of the CPU group's Maximum line has a
+        // value.
         let items = value(&s);
         assert!(matches!(
             items.as_slice(),
@@ -455,7 +464,8 @@ fn c_core_panel_19() {
                 ..
             }]
         ));
-        // Hidden: no line, no item, and the pin stays through a click.
+        // Temperatures hidden: the line is gone, the panel shows only the
+        // empty-state item, and a click on another line keeps the pin.
         s.show_temperature = false;
         let shown = puron_core::menu::shown(&raw, &s);
         assert!(shown.line("@maximum/cpu").is_none());

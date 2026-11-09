@@ -1,19 +1,28 @@
-//! Setting types, defaults and ranges.
+//! The settings: what each one holds, its default, and how a stored value
+//! becomes the value in effect. Reading and writing the settings store is
+//! done in the puron-config crate.
 
-/// Default of `poll_interval_secs`.
+/// How often the sensors are read, in seconds, when no usable interval
+/// is stored.
 pub const POLL_INTERVAL_DEFAULT: u32 = 5;
-/// Range of `poll_interval_secs`; a value outside is clamped.
+/// The shortest poll interval in seconds; a shorter stored value is
+/// raised to it.
 pub const POLL_INTERVAL_MIN: u32 = 1;
+/// The longest poll interval in seconds; a longer stored value is lowered
+/// to it.
 pub const POLL_INTERVAL_MAX: u32 = 60;
 
-/// `temperature_unit`. Its stored form is the variant name.
+/// The unit of temperatures. It is stored as the variant name, `Celsius`
+/// or `Fahrenheit`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TemperatureUnit {
     Celsius,
     Fahrenheit,
 }
 
-/// The settings record: one effective value per key.
+/// The settings in effect: one value per setting, after defaults and the
+/// interval range have been applied to the stored values (see
+/// [`settings`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Settings {
     pub poll_interval_secs: u32,
@@ -34,16 +43,20 @@ pub struct Settings {
     pub show_voltage: bool,
     pub show_power: bool,
     pub debug_logging: bool,
-    /// The stored pins; `None` when none were ever stored, as on a new
-    /// install, which checks the default lines.
+    /// The pinned list as stored. `None` when nothing was ever stored, as
+    /// on a new install, which starts with the popup's default lines
+    /// pinned (see `menu::Shown::new_install_pins`).
     pub pinned: Option<Vec<String>>,
-    /// What a development build's CPU row read, the last one chosen; only a
-    /// stored CPU pin that has yet to move needs it.
+    /// The sensor that the single CPU row of development builds was last
+    /// set to read: an lm-sensors key, or `@maximum` for the highest CPU
+    /// temperature. It is used only to move a stored `@cpu` pin to the
+    /// matching line (see `pins::moved`).
     pub old_cpu_source: Option<String>,
 }
 
-/// The stored values: `None` is "not usable" (not stored,
-/// unreadable or of the wrong type; `config` decides).
+/// The values read from the settings store, one per setting. `None`
+/// means there is no usable value: it is missing, unreadable or of the
+/// wrong type. The crate that reads the store decides which.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Stored {
     pub poll_interval_secs: Option<u32>,
@@ -68,8 +81,9 @@ pub struct Stored {
     pub old_cpu_source: Option<String>,
 }
 
-/// The settings record of the stored values. Each key is taken on
-/// its own.
+/// The settings in effect for `stored`. Each setting is decided on its
+/// own: a missing value takes its default, and a poll interval outside
+/// `POLL_INTERVAL_MIN..=POLL_INTERVAL_MAX` is clamped to that range.
 pub fn settings(stored: &Stored) -> Settings {
     let s = stored;
     Settings {
@@ -99,7 +113,7 @@ pub fn settings(stored: &Stored) -> Settings {
 }
 
 impl Default for Settings {
-    /// The defaults: every key "not usable".
+    /// The default settings: those of a store with no usable value.
     fn default() -> Settings {
         settings(&Stored::default())
     }

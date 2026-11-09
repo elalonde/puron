@@ -1,11 +1,13 @@
-//! The order of the rows. No I/O, no locale, no state.
+//! The display order of rows. It does not depend on the locale: names
+//! compare by Unicode simple case folding (see [`name_order`]).
 
 use std::cmp::Ordering;
 
 use crate::fold;
 use crate::rows::{Class, Family, Provider, Row};
 
-/// Provider rank, which also breaks ties in name order: first is rank 1.
+/// The providers in rank order. Rows that tie on name, and GPU
+/// temperatures, are ordered by this rank and then by `Row::position`.
 pub const PROVIDER_RANK: [Provider; 5] = [
     Provider::LmSensors,
     Provider::Liquidctl,
@@ -17,13 +19,17 @@ pub const PROVIDER_RANK: [Provider; 5] = [
 /// The Unicode version of the case-folding table behind name order.
 pub const FOLD_UNICODE_VERSION: (u8, u8, u8) = fold::UNICODE_VERSION;
 
-/// The rows in display order, each exactly once.
+/// Sorts `rows` into display order (see [`compare`]). No row is added or
+/// dropped.
 pub fn order(mut rows: Vec<Row>) -> Vec<Row> {
     rows.sort_by(compare);
     rows
 }
 
-/// Which of two rows comes first in display order.
+/// Which of two rows comes first in display order: first by part (GPU,
+/// general and drive temperatures, fans, voltages, power), then by name
+/// (see [`name_order`]), then by provider rank and position. GPU
+/// temperatures skip the name step and keep provider order.
 pub fn compare(a: &Row, b: &Row) -> Ordering {
     let pa = part(a);
     pa.cmp(&part(b))
@@ -37,13 +43,14 @@ pub fn compare(a: &Row, b: &Row) -> Ordering {
         .then_with(|| provider_order(a, b))
 }
 
-/// The part of a row, 1 to 6: GPU, general and drive temperatures,
-/// then fans, voltages and power.
+/// The block of display order that a row falls in, 1 to 6: GPU, general
+/// and drive temperatures, then fans, voltages and power.
 fn part(row: &Row) -> u8 {
     match (row.class, row.family) {
         (Class::Temperature, Some(Family::Gpu)) => 1,
         (Class::Temperature, Some(Family::Drive)) => 3,
-        // `rows` gives every temperature row a family.
+        // General temperatures. `rows::rows` gives every temperature row a
+        // family, so `None` does not occur.
         (Class::Temperature, _) => 2,
         (Class::Fan, _) => 4,
         (Class::Voltage, _) => 5,
@@ -51,7 +58,8 @@ fn part(row: &Row) -> u8 {
     }
 }
 
-/// Provider order: by provider rank, then by position.
+/// The last tie-breaker: provider rank (`PROVIDER_RANK`), then
+/// `Row::position`, the reading's place in its provider's output.
 fn provider_order(a: &Row, b: &Row) -> Ordering {
     rank(a.provider)
         .cmp(&rank(b.provider))
@@ -65,16 +73,21 @@ fn rank(provider: Provider) -> usize {
         .unwrap_or(PROVIDER_RANK.len())
 }
 
-/// Name order, steps 1 and 2; `Equal` leaves the rows to step 3, the
-/// provider order.
+/// Compares two names without regard to locale. The names are compared
+/// first after simple case folding, by code point, a prefix first. When
+/// the folded names are equal, the first position where one name has a
+/// lowercase letter and the other an uppercase one decides: lowercase
+/// first. `Equal` means neither step decides; `compare` then falls back
+/// to provider order.
 pub fn name_order(a: &str, b: &str) -> Ordering {
-    // Step 1: folded forms by code point; a prefix sorts first.
+    // Compare the folded names by code point; a prefix sorts first.
     let folded = a.chars().map(fold_char).cmp(b.chars().map(fold_char));
     if folded != Ordering::Equal {
         return folded;
     }
-    // Step 2: simple folding maps one character to one, so the names
-    // have the same length; the first case pair decides.
+    // The folded names are equal. Simple folding maps each character to
+    // exactly one, so both names have the same length and can be zipped.
+    // The first lowercase and uppercase pair decides.
     for (x, y) in a.chars().zip(b.chars()) {
         if x.is_lowercase() && y.is_uppercase() {
             return Ordering::Less;
@@ -86,7 +99,8 @@ pub fn name_order(a: &str, b: &str) -> Ordering {
     Ordering::Equal
 }
 
-/// Simple case folding of one character (status C and S).
+/// The simple case folding of `c`: its mapping of status C or S in the
+/// Unicode table in `fold`, or `c` itself when it has none.
 fn fold_char(c: char) -> char {
     match fold::FOLD.binary_search_by_key(&c, |&(from, _)| from) {
         Ok(i) => fold::FOLD[i].1,
