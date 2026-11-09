@@ -10,12 +10,13 @@
 //! `section-<N>`, `minus` and `plus` are containers with no padding around
 //! the item row, its control, the section and the number field's two
 //! buttons, so they add nothing to the layout. `scroll` is the scroll
-//! area itself and `input` the number field's text input.
+//! area itself, `input` the number field's text input, and `notice` the
+//! line above the scroll area that reports a failed store.
 
 use cosmic::iced::{Alignment, Length};
 use cosmic::widget::{
-    button, container, dropdown, icon, row, scrollable, settings, text, text_input, toggler,
-    tooltip, Id,
+    button, column, container, dropdown, icon, row, scrollable, settings, text, text_input,
+    toggler, tooltip, Id,
 };
 use cosmic::Element;
 
@@ -98,9 +99,19 @@ pub fn view<'a>(plan: &'a Plan) -> Element<'a, Event> {
                 .into()
         })
         .collect();
-    scrollable(settings::view_column(sections))
+    let scroll: Element<'a, Event> = scrollable(settings::view_column(sections))
         .id(id("scroll"))
         .width(Length::Fill)
         .height(Length::Fill)
-        .into()
+        .into();
+    match &plan.notice {
+        // The notice takes one line at the top and the scroll area the
+        // rest; without it the scroll area fills the window as before.
+        Some(notice) => column::with_children(vec![
+            container(text(notice.as_str())).id(id("notice")).into(),
+            scroll,
+        ])
+        .into(),
+        None => scroll,
+    }
 }

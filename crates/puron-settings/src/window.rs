@@ -48,10 +48,7 @@ pub enum Event {
     /// The window opens: load the settings and ask for the watch.
     Open,
     /// The user set the switch of item `item` to `on`.
-    Switch {
-        item: usize,
-        on: bool,
-    },
+    Switch { item: usize, on: bool },
     /// The user chose entry `index` of the temperature unit list (item
     /// 3); see `UNITS` for the order.
     Choose(usize),
@@ -66,6 +63,8 @@ pub enum Event {
     Commit,
     /// The settings changed on disk, as `Config::watch` reported.
     Delivery(Delivery),
+    /// The user closes the window. Typed text that is not empty is
+    /// committed first, as when the field loses focus.
     Close,
 }
 
@@ -127,11 +126,14 @@ pub struct Section {
     pub items: Vec<Item>,
 }
 
-/// Everything the window shows, as data: the title and the sections in
-/// order. `view::view` draws it, and the tests inspect it.
+/// Everything the window shows, as data: the title, the notice and the
+/// sections in order. `view::view` draws it, and the tests inspect it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plan {
     pub title: String,
+    /// The translated line shown under the header bar while the latest
+    /// store has failed; `None` otherwise.
+    pub notice: Option<String>,
     pub sections: Vec<Section>,
 }
 
@@ -298,6 +300,9 @@ pub struct Window {
     shown: Settings,
     /// The text being typed in the number field and not yet committed.
     typed: Option<String>,
+    /// Whether the latest store failed. The next store that succeeds
+    /// clears it.
+    failed: bool,
 }
 
 impl Window {
@@ -308,14 +313,16 @@ impl Window {
             config,
             shown: Settings::default(),
             typed: None,
+            failed: false,
         }
     }
 
-    fn store(&self, key: &'static str, value: Value) -> Output {
+    fn store(&mut self, key: &'static str, value: Value) -> Output {
         let result = self.config.store(key, &value);
-        // A failed store is not undone: the control keeps the new value
-        // and no error is shown. The value is stored again only when the
-        // user changes it again.
+        // A failed store is not undone: the control keeps the new value,
+        // and the window shows a notice until a later store succeeds. The
+        // value is stored again only when the user changes it again.
+        self.failed = result == StoreResult::Failed;
         Output::Store { key, value, result }
     }
 
@@ -403,7 +410,16 @@ impl Window {
                 self.shown = delivery.loaded.settings;
                 Vec::new()
             }
-            Event::Close => vec![Output::Exit],
+            Event::Close => {
+                // An emptied field is left alone, so that closing does not
+                // store the 1 that an empty text reads as.
+                if self.typed.as_deref() == Some("") {
+                    self.typed = None;
+                }
+                let mut out = self.take_typed();
+                out.push(Output::Exit);
+                out
+            }
         }
     }
 
@@ -448,6 +464,7 @@ impl Window {
             .collect();
         Plan {
             title: TITLE.to_string(),
+            notice: self.failed.then(|| fl!("notice-store-failed")),
             sections,
         }
     }

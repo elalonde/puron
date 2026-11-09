@@ -37,3 +37,4 @@ label-decimals	Show Decimal Values
 tip-decimals	Show additional digits after decimal point
 tip-lm-sensors	Read sensors from lm-sensors
 tip-liquidctl	Read sensors from liquidctl (requires v1.7.0 or later)
+notice-store-failed	Settings could not be saved

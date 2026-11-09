@@ -20,6 +20,7 @@ use puron_core::rows::{Provider, ShownClasses};
 use puron_core::settings::Settings;
 use puron_engine::diag;
 use puron_engine::engine::{Engine, LmReport, Snapshot};
+use puron_engine::registry;
 
 /// The calls that `App` makes on the engine. `Engine` implements it; the
 /// tests use a fake.
@@ -43,7 +44,6 @@ pub trait Handle: Send + Sync {
 /// `puron_engine::registry`.
 impl Handle for Engine {
     fn start(&self, settings: &Settings) {
-        use puron_engine::registry;
         Engine::start(
             self,
             settings,
@@ -227,7 +227,8 @@ pub struct App {
     /// key with it to tell whether the popup must be rebuilt.
     last_key: Option<Key>,
     /// Set when a config change altered the shown classes: the layout
-    /// built at the next snapshot is a forced rebuild.
+    /// built at the next snapshot is a forced rebuild. With every provider
+    /// off, the delivery builds that layout itself and clears the flag.
     forced: bool,
     panel: Panel,
     menu: Option<Menu>,
@@ -512,7 +513,9 @@ impl App {
     /// new set of providers goes to the engine. A change of the shown
     /// classes, the temperature unit, the decimals or the pinned list asks
     /// the engine for a poll, unless the providers changed too. A change of
-    /// the shown classes also forces a rebuild at the next snapshot. A
+    /// the shown classes also forces a rebuild at the next snapshot. When
+    /// every provider is off, no snapshot follows a poll, so a change that
+    /// asks for one lays out at once instead. A
     /// change of whether unit suffixes are shown lays out at once. A change
     /// of the panel icons, or a pinned list taken from another process
     /// during `NewInstall`, rebuilds only the panel.
@@ -551,6 +554,9 @@ impl App {
             || o.provider_nvme != n.provider_nvme;
         let interval = o.poll_interval_secs != n.poll_interval_secs;
         let icons = o.show_panel_icons != n.show_panel_icons;
+        let none_on = !registry::PROVIDERS
+            .iter()
+            .any(|e| registry::switch(n, e.provider));
         if interval {
             self.handle.set_interval(n.poll_interval_secs);
             out.push(Output::Engine(Command::SetInterval(n.poll_interval_secs)));
@@ -565,7 +571,15 @@ impl App {
         if shown_classes {
             self.forced = true;
         }
-        if units {
+        if poll && !providers && none_on {
+            // The engine's poll skips every provider that is off, so with
+            // all of them off no snapshot follows. The change is shown at
+            // once from the last snapshot, and the forced rebuild is used
+            // here instead of waiting for a snapshot that never comes.
+            self.shown = self.compute_shown();
+            let forced = std::mem::take(&mut self.forced);
+            self.layout(forced, out);
+        } else if units {
             self.shown = self.compute_shown();
             self.layout(false, out);
         } else if icons || outside {
