@@ -34,9 +34,12 @@ exceptions = [
     { crate = "xdg-shell-wrapper-config", allow = ["GPL-3.0-only"] },
 ]
 
-# Clarify entries: the license of a repository's license file and its
-# hash (xxHash32, line ends normalised). A new commit of these
-# repositories changes a hash: rewrite the entry.
+# Clarify entries tell cargo deny a crate's license. Each gives the
+# license expression and the license file it rests on, here the file at
+# the top of the crate's git repository (one level above the crate),
+# with that file's hash (xxHash32 over the text with normalised line
+# ends). When a new commit of the repository changes the file, the hash
+# no longer matches: check the license again and update the entry.
 
 # libcosmic 430f3d48, file LICENSE.
 [[licenses.clarify]]
@@ -77,8 +80,8 @@ crate = "mime@0.1.0"
 expression = "MIT"
 license-files = [{ path = "../LICENSE", hash = 0xfd9601dd }]
 
-# cosmic-panel, file LICENSE.md (read by the tool as GPL-3.0-or-later;
-# the workspace states GPL-3.0-only).
+# cosmic-panel, file LICENSE.md. cargo deny would read the file as
+# GPL-3.0-or-later; the cosmic-panel workspace declares GPL-3.0-only.
 [[licenses.clarify]]
 crate = "cosmic-panel-config"
 expression = "GPL-3.0-only"

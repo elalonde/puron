@@ -1,13 +1,16 @@
 #!/bin/sh
-# Checks Puron's icons. Every name in
-# crates/puron-testkit/fixtures/icons/names.tsv must end in `-symbolic`,
-# and every `"...-symbolic"` literal in puron-applet's source must be one
-# of them. Each Puron icon must be a file with viewBox="0 0 16 16" and
-# one fill value other than `none`, and make install-icons into a
-# temporary root must put it under usr/share/icons/hicolor/scalable/status/.
-# Each COSMIC icon must be a file under
-# /usr/share/icons/Cosmic/scalable/<context>/, so the COSMIC icon theme
-# must be installed.
+# Checks the icons that puron-applet uses. Each line of
+# crates/puron-testkit/fixtures/icons/names.tsv names one icon in three
+# tab-separated fields: its origin (`puron` for an icon this repository
+# ships, `cosmic` for one of the COSMIC icon theme), its context
+# directory, and its name. Every name must end in `-symbolic`, and every
+# `"...-symbolic"` literal in puron-applet's source must be listed.
+# Each Puron icon must be a file under data/icons with
+# viewBox="0 0 16 16" and one fill value other than `none`, and make
+# install-icons into a temporary root must put it under
+# usr/share/icons/hicolor/scalable/status/. Each COSMIC icon must be a
+# file under /usr/share/icons/Cosmic/scalable/<context>/, so the COSMIC
+# icon theme must be installed.
 # Usage: tools/c_applet_panel_10.sh
 cd "$(dirname "$0")/.." || exit 2
 tsv=crates/puron-testkit/fixtures/icons/names.tsv

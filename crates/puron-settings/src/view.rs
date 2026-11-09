@@ -1,13 +1,16 @@
-//! The libcosmic widgets built from the window plan: libcosmic's settings
-//! section and item widgets with their own spacing and padding; one
-//! column of the six sections in a vertical scroll area.
+//! Draws the settings window from a `window::Plan`.
 //!
-//! Ids, used by the tests that measure widget bounds. Each is a container
-//! with no padding around one widget, so it adds nothing to the layout:
-//! `item-<N>` around the item row (N is the item number, from 1),
-//! `control-<N>` around its control, `section-<N>` around each section,
-//! `scroll` on the scroll area, and `minus`, `input`, `plus` on the
-//! number field's parts.
+//! Each section of the plan becomes a libcosmic settings section, and
+//! each item a settings item row, with libcosmic's own spacing and
+//! padding. The sections (five, one per entry of `window::SECTIONS`)
+//! stand in one column inside a vertical scroll area.
+//!
+//! Some widgets carry an id so that the tests can find them and measure
+//! their bounds. `item-<N>` (N is the item number, from 1), `control-<N>`,
+//! `section-<N>`, `minus` and `plus` are containers with no padding around
+//! the item row, its control, the section and the number field's two
+//! buttons, so they add nothing to the layout. `scroll` is the scroll
+//! area itself and `input` the number field's text input.
 
 use cosmic::iced::{Alignment, Length};
 use cosmic::widget::{
@@ -18,11 +21,15 @@ use cosmic::Element;
 
 use crate::window::{Control, Event, Plan, INPUT_WIDTH, MINUS_ICON, PLUS_ICON};
 
-/// The id `name` of a measured widget.
+/// The widget id with the name `name`, as the tests look it up.
 pub fn id(name: impl Into<String>) -> Id {
     Id::new(name.into())
 }
 
+/// The number field: a − button, a text input and a + button in a row. A
+/// button that is not enabled has no press message, so libcosmic draws it
+/// disabled. Typing only records the text; Enter or leaving the field
+/// commits it.
 fn number<'a>(text_shown: &'a str, minus: bool, plus: bool) -> Element<'a, Event> {
     let space = cosmic::theme::spacing().space_xxs;
     let minus =
@@ -44,6 +51,7 @@ fn number<'a>(text_shown: &'a str, minus: bool, plus: bool) -> Element<'a, Event
     .into()
 }
 
+/// The control of item `n`, wrapped in its `control-<n>` container.
 fn control<'a>(n: usize, c: &'a Control) -> Element<'a, Event> {
     let widget: Element<'a, Event> = match c {
         Control::Number {
@@ -59,7 +67,7 @@ fn control<'a>(n: usize, c: &'a Control) -> Element<'a, Event> {
     container(widget).id(id(format!("control-{n}"))).into()
 }
 
-/// The content under the header bar for `plan`.
+/// The window's content below the header bar, drawn from `plan`.
 pub fn view<'a>(plan: &'a Plan) -> Element<'a, Event> {
     let mut n = 0;
     let sections = plan
@@ -73,8 +81,8 @@ pub fn view<'a>(plan: &'a Plan) -> Element<'a, Event> {
                     settings::item::builder(it.label.as_str()).control(control(n, &it.control));
                 let item: Element<'a, Event> = container(row).id(id(format!("item-{n}"))).into();
                 match &it.tooltip {
-                    // libcosmic's tooltip around the whole item, at its
-                    // default place.
+                    // The tooltip covers the whole item row, at
+                    // libcosmic's default position.
                     Some((_, tip)) => {
                         tooltip(item, text(tip.as_str()), tooltip::Position::default()).into()
                     }

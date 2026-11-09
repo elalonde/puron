@@ -1,17 +1,26 @@
-//! The state machine of the settings window and its window plan,
-//! without a display.
+//! The settings window's state and behavior, without any drawing.
+//!
+//! `Window` takes the window's events one at a time, stores each change
+//! the user makes through `puron_config`, and describes what the window
+//! shows as a `Plan`: sections of items, each item a label and a control.
+//! `view` turns a plan into widgets. Because no display is needed, the
+//! tests drive `Window` directly.
+//!
+//! The window has 17 items, numbered from 1 in the order they are shown.
+//! Events and the tables below address items by that number.
 
 use puron_config::{Config, Delivery, StoreResult, Value};
 use puron_core::settings::{Settings, TemperatureUnit, POLL_INTERVAL_MAX, POLL_INTERVAL_MIN};
 
-/// Window title: a fixed text.
+/// The window title. It is not translated.
 pub const TITLE: &str = "Puron";
-/// libcosmic's App ID. Kept apart from `puron_config::CONFIG_ID`: libcosmic
-/// keeps its own state under the App ID, never in Puron's entries.
+/// The application ID given to libcosmic. It differs from
+/// `puron_config::CONFIG_ID` so that libcosmic's own state for this
+/// program is kept apart from Puron's settings.
 pub const APP_ID: &str = "io.github.elalonde.Puron.Settings";
 
-/// The window settings `main` hands to libcosmic, sizes in logical
-/// pixels.
+/// The window properties `main` passes to libcosmic. Sizes are (width,
+/// height) in logical pixels.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowSettings {
     pub title: &'static str,
@@ -20,7 +29,9 @@ pub struct WindowSettings {
     pub minimum: (f32, f32),
 }
 
-/// The program's window settings.
+/// The settings window's title, application ID and sizes, which `main`
+/// passes to libcosmic. The window opens at 480 × 720 and cannot be made
+/// smaller than 360 × 240.
 pub fn window_settings() -> WindowSettings {
     WindowSettings {
         title: TITLE,
@@ -30,52 +41,58 @@ pub fn window_settings() -> WindowSettings {
     }
 }
 
-/// An event of the window. Items are addressed by their number, 1 to 17,
-/// in window order.
+/// An input to `Window::handle`: something the user did, or a change the
+/// settings watch reported.
 #[derive(Clone, Debug)]
 pub enum Event {
+    /// The window opens: load the settings and ask for the watch.
     Open,
-    /// Change of a switch item to `on`.
+    /// The user set the switch of item `item` to `on`.
     Switch {
         item: usize,
         on: bool,
     },
-    /// Change of the list (item 3) to the item at `index` (0: `°C`).
+    /// The user chose entry `index` of the temperature unit list (item
+    /// 3); see `UNITS` for the order.
     Choose(usize),
     /// The number field's + button.
     Plus,
     /// The number field's − button.
     Minus,
-    /// The number field's text, as typed so far.
+    /// The user edited the number field; the text as it now stands.
     Typed(String),
-    /// Enter, or the number field losing focus.
+    /// Enter in the number field, or the field losing focus: the typed
+    /// text, if any, is read and stored.
     Commit,
+    /// The settings changed on disk, as `Config::watch` reported.
     Delivery(Delivery),
     Close,
 }
 
-/// An output of [`Window::handle`], in order.
+/// Something [`Window::handle`] did or asks the caller to do. A call
+/// returns its outputs in the order they happened.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Output {
-    /// `Config::store` of one key, with its result (handled in the same
-    /// call).
+    /// `handle` has already stored `value` under `key`; this reports it
+    /// and its result.
     Store {
         key: &'static str,
         value: Value,
         result: StoreResult,
     },
-    /// `Config::watch` is to be started (the end of `Event::Open`).
+    /// The caller should now start `Config::watch` and send each delivery
+    /// back as `Event::Delivery`. Only `Event::Open` returns it.
     WatchStart,
-    /// The program exits (`Event::Close`).
+    /// The program is ending. Only `Event::Close` returns it.
     Exit,
 }
 
-/// The control of an item and its shown state.
+/// The control of an item, with what it currently shows.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Control {
-    /// The number field: its value, the text it shows (the
-    /// typed text while one is being typed), and whether − and + are
-    /// enabled.
+    /// The number field (item 1, the poll interval): its value, the text
+    /// it shows (the user's text while they are typing, else the value),
+    /// and whether − and + are enabled.
     Number {
         value: u32,
         text: String,
@@ -83,38 +100,44 @@ pub enum Control {
         plus: bool,
     },
     Switch(bool),
-    /// The list: its item texts and the index of the shown one.
+    /// The drop-down list (item 3, the temperature unit): its entry texts
+    /// and the index of the selected one.
     List {
         items: Vec<String>,
         shown: usize,
     },
 }
 
-/// One item of the plan.
+/// One row of the window: a label and the control that edits one setting.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
     pub label: String,
     pub control: Control,
+    /// The settings key the control stores (one of `puron_config::KEYS`).
     pub key: &'static str,
-    /// The tooltip's entry ID and text.
+    /// The tooltip, if the item has one: the ID of its translation
+    /// message and the translated text.
     pub tooltip: Option<(&'static str, String)>,
 }
 
-/// One section of the plan.
+/// A group of items under a heading.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Section {
     pub heading: String,
     pub items: Vec<Item>,
 }
 
-/// The window plan.
+/// Everything the window shows, as data: the title and the sections in
+/// order. `view::view` draws it, and the tests inspect it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plan {
     pub title: String,
     pub sections: Vec<Section>,
 }
 
-/// The keys of the items, by item number less one.
+/// The settings key of each item: entry `n - 1` belongs to item `n`.
+/// `debug_logging` and `pinned` have no item; the window does not edit
+/// them.
 const KEYS: [&str; 17] = [
     puron_config::POLL_INTERVAL_SECS,
     puron_config::SHOW_PANEL_ICONS,
@@ -135,9 +158,11 @@ const KEYS: [&str; 17] = [
     puron_config::SHOW_POWER,
 ];
 
-/// The sections: the first and last item number of each.
+/// The five sections, as the first and last item number of each. `heading`
+/// gives their headings in the same order.
 const SECTIONS: [(usize, usize); 5] = [(1, 8), (9, 10), (11, 11), (12, 13), (14, 17)];
 
+/// The translated heading of section `section`, counted from 0.
 fn heading(section: usize) -> String {
     match section {
         0 => fl!("heading-display"),
@@ -148,8 +173,9 @@ fn heading(section: usize) -> String {
     }
 }
 
-/// The label of item `item`: an entry, or a product name (fixed text,
-/// not translated).
+/// The label of item `item`. Items 9 to 13 switch a sensor source on or
+/// off and are labelled with its product name, which is not translated;
+/// the other labels are translated.
 fn label(item: usize) -> String {
     match item {
         1 => fl!("label-poll"),
@@ -172,6 +198,7 @@ fn label(item: usize) -> String {
     }
 }
 
+/// The tooltip of item `item`; only items 8, 9 and 10 have one.
 fn tooltip(item: usize) -> Option<(&'static str, String)> {
     match item {
         8 => Some(("tip-decimals", fl!("tip-decimals"))),
@@ -181,14 +208,17 @@ fn tooltip(item: usize) -> Option<(&'static str, String)> {
     }
 }
 
-/// The list's units, in item order.
+/// The temperature units in the order of the list's entries; `Choose`
+/// takes an index into it.
 const UNITS: [TemperatureUnit; 2] = [TemperatureUnit::Celsius, TemperatureUnit::Fahrenheit];
 
+/// The list's entry texts, in the order of `UNITS`.
 fn unit_items() -> Vec<String> {
     vec![fl!("suffix-celsius"), fl!("suffix-fahrenheit")]
 }
 
-/// The switch of item `item` in `s`; `None` for items 1 and 3.
+/// The setting in `s` that the switch of item `item` changes. `None` for
+/// an item without a switch (1 and 3) or a number outside 1 to 17.
 fn switch(s: &mut Settings, item: usize) -> Option<&mut bool> {
     Some(match item {
         2 => &mut s.show_panel_icons,
@@ -210,9 +240,14 @@ fn switch(s: &mut Settings, item: usize) -> Option<&mut bool> {
     })
 }
 
-/// Reads a typed poll interval: leading white space skipped, the
-/// longest decimal start read (0 if none), set into 1 to 60, then cut
-/// toward zero.
+/// The poll interval, in seconds, that the typed text `text` gives.
+///
+/// Leading ASCII white space is skipped. The longest prefix that reads as
+/// a decimal number is taken: an optional sign, digits with at most one
+/// decimal point, and an exponent only if the exponent has a digit. The
+/// rest of the text is ignored, and text with no digit at its start reads
+/// as 0. The number is then clamped to 1..=60 and its fraction dropped,
+/// so "abc" gives 1, "7.9s" gives 7 and "1e3" gives 60.
 pub fn read_interval(text: &str) -> u32 {
     let t = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
     let b = t.as_bytes();
@@ -235,7 +270,8 @@ pub fn read_interval(text: &str) -> u32 {
     let number = if digits == 0 {
         0.0
     } else {
-        // An exponent counts only with at least one digit.
+        // Take the exponent only if it has at least one digit, so that a
+        // trailing "e" or "e+" is ignored.
         let mut j = i;
         if j < b.len() && (b[j] == b'e' || b[j] == b'E') {
             j += 1;
@@ -258,13 +294,15 @@ pub fn read_interval(text: &str) -> u32 {
 /// The settings window's state.
 pub struct Window {
     config: Config,
+    /// The settings as the window shows them.
     shown: Settings,
-    /// The text being typed in the number field, if any.
+    /// The text being typed in the number field and not yet committed.
     typed: Option<String>,
 }
 
 impl Window {
-    /// A window over `config`; nothing is loaded before `Event::Open`.
+    /// A window over the settings in `config`. It shows the defaults until
+    /// `Event::Open` loads the stored settings.
     pub fn new(config: Config) -> Window {
         Window {
             config,
@@ -275,8 +313,9 @@ impl Window {
 
     fn store(&self, key: &'static str, value: Value) -> Output {
         let result = self.config.store(key, &value);
-        // On a failed store the shown value is kept and no error is shown;
-        // the next change stores again.
+        // A failed store is not undone: the control keeps the new value
+        // and no error is shown. The value is stored again only when the
+        // user changes it again.
         Output::Store { key, value, result }
     }
 
@@ -288,7 +327,8 @@ impl Window {
         vec![self.store(KEYS[0], Value::U32(value))]
     }
 
-    /// Takes the typed text, if any, as `read_interval` reads it.
+    /// Commits the typed text, if any: reads it with `read_interval` and
+    /// stores the result if it differs from the shown interval.
     fn take_typed(&mut self) -> Vec<Output> {
         match self.typed.take() {
             Some(text) => self.set_interval(read_interval(&text)),
@@ -296,7 +336,10 @@ impl Window {
         }
     }
 
-    /// Handles one event; returns its outputs in order.
+    /// Handles one event and returns what it did, in order. A switch, a
+    /// list choice, a button press or committed text is stored at once,
+    /// but only when it changes the shown value; text being typed is not
+    /// stored until it is committed.
     pub fn handle(&mut self, event: Event) -> Vec<Output> {
         match event {
             Event::Open => {
@@ -324,8 +367,9 @@ impl Window {
                 self.shown.temperature_unit = unit;
                 vec![self.store(KEYS[2], Value::TemperatureUnit(unit))]
             }
-            // The button's state follows the shown value; a press takes the
-            // typed text first, then steps within 1 to 60.
+            // Whether a button acts depends on the shown value, not on any
+            // typed text. A press first commits the typed text, then steps
+            // the result by one if that stays within 1 to 60.
             Event::Plus => {
                 if self.shown.poll_interval_secs >= POLL_INTERVAL_MAX {
                     return Vec::new();
@@ -354,8 +398,8 @@ impl Window {
             }
             Event::Commit => self.take_typed(),
             Event::Delivery(delivery) => {
-                // Every control follows the record, except the text being
-                // typed; nothing is stored.
+                // Every control takes the reported value, but text that is
+                // being typed stays. Nothing is stored.
                 self.shown = delivery.loaded.settings;
                 Vec::new()
             }
@@ -363,7 +407,7 @@ impl Window {
         }
     }
 
-    /// The window plan of the shown values.
+    /// The plan of what the window shows now.
     pub fn plan(&self) -> Plan {
         let mut shown = self.shown.clone();
         let sections = SECTIONS
@@ -409,9 +453,9 @@ impl Window {
     }
 }
 
-/// The number field's − button icon.
+/// The icon name of the number field's − button.
 pub const MINUS_ICON: &str = "list-remove-symbolic";
-/// The number field's + button icon.
+/// The icon name of the number field's + button.
 pub const PLUS_ICON: &str = "list-add-symbolic";
-/// The number field's value input width, logical pixels.
+/// The width of the number field's text input, in logical pixels.
 pub const INPUT_WIDTH: f32 = 48.0;

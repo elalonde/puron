@@ -1,12 +1,17 @@
 #!/bin/sh
-# Reads back the package that make deb built: dpkg-deb --info and
-# --contents, each expected path, the Depends and Maintainer fields, and
-# the installed desktop entry's Exec line; the license documents (the
-# GPL-3.0 text, the source offer, the third-party notices against
-# Cargo.lock, the same statements in the README); and the binaries for a
-# home path and, with PURON_TERMS=<file>, further private terms (lines
-# "<c|i><TAB><extended regex>", # for comments; PURON_TERMS_SKIP=<file>
-# lists whole strings that are known data).
+# Reads back the package that make deb built and checks it. It checks:
+# - the control fields (package, version, architecture, maintainer, and
+#   Depends with libsensors5 and libc6), every expected file and nothing
+#   more, the binaries' modes, and the desktop entry's Exec line;
+# - the license documents: the GPL-3.0 text, the copyright paragraphs,
+#   the source offer, and the third-party notices against Cargo.lock,
+#   with the matching statements in README.md;
+# - that no file holds this machine's home path and no binary holds any
+#   home path. With PURON_TERMS=<file>, the binaries must also hold none
+#   of the terms listed there, one per line as "<c|i><TAB><extended
+#   regex>" (i: ignore case; lines starting with # are comments).
+#   PURON_TERMS_SKIP=<file> lists whole strings that are known to be
+#   harmless data and are not searched.
 # Usage: tools/check-deb.sh [package file]   (or make check-deb)
 cd "$(dirname "$0")/.." || exit 2
 target=${CARGO_TARGET_DIR:-target}
@@ -65,8 +70,9 @@ for f in "$doc/SOURCE-OFFER" README.md; do
     grep -q "v$version" "$f" || fail "$f names no tag v$version"
 done
 grep -q "releases/tag/v$version" "$doc/SOURCE-OFFER" || fail "SOURCE-OFFER has no release link"
-# The third-party notices: every crate of Cargo.lock, each with a license
-# and a text that the file holds, and the NVIDIA notice.
+# The third-party notices: a block for every crate of Cargo.lock, each
+# with a license, a source and a reference to a license text that the
+# file holds; and the NVIDIA notice, unchanged.
 notices=$doc/THIRD-PARTY-NOTICES.txt
 if [ -f "$notices" ]; then
     awk '/^name = /{ n = $3; next } n != "" && /^version = /{ print n " " $3; n = "" }' Cargo.lock | tr -d '"' | LC_ALL=C sort -u > "$tmp/lock-crates"
@@ -83,9 +89,10 @@ if [ -f "$notices" ]; then
     sed -n '/^=== NVIDIA notice begin$/,/^=== NVIDIA notice end$/p' "$notices" | sed '1d;$d' > "$tmp/nvidia"
     cmp -s "$tmp/nvidia" crates/puron-testkit/fixtures/nvml/notice.txt || fail "the notices do not hold the NVIDIA notice"
 fi
-# The published files: no home path in a binary, no path of this home
-# anywhere. Private terms apply to the strings of the read-only data of
-# a binary: in machine code short words occur by chance.
+# No file of the package may hold this machine's home path, and no binary
+# any path under /home. The terms are searched only in the strings of a
+# binary's read-only data, at least 6 characters long, because short
+# words occur by chance in machine code.
 grep -rqF "$HOME/" "$tmp/x/usr" && fail "the package holds this home path"
 for b in puron-applet puron-settings; do
     strings -a "$tmp/x/usr/bin/$b" > "$tmp/s" || fail "strings $b"

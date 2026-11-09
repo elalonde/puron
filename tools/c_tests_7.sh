@@ -1,10 +1,10 @@
 #!/bin/sh
-# Checks that a missing locale is reported. With LOCPATH an empty
-# directory (glibc then loads no installed locale), the locale tests
-# (c_core_order_10 in puron-core, c_i18n_12 in puron-applet and
-# puron-settings) and tools/check-test-host.sh must each exit non-zero.
-# The tests must print HOST NEED tr_TR.UTF-8, and the script must name
-# both locales as missing.
+# Checks that a missing locale fails loudly rather than passing. With
+# LOCPATH set to an empty directory, glibc loads no installed locale;
+# then the locale tests (c_core_order_10 in puron-core, c_i18n_12 in
+# puron-applet and in puron-settings) and tools/check-test-host.sh must
+# each exit non-zero. Each test must print HOST NEED tr_TR.UTF-8 on
+# standard error, and the host check must report both locales MISSING.
 # Usage: tools/c_tests_7.sh
 cd "$(dirname "$0")/.." || exit 2
 tmp=$(mktemp -d) || exit 2
@@ -13,8 +13,9 @@ mkdir "$tmp/loc"
 rc=0
 run() {    # run <name> <command...>: exit code must be non-zero
     name=$1; shift
-    # Keep stderr apart: libtest's "test <name> ... " (stdout, no newline
-    # yet) of a parallel test would otherwise share the need's line.
+    # Keep stderr in its own file: otherwise libtest's "test <name> ... "
+    # of a parallel test, printed on stdout before its newline, could
+    # end up on the same line as the need.
     LOCPATH=$tmp/loc "$@" > "$tmp/$name.out" 2> "$tmp/$name.err"; r=$?
     echo "C-tests-7: $name exit $r"
     [ "$r" != 0 ] || { echo "C-tests-7: $name passed with no locale"; rc=1; }

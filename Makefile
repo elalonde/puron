@@ -1,6 +1,7 @@
-# make check runs rustfmt (cargo fmt --check), builds the workspace, runs
-# its tests, and then runs the repository's check scripts in
-# SCRIPT_CHECKS, each under a time limit: 600 s for the cargo deny checks
+# make check runs rustfmt (cargo fmt --check) and clippy with warnings as
+# errors, builds the workspace, runs its tests, and then runs the check
+# scripts in SCRIPT_CHECKS in order, stopping at the first failure. Each
+# script runs under a time limit: 600 s for the cargo deny checks
 # (c_tests_2.sh, c_tests_3.sh, c_applet_app_19.sh) and read-only-run.sh,
 # 1800 s for c_engine_15.sh (its release build has no limit of its own,
 # its run 30 s), and 120 s for the others. c_applet_panel_15.sh runs with

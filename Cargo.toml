@@ -30,10 +30,11 @@ libc = "0.2.191"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae", default-features = false }
 cosmic-config = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae" }
 iced_test = { git = "https://github.com/pop-os/libcosmic", rev = "430f3d48a97d8779f9c1985473912e594ccca1ae" }
-# Decodes the PNG snapshots in the GUI tests; the version iced_test
-# brings.
+# Decodes the PNG snapshots in the GUI tests. Pinned to 0.17.16, the
+# version tiny-skia depends on; iced_test itself uses png 0.18.
 png = "=0.17.16"
-# The versions libcosmic declares.
+# The versions that libcosmic declares; tools/c_i18n_15.sh checks that
+# puron-applet and puron-settings use no other version.
 i18n-embed = { version = "=0.16.0", features = ["fluent-system"] }
 i18n-embed-fl = "=0.10.1"
 rust-embed = "=8.13.0"

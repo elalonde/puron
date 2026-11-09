@@ -1,6 +1,7 @@
 #!/bin/sh
-# Checks that every message ID of the English catalog appears in an fl!
-# call in the sources of the two GUI crates, so that no text goes unused.
+# Checks that every message ID of the English translation file appears
+# in an fl! call in the sources of puron-applet or puron-settings, so
+# that no text goes unused.
 # Prints each unused ID; exits 1 if there is one.
 # Usage: tools/c_i18n_11.sh
 cd "$(dirname "$0")/.." || exit 2

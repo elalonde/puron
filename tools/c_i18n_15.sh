@@ -1,8 +1,8 @@
 #!/bin/sh
-# Checks that the normal dependency trees of both GUI crates hold
-# i18n-embed, i18n-embed-fl and rust-embed at the pinned versions and at
-# no other version: each crate must give exactly the three lines below
-# (diff exits 0).
+# Checks that the normal dependency trees of puron-applet and
+# puron-settings hold i18n-embed, i18n-embed-fl and rust-embed at the
+# versions pinned in Cargo.toml and at no other version: each crate must
+# give exactly the three lines below (diff exits 0).
 # Usage: tools/c_i18n_15.sh
 cd "$(dirname "$0")/.." || exit 2
 tmp=$(mktemp -d) || exit 2

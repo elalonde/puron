@@ -1,8 +1,10 @@
 #!/bin/sh
-# Checks the toolchain: rustc --version must report 1.99.1, and
-# rust-toolchain.toml must pin channel 1.99.1.
-# Usage: tools/c_tests_1.sh   (from any directory; runs in the root)
-# RUSTUP_AUTO_INSTALL=0: a channel that is not installed fails here
+# Checks the toolchain: rustc --version must report release 1.99.1
+# (the exact line below), and rust-toolchain.toml must pin channel
+# 1.99.1.
+# Usage: tools/c_tests_1.sh   (from any directory; runs in the
+# repository root)
+# RUSTUP_AUTO_INSTALL=0 makes a channel that is not installed fail here
 # instead of being downloaded.
 cd "$(dirname "$0")/.." || exit 2
 rc=0
