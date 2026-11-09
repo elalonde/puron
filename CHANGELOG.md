@@ -4,6 +4,23 @@ The notable changes of each Puron release. Versions follow
 [Semantic Versioning](https://semver.org/), and the format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.2] - 2026-11-08
+
+### Fixed
+
+- With every sensor provider switched off, a change in Sensor Settings now updates the panel at once.
+- Closing Sensor Settings keeps a poll interval that was typed but not yet confirmed.
+- A failed save in Sensor Settings now shows "Settings could not be saved" until a save succeeds.
+- Without a user configuration directory, Puron and Sensor Settings no longer read or write settings in the current
+  directory.
+- The diagnostics log no longer says a liquidctl run did not start when it started but could not be watched to its
+  end.
+
+Changes to the repository only, not to the shipped program:
+
+- The checks now verify the names of test time limits.
+- A test tool waits correctly for every provider's first report.
+
 ## [1.1.1] - 2026-11-08
 
 ### Fixed
