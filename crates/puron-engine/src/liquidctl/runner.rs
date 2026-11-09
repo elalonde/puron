@@ -25,12 +25,12 @@ pub enum End {
     OverCap,
     /// The stop signal was raised.
     Stopped,
-    /// The program could not be started, with the system error. Also used
-    /// when the process descriptor cannot be opened, and when reaping a
-    /// completed run fails.
+    /// The program could not be started, with the system error.
     NotStarted(std::io::Error),
-    /// A `poll(2)`, or a `read(2)` of the output pipe, failed with this
-    /// system error.
+    /// The program started, but waiting for it failed with this system
+    /// error: the child's process descriptor could not be opened, a
+    /// `poll(2)` or a `read(2)` of the output pipe failed, or reaping the
+    /// child after a complete run failed. The group is still killed.
     WaitError(std::io::Error),
 }
 
@@ -80,11 +80,11 @@ pub fn run(program: &Path, limit: Duration, cap: usize, stop: BorrowedFd<'_>) ->
     let status = child.wait();
     match (end, status) {
         (Waited::Complete(output), Ok(status)) => End::Complete { output, status },
-        (Waited::Complete(_), Err(e)) => End::NotStarted(e),
+        // Without its exit status a complete run is not used.
+        (Waited::Complete(_), Err(e)) => End::WaitError(e),
         (Waited::TimeLimit, _) => End::TimeLimit,
         (Waited::OverCap, _) => End::OverCap,
         (Waited::Stopped, _) => End::Stopped,
-        (Waited::NoPidfd(e), _) => End::NotStarted(e),
         (Waited::WaitError(e), _) => End::WaitError(e),
     }
 }
@@ -95,8 +95,8 @@ enum Waited {
     TimeLimit,
     OverCap,
     Stopped,
-    /// The child's process descriptor could not be opened.
-    NoPidfd(std::io::Error),
+    /// The child's process descriptor could not be opened, or a
+    /// `poll(2)` or `read(2)` failed.
     WaitError(std::io::Error),
 }
 
@@ -121,7 +121,7 @@ fn pidfd(child: &Child) -> std::io::Result<OwnedFd> {
 fn wait(child: &mut Child, deadline: Instant, cap: usize, stop: BorrowedFd<'_>) -> Waited {
     let process = match pidfd(child) {
         Ok(fd) => fd,
-        Err(e) => return Waited::NoPidfd(e),
+        Err(e) => return Waited::WaitError(e),
     };
     let mut out = child.stdout.take().expect("piped standard output");
     let mut output = Vec::new();
@@ -208,7 +208,7 @@ mod tests {
     // with the same system error.
     #[test]
     fn failed_call_is_wait_error() {
-        puron_testkit::limit("p4z1-wait-error", 2, || {
+        puron_testkit::limit("failed_call_is_wait_error", 2, || {
             let eintr = std::io::Error::from_raw_os_error(libc::EINTR);
             assert!(failed(eintr).is_none());
             let eio = std::io::Error::from_raw_os_error(libc::EIO);

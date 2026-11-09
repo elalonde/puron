@@ -126,9 +126,6 @@ pub enum Output {
     Engine(Command),
     /// The pinned list was written to the config, with the result.
     Store(Vec<String>, StoreResult),
-    /// The rows' chosen sources were stored, with the result. Nothing in
-    /// this crate produces this output at present.
-    StoreRowSources(Vec<(String, String)>, StoreResult),
     /// Diagnostic logging was switched on or off (`diag::switch`).
     Switch(bool),
     /// A diagnostic event, by its ID, such as `display-updated`. It is

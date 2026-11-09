@@ -15,7 +15,7 @@
 
 use std::os::fd::BorrowedFd;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -44,26 +44,40 @@ const PROVIDERS: [Provider; 5] = [
     Provider::NvmeCli,
 ];
 
-/// Wraps a provider's adapter to see when the provider has reported: it
-/// sets `flag` when a `read` returns, or when `start` returns
-/// `Unavailable` (such a provider never reads).
+/// A provider's `Reported::flag`: it has not reported yet.
+const NOT_YET: u8 = 0;
+/// It has reported, and its latest report holds no reading: a failed or
+/// unavailable read, an empty one, or a start that returned `Unavailable`.
+const NO_READINGS: u8 = 1;
+/// It has reported, and its latest report holds readings.
+const READINGS: u8 = 2;
+
+/// Wraps a provider's adapter to see when the provider has reported, and
+/// whether its latest report holds readings: `flag` is set when a `read`
+/// returns, or when `start` returns `Unavailable` (such a provider never
+/// reads). The flag is set as the call returns, a moment before the
+/// engine has the result, so `snapshot` also checks the snapshot itself.
 struct Reported {
     inner: Box<dyn Source>,
-    flag: Arc<AtomicBool>,
+    flag: Arc<AtomicU8>,
 }
 
 impl Source for Reported {
     fn start(&mut self) -> StartOutcome {
         let o = self.inner.start();
         if o == StartOutcome::Unavailable {
-            self.flag.store(true, Ordering::SeqCst);
+            self.flag.store(NO_READINGS, Ordering::SeqCst);
         }
         o
     }
 
     fn read(&mut self, stop: BorrowedFd<'_>) -> ReadOutcome {
         let o = self.inner.read(stop);
-        self.flag.store(true, Ordering::SeqCst);
+        let seen = match &o {
+            ReadOutcome::Readings(r) if !r.is_empty() => READINGS,
+            _ => NO_READINGS,
+        };
+        self.flag.store(seen, Ordering::SeqCst);
         o
     }
 
@@ -98,10 +112,10 @@ pub fn snapshot(
     mut adapters: Adapters,
     wait: Duration,
 ) -> Option<Snapshot> {
-    let flags: Vec<(Provider, Arc<AtomicBool>)> = PROVIDERS
+    let flags: Vec<(Provider, Arc<AtomicU8>)> = PROVIDERS
         .into_iter()
         .filter(|&p| registry::switch(settings, p))
-        .map(|p| (p, Arc::new(AtomicBool::new(false))))
+        .map(|p| (p, Arc::new(AtomicU8::new(NOT_YET))))
         .collect();
     let marks = flags.clone();
     let engine = Engine::new(clock);
@@ -119,16 +133,12 @@ pub fn snapshot(
     let start = Instant::now();
     let mut last = None;
     // Every 10 ms, take the newest snapshot, and stop at the first one
-    // taken after every flag was seen set. A flag is set as its adapter's
-    // call returns, a moment before the engine has the result, so that
-    // snapshot can still lack the last provider's first report; the dump
-    // then has no readings of that provider. Nothing here waits for the
-    // engine to take that result.
+    // that holds every provider's report (`complete`).
     while !flags.is_empty() {
-        let all = flags.iter().all(|(_, f)| f.load(Ordering::SeqCst));
         if let Some(s) = engine.try_next() {
+            let done = complete(&s, &flags);
             last = Some(s);
-            if all {
+            if done {
                 break;
             }
         }
@@ -139,6 +149,22 @@ pub fn snapshot(
     }
     engine.shutdown();
     last
+}
+
+/// Whether `s` shows the report of every provider in `flags`. Every
+/// provider must have reported. One whose latest report holds readings
+/// must have a reading in `s`; lm-sensors must also have a report in `s`
+/// other than `NoneYet`. A first report with no reading cannot be seen in
+/// `s` otherwise, and need not be: before the engine takes it, `s` has no
+/// reading of that provider either, so the dump is the same.
+fn complete(s: &Snapshot, flags: &[(Provider, Arc<AtomicU8>)]) -> bool {
+    flags.iter().all(|(p, f)| match f.load(Ordering::SeqCst) {
+        NOT_YET => false,
+        seen => {
+            (seen != READINGS || s.readings.iter().any(|r| r.provider == *p))
+                && (*p != Provider::LmSensors || s.lm_sensors != LmReport::NoneYet)
+        }
+    })
 }
 
 /// The dump of one snapshot, or of no snapshot, under `settings`: its
@@ -365,5 +391,79 @@ fn message_word(k: MessageKind) -> &'static str {
     match k {
         MessageKind::SensorsDetect => "sensors-detect",
         MessageKind::Install => "install",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // The time limit helper under the name every test calls it by.
+    use crate as puron_testkit;
+
+    fn reading(provider: Provider) -> RawReading {
+        RawReading {
+            provider,
+            position: 0,
+            kind: None,
+            chip: None,
+            name: None,
+            device: None,
+            item: None,
+            unit: None,
+            key: "k".into(),
+            value: Some(1.0),
+            kernel_label: None,
+            platform: false,
+            device_chars: 0,
+        }
+    }
+
+    fn flag(p: Provider, v: u8) -> (Provider, Arc<AtomicU8>) {
+        (p, Arc::new(AtomicU8::new(v)))
+    }
+
+    // liquidctl's read has returned readings, but the snapshot was
+    // published before the engine took them: it holds only lm-sensors'
+    // reading. Expects it not complete, and complete once it also holds a
+    // liquidctl reading.
+    #[test]
+    fn complete_waits_for_the_last_readings() {
+        puron_testkit::limit("complete_waits_for_the_last_readings", 2, || {
+            let flags = [
+                flag(Provider::LmSensors, READINGS),
+                flag(Provider::Liquidctl, READINGS),
+            ];
+            let mut s = Snapshot {
+                readings: vec![reading(Provider::LmSensors)],
+                lm_sensors: LmReport::Answered,
+            };
+            assert!(!complete(&s, &flags));
+            s.readings.push(reading(Provider::Liquidctl));
+            assert!(complete(&s, &flags));
+        });
+    }
+
+    // Expects a snapshot not complete while a provider has not reported,
+    // or while lm-sensors' report is `NoneYet`; and complete for a report
+    // with no reading, which adds nothing to the snapshot.
+    #[test]
+    fn complete_needs_every_report() {
+        puron_testkit::limit("complete_needs_every_report", 2, || {
+            let empty = Snapshot {
+                readings: Vec::new(),
+                lm_sensors: LmReport::NoneYet,
+            };
+            assert!(!complete(&empty, &[flag(Provider::Nvidia, NOT_YET)]));
+            assert!(complete(&empty, &[flag(Provider::Nvidia, NO_READINGS)]));
+            assert!(!complete(&empty, &[flag(Provider::LmSensors, NO_READINGS)]));
+            let unavailable = Snapshot {
+                lm_sensors: LmReport::Unavailable,
+                ..empty
+            };
+            assert!(complete(
+                &unavailable,
+                &[flag(Provider::LmSensors, NO_READINGS)]
+            ));
+        });
     }
 }

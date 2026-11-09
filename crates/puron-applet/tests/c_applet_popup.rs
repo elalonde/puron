@@ -300,7 +300,7 @@ fn c_applet_popup_23() {
 /// icon size.
 #[test]
 fn section_heading_style_and_icon() {
-    puron_testkit::limit("section-heading", LIMIT, || {
+    puron_testkit::limit("section_heading_style_and_icon", LIMIT, || {
         setup();
         let m = lay(&capture(), None);
         for size in [16, 32] {

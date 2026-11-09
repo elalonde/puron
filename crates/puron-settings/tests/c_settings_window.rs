@@ -646,3 +646,47 @@ fn c_settings_window_17() {
         assert_eq!(open(&fx).plan().title, "Puron", "the plan's title");
     });
 }
+
+/// Set in the second process of `c_settings_window_28`.
+const NO_ROOT: &str = "PURON_SWIN_NO_ROOT";
+
+/// No configuration root: the test runs again in a second process without
+/// `HOME`, `XDG_CONFIG_HOME`, `FLATPAK_ID` and `HOST_XDG_CONFIG_HOME`, in
+/// an empty current directory. A window on `Config::user` opens, then the
+/// switch of item 8 is flipped. Expects the defaults shown, one store
+/// of that switch that returns `Failed`, and the current directory still
+/// empty: nothing is written relative to it.
+#[test]
+fn c_settings_window_28() {
+    puron_testkit::limit("C-settings.window-28", LIMIT, || {
+        if std::env::var_os(NO_ROOT).is_some() {
+            assert_eq!(puron_config::user_root(), None);
+            let mut w = Window::new(Config::user());
+            assert_eq!(w.handle(Event::Open), vec![Output::WatchStart], "Open");
+            assert_eq!(shown(&w.plan()), DEFAULTS);
+            let out = toggle(&mut w, 8);
+            assert_eq!(results(&out), [StoreResult::Failed]);
+            return;
+        }
+        let cwd = puron_testkit::temp_dir("swin-noroot");
+        let status = puron_testkit::rerun_self("c_settings_window_28")
+            .env(NO_ROOT, "1")
+            .env_remove("HOME")
+            .env_remove("XDG_CONFIG_HOME")
+            .env_remove("FLATPAK_ID")
+            .env_remove("HOST_XDG_CONFIG_HOME")
+            .current_dir(&cwd)
+            .stdout(std::process::Stdio::null())
+            .status()
+            .expect("run the second process");
+        assert!(status.success(), "the second process: {status}");
+        let left: Vec<_> = std::fs::read_dir(&cwd)
+            .expect("read the current directory")
+            .map(|e| e.expect("entry").file_name())
+            .collect();
+        assert!(
+            left.is_empty(),
+            "written in the current directory: {left:?}"
+        );
+    });
+}

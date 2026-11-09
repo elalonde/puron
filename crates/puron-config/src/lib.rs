@@ -150,14 +150,27 @@ pub struct Watch {
 /// holds only the path.
 #[derive(Clone, Debug)]
 pub struct Config {
-    root: PathBuf,
+    /// `None` when the user's configuration root cannot be found (see
+    /// [`Config::user`]).
+    root: Option<PathBuf>,
 }
 
 impl Config {
-    /// The settings under `root`. The application passes [`user_root`];
-    /// tests pass a temporary directory.
+    /// The settings under `root`. Tests pass a temporary directory.
     pub fn new(root: impl Into<PathBuf>) -> Config {
-        Config { root: root.into() }
+        Config {
+            root: Some(root.into()),
+        }
+    }
+
+    /// The user's settings, under [`user_root`]. When there is no such
+    /// root, the settings have no directory at all: `load` returns the
+    /// defaults with one `Unreadable` problem without a key, as for a
+    /// directory that cannot be opened, every `store` returns `Failed`,
+    /// and `watch` returns `None`. Nothing is then read or written
+    /// relative to the current directory.
+    pub fn user() -> Config {
+        Config { root: user_root() }
     }
 
     /// Reads every key and returns the settings in effect. A missing
@@ -231,9 +244,11 @@ impl Config {
         if !typed {
             return StoreResult::Failed;
         }
+        let Some(root) = &self.root else {
+            return StoreResult::Failed;
+        };
         // Creates the per-user directory if it does not exist.
-        let Ok(config) =
-            cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, self.root.clone())
+        let Ok(config) = cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, root.clone())
         else {
             return StoreResult::Failed;
         };
@@ -254,17 +269,18 @@ impl Config {
     /// Starts watching the settings directory. `deliver` is called on
     /// cosmic-config's watcher thread for each change that touches at
     /// least one entry of [`KEYS`]; a change to any other file calls
-    /// nothing. Returns `None` when the settings directory cannot be
-    /// created or opened, or the watch cannot start.
+    /// nothing. Returns `None` when there is no configuration root, when
+    /// the settings directory cannot be created or opened, or when the
+    /// watch cannot start.
     pub fn watch<F>(&self, deliver: F) -> Option<Watch>
     where
         F: Fn(Delivery) + Send + Sync + 'static,
     {
         // Creates the per-user directory (no entry) if it does not exist,
         // so that a watch started on a fresh install sees the first store.
-        let config =
-            cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, self.root.clone()).ok()?;
-        std::fs::read_dir(self.user_dir()).ok()?;
+        let root = self.root.clone()?;
+        let config = cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, root).ok()?;
+        std::fs::read_dir(self.user_dir()?).ok()?;
         let this = self.clone();
         // cosmic-config watches only the user's directory, never the
         // system defaults, and passes the names of the changed entries;
@@ -290,27 +306,32 @@ impl Config {
         })
     }
 
-    /// The settings directory: `<root>/cosmic/<CONFIG_ID>/v<VERSION>`.
-    fn user_dir(&self) -> PathBuf {
-        self.root
-            .join("cosmic")
-            .join(CONFIG_ID)
-            .join(format!("v{VERSION}"))
+    /// The settings directory: `<root>/cosmic/<CONFIG_ID>/v<VERSION>`;
+    /// `None` without a root.
+    fn user_dir(&self) -> Option<PathBuf> {
+        let root = self.root.as_ref()?;
+        Some(
+            root.join("cosmic")
+                .join(CONFIG_ID)
+                .join(format!("v{VERSION}")),
+        )
     }
 
     /// Opens the settings directory for reading. Returns `Some(None)`
     /// when it does not exist, which `load` treats as "nothing stored",
-    /// and `None` when it exists but cannot be opened. It creates
+    /// and `None` when it exists but cannot be opened, or when there is
+    /// no configuration root. It creates
     /// nothing: `with_custom_path` would create the directory, so it is
     /// called only after the directory is known to exist. The handle has
     /// no system path, so no read can fall back to a system default.
     fn open(&self) -> Option<Option<cosmic_config::Config>> {
-        match std::fs::read_dir(self.user_dir()) {
+        let root = self.root.clone()?;
+        match std::fs::read_dir(self.user_dir()?) {
             Ok(_) => {}
             Err(e) if e.kind() == ErrorKind::NotFound => return Some(None),
             Err(_) => return None,
         }
-        cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, self.root.clone())
+        cosmic_config::Config::with_custom_path(CONFIG_ID, VERSION, root)
             .ok()
             .map(Some)
     }

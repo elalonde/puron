@@ -87,7 +87,7 @@ mod tests {
     // switches diagnostics, because the switch is process-wide.
     #[test]
     fn text_only_with_diag() {
-        puron_testkit::limit("p4z1-nvml-text", 2, || {
+        puron_testkit::limit("text_only_with_diag", 2, || {
             diag::switch(true);
             let on = text(NvmlError::Uninitialized);
             diag::switch(false);
