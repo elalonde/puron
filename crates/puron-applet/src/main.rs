@@ -1,11 +1,14 @@
-//! The puron-applet program. The event loop of `app` runs on its own
-//! thread with the engine, the config and the program places. libcosmic's
-//! applet runs on the main thread and draws the panel button (`panel`)
-//! and the popup (`popup`) from the state the loop sends after each
-//! event. Popup clicks go to the loop as UI events. When libcosmic's run
-//! returns (the panel removed the applet or closed its connection), an
-//! `Event::Stop` goes to the loop, which exits after the engine has shut
-//! down.
+//! The puron-applet program: a COSMIC panel applet that shows sensor
+//! readings on its panel button and lists them in a popup.
+//!
+//! Two threads do the work. The event loop of `app::run` runs on its own
+//! thread; it owns the `App` state, the engine and the config. libcosmic
+//! runs on the main thread and draws the panel button (`panel`) and the
+//! popup (`popup`) from the `View` that the loop sends after each event.
+//! Clicks in the popup go back to the loop as `Source::Ui` events. When
+//! libcosmic's run returns (the panel removed the applet or closed its
+//! connection), `main` sends `Event::Stop`; the loop then shuts the
+//! engine down and exits the process.
 
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
@@ -26,7 +29,8 @@ use puron_core::panel::Panel;
 use puron_engine::clock::SystemClock;
 use puron_engine::engine::Engine;
 
-/// The state the UI draws, as `app` holds it after one event.
+/// A copy of the parts of `App` that the UI draws, sent by the event
+/// loop after every event. `menu` is `None` until the first layout.
 #[derive(Clone, Debug)]
 struct View {
     menu: Option<Menu>,
@@ -34,6 +38,9 @@ struct View {
     pinned: Vec<String>,
 }
 
+/// The libcosmic application's messages: a new view from the event loop,
+/// a press on the panel button, a click in the popup, and the popup
+/// window closed by the compositor.
 #[derive(Clone, Debug)]
 enum Msg {
     View(Box<View>),
@@ -42,8 +49,10 @@ enum Msg {
     PopupClosed(Id),
 }
 
-/// The receiving end of the loop's views, taken once by the
-/// subscription.
+/// The receiving end of the channel that carries each `View` from the
+/// event loop. `main` stores it before the toolkit starts; `views` takes
+/// it on the subscription's first run, and any later run gets a stream
+/// that never yields.
 static VIEWS: Mutex<Option<UnboundedReceiver<View>>> = Mutex::new(None);
 
 fn views() -> BoxStream<'static, Msg> {
@@ -53,6 +62,9 @@ fn views() -> BoxStream<'static, Msg> {
     }
 }
 
+/// The libcosmic application. Besides the latest `View`, it keeps only
+/// the window ID of the open popup; `tx` carries popup clicks to the
+/// event loop.
 struct Applet {
     core: Core,
     tx: Sender<(Source, Event)>,
@@ -88,9 +100,9 @@ impl cosmic::Application for Applet {
     type Executor = cosmic::SingleThreadExecutor;
     type Flags = Sender<(Source, Event)>;
     type Message = Msg;
-    /// Kept apart from the config ID, as in the settings window:
-    /// libcosmic keeps its own state under the App ID, never in Puron's
-    /// entries.
+    /// libcosmic keeps its own state under this ID. It differs from the
+    /// ID that `puron_config` stores the settings under, so libcosmic's
+    /// entries never mix with the applet's settings.
     const APP_ID: &'static str = "io.github.elalonde.Puron.Applet";
 
     fn core(&self) -> &Core {
@@ -235,16 +247,18 @@ fn main() {
         })
     });
 
-    // A toolkit that cannot start panics (no display). That ends the
-    // event loop too, so the engine is still shut down.
+    // The toolkit panics when it cannot start, for example without a
+    // display. The panic is caught so that the code below still stops the
+    // event loop, which shuts the engine down.
     let ui_tx = tx.clone();
     let _ = std::panic::catch_unwind(move || cosmic::applet::run::<Applet>(ui_tx));
-    // The toolkit's event loop ended: send `Event::Stop`. Our loop exits the
-    // process with status 0 once the engine shutdown has returned.
+    // The toolkit has returned: ask the event loop to stop. The loop exits
+    // the process with status 0 once the engine's shutdown has returned.
     let _ = tx.send((Source::Stop, Event::Stop));
-    // The loop returns only by a panic (the profile unwinds). No
-    // shutdown was sent, so the process ends here with a failure status
-    // rather than hang with the engine's threads still alive.
+    // `app::run` never returns; it exits the process itself. `join`
+    // therefore returns only when the loop thread has panicked (the
+    // release profile unwinds on panic). The engine was then not shut
+    // down, and the process exits with status 1.
     let code = if event_loop.join().is_err() { 1 } else { 0 };
     std::process::exit(code);
 }

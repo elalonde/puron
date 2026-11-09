@@ -1,5 +1,8 @@
-//! The panel button: rendering and icon names. It decides no item, value
-//! or icon kind (that is `core.panel`'s job) and holds no state.
+//! The panel button's content: a `Plan` built from the items that
+//! `puron_core::panel::panel` chose, and the widgets drawn from it. This
+//! module chooses no item, value or icon kind itself and holds no state.
+//! It also owns the map from icon kinds to icon names, which the popup
+//! uses too.
 
 use cosmic::applet::Context;
 use cosmic::iced::{Alignment, Length, Padding};
@@ -9,17 +12,19 @@ use puron_core::panel::{Icon, Item, Panel};
 
 use crate::i18n;
 
-/// Spacing between elements, both orientations.
+/// The space between neighbouring elements, in px, in both orientations.
+/// It is zero: the icon padding and the label padding alone separate them.
 pub const SPACING: f32 = 0.0;
 
-/// Icon padding on a horizontal panel's main axis, before and after
-/// every icon element.
+/// The padding in px before and after every icon, along a horizontal
+/// panel.
 pub const ICON_PADDING_HORIZONTAL: f32 = 9.0;
 
-/// Icon padding on a vertical panel's main axis.
+/// The padding in px above and below every icon, along a vertical panel.
 pub const ICON_PADDING_VERTICAL: f32 = 5.0;
 
-/// The panel's orientation, from libcosmic's applet context.
+/// Whether the panel runs across the screen or down its side. The
+/// elements are laid out along the panel in this direction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Orientation {
     Horizontal,
@@ -27,7 +32,7 @@ pub enum Orientation {
 }
 
 impl Orientation {
-    /// The orientation of the panel's anchor.
+    /// The orientation that libcosmic reports for the applet's panel.
     pub fn of(context: &Context) -> Self {
         if context.is_horizontal() {
             Orientation::Horizontal
@@ -37,14 +42,15 @@ impl Orientation {
     }
 }
 
-/// libcosmic's suggested applet icon size for the panel's size, square;
-/// every icon name here is symbolic.
+/// The side in px of a square icon, as libcosmic suggests it for the
+/// panel's size.
 pub fn icon_size(context: &Context) -> u16 {
     context.suggested_size(true).0
 }
 
-/// The icon name of an icon kind. This is the only map; the popup uses
-/// it too.
+/// The themed icon name for an icon kind. This is the only map from kinds
+/// to names; the popup's section headings use it too. Voltage and power
+/// share one icon.
 pub fn icon_name(kind: IconKind) -> &'static str {
     match kind {
         IconKind::GeneralTemperature => "puron-temperature-symbolic",
@@ -55,7 +61,9 @@ pub fn icon_name(kind: IconKind) -> &'static str {
     }
 }
 
-/// The icon name of a section, through `icon_name`.
+/// The icon name for a popup section heading: the icon of the matching
+/// kind, through `icon_name`. Temperature sections use the general
+/// temperature icon.
 pub fn section_icon_name(section: Section) -> &'static str {
     icon_name(match section {
         Section::Temperature => IconKind::GeneralTemperature,
@@ -65,14 +73,18 @@ pub fn section_icon_name(section: Section) -> &'static str {
     })
 }
 
-/// One element of the panel plan, with its item index.
+/// One element of the panel button. `item` is the index in
+/// `Panel::items` of the item it was built from: a pinned reading gives
+/// an optional icon or slot followed by its text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Element {
     Icon {
         item: usize,
         name: &'static str,
     },
-    /// The empty slot: the icon size, draws nothing.
+    /// An empty square of the icon's size, drawn while icons are on but
+    /// the pin's icon kind is not known yet, so that its text keeps its
+    /// place.
     Slot {
         item: usize,
     },
@@ -82,21 +94,26 @@ pub enum Element {
     },
 }
 
-/// The panel plan: a value that tests read without a display.
+/// Everything the panel button draws, as plain data. `view` builds the
+/// widgets from it alone, so tests can check a plan without a display.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plan {
     pub orientation: Orientation,
     pub elements: Vec<Element>,
     pub spacing: f32,
-    /// Icon padding in px, before and after each icon element on the
-    /// main axis, outside its square.
+    /// The padding in px before and after each icon or slot along the
+    /// panel, outside its square.
     pub icon_padding: f32,
-    /// Label padding in px, left and right of each text.
+    /// The padding in px left and right of each text, from
+    /// `Panel::padding`.
     pub padding: u32,
     pub icon_size: u16,
 }
 
-/// The panel plan of `core.panel`'s items.
+/// The plan for the items of `panel`. `Item::EmptyState`, shown when no
+/// pin is of a shown class, becomes the GPU temperature icon alone. A pin
+/// becomes its icon (or an empty slot, or nothing when icons are off)
+/// followed by its value text.
 pub fn plan(panel: &Panel, orientation: Orientation, icon_size: u16) -> Plan {
     let mut elements = Vec::new();
     for (item, it) in panel.items.iter().enumerate() {
@@ -132,15 +149,18 @@ pub fn plan(panel: &Panel, orientation: Orientation, icon_size: u16) -> Plan {
     }
 }
 
-/// The widget id of element `index` of the plan.
+/// The widget ID of the element at `index` in `Plan::elements`, so that
+/// tests can find its rectangle.
 pub fn element_id(index: usize) -> Id {
     Id::new(format!("e{index}"))
 }
 
-/// The button content, built from the plan alone. Each element is a
-/// container with the id `e<index>`; a text's container is the text's
-/// own rectangle, inside the label padding; an icon's or slot's
-/// container is its square, inside the icon padding.
+/// The panel button's content, built from the plan alone: a row on a
+/// horizontal panel, a column on a vertical one, centred across the
+/// panel. Each element sits in a container whose widget ID is
+/// `element_id(index)`. That container is exactly the text's or the
+/// square's own rectangle; the padding is applied by an outer container,
+/// so it is not part of the rectangle.
 pub fn view<'a, M: 'a>(plan: &Plan) -> cosmic::Element<'a, M> {
     let size = plan.icon_size;
     let pad = plan.padding as f32;
@@ -193,8 +213,8 @@ pub fn view<'a, M: 'a>(plan: &Plan) -> cosmic::Element<'a, M> {
     }
 }
 
-/// The icon padding of the plan on its main axis, none on the cross
-/// axis.
+/// The plan's icon padding along the panel only: left and right on a
+/// horizontal panel, top and bottom on a vertical one.
 fn icon_padding(plan: &Plan) -> Padding {
     let p = plan.icon_padding;
     match plan.orientation {

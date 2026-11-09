@@ -1,8 +1,9 @@
-//! Tests of `app` that drive the state machine without a display and
-//! read no diag datagram, so they can share one binary. 5 s each. The
-//! start record is fixture `good-p5` (every key set by hand to a
-//! non-default value, with pinned list P5) unless a test uses fixture
-//! `p5` (the `core.settings` defaults with P5).
+//! Tests of `App` that drive it without a display and read no
+//! diagnostic event from the journal, so they can share one binary. Each
+//! has a time limit of 5 s. A test starts from one of two config
+//! fixtures: `good-p5`, where every key holds a non-default value and the
+//! pinned list is `P5` of `pins.json`, or `p5`, the default settings with
+//! the same pinned list.
 #![allow(non_snake_case)]
 
 mod common;
@@ -22,7 +23,8 @@ use puron_testkit::eng::HandleCall;
 
 const LIMIT: u64 = 5;
 
-/// Start with the fixture `name`; the outputs of `Event::Start`.
+/// An app on the config fixture `name`, after `Event::Start`, with the
+/// outputs of that event.
 fn started(
     name: &str,
 ) -> (
@@ -38,7 +40,8 @@ fn started(
     (c, h, a, out)
 }
 
-/// The `p5` root with the captured readings applied as a snapshot.
+/// An app on fixture `p5` after one snapshot of the captured readings,
+/// which shows both pins with a value.
 fn as_4() -> (
     cfg::Cfg,
     std::sync::Arc<puron_testkit::eng::Handle>,
@@ -50,6 +53,7 @@ fn as_4() -> (
     (c, h, a)
 }
 
+/// No config key's name contains "position" or "index", in any case.
 #[test]
 fn c_applet_app_1() {
     puron_testkit::limit("C-applet.app-1", LIMIT, || {
@@ -69,6 +73,11 @@ fn c_applet_app_1() {
     });
 }
 
+/// At start, before any reading, the panel shows each pin of `P5` as "⚠"
+/// with an empty icon slot, and the popup begins with the sensors-detect
+/// message. Both are output before the engine is started with the loaded
+/// settings. With no pins (fixture `nopins`), the panel shows the
+/// empty-state item.
 #[test]
 fn c_applet_app_2() {
     puron_testkit::limit("C-applet.app-2", LIMIT, || {
@@ -109,6 +118,8 @@ fn c_applet_app_2() {
     });
 }
 
+/// Switching unit suffixes off and on again redraws the panel at once,
+/// without any engine call.
 #[test]
 fn c_applet_app_4() {
     puron_testkit::limit("C-applet.app-4", LIMIT, || {
@@ -132,6 +143,8 @@ fn c_applet_app_4() {
     });
 }
 
+/// A new temperature unit asks the engine for a poll and changes nothing
+/// on screen; the next snapshot shows the pins in Fahrenheit.
 #[test]
 fn c_applet_app_5() {
     puron_testkit::limit("C-applet.app-5", LIMIT, || {
@@ -147,6 +160,8 @@ fn c_applet_app_5() {
     });
 }
 
+/// Switching a provider on passes the new settings to `set_providers`,
+/// and makes no other engine call.
 #[test]
 fn c_applet_app_6() {
     puron_testkit::limit("C-applet.app-6", LIMIT, || {
@@ -161,6 +176,13 @@ fn c_applet_app_6() {
     });
 }
 
+/// Hiding temperatures asks for a poll and leaves the panel and popup as
+/// they are. The next snapshot's layout is a forced rebuild without
+/// temperature lines, and the panel shows the empty-state item; the
+/// snapshot after that is not forced. One change that shows
+/// temperatures again and hides unit suffixes lays out at once without
+/// forcing, then forces the rebuild at the next snapshot. The stored list
+/// holds a wifi pin and `@maximum` (`P3` of `pins.json`).
 #[test]
 fn c_applet_app_7() {
     puron_testkit::limit("C-applet.app-7", LIMIT, || {
@@ -206,7 +228,7 @@ fn c_applet_app_7() {
                 .any(|o| matches!(o, Output::Layout { forced: false, .. })),
             "{out:?}"
         );
-        // One delivery with a unit switch and Show Sensors together.
+        // One change that shows temperatures again and hides unit suffixes.
         let out = a.handle(delivery(
             &a,
             &["show_temperature", "show_temperature_unit"],
@@ -240,6 +262,7 @@ fn c_applet_app_7() {
     });
 }
 
+/// A new poll interval reaches the engine through `set_interval` alone.
 #[test]
 fn c_applet_app_8() {
     puron_testkit::limit("C-applet.app-8", LIMIT, || {
@@ -252,6 +275,8 @@ fn c_applet_app_8() {
     });
 }
 
+/// Switching panel icons off redraws the panel at once without icons and
+/// with the same values, and makes no engine call.
 #[test]
 fn c_applet_app_9() {
     puron_testkit::limit("C-applet.app-9", LIMIT, || {
@@ -266,6 +291,9 @@ fn c_applet_app_9() {
     });
 }
 
+/// One change of the interval, a provider and a shown class calls
+/// `set_interval` and then `set_providers`, with no separate poll. A
+/// change that alters no setting outputs nothing.
 #[test]
 fn c_applet_app_10() {
     puron_testkit::limit("C-applet.app-10", LIMIT, || {
@@ -293,6 +321,9 @@ fn c_applet_app_10() {
     });
 }
 
+/// After start, a pinned list written by another process does not
+/// replace the applet's list: the panel stays, nothing is stored, and the
+/// engine is only asked for a poll.
 #[test]
 fn c_applet_app_11() {
     puron_testkit::limit("C-applet.app-11", LIMIT, || {
@@ -310,6 +341,10 @@ fn c_applet_app_11() {
     });
 }
 
+/// A click on the CPU fan's line adds it to the list, stores the list,
+/// asks for a poll and shows the fan's reading with the fan icon on the
+/// panel. The config change that this store causes makes no engine
+/// call.
 #[test]
 fn c_applet_app_12() {
     puron_testkit::limit("C-applet.app-12", LIMIT, || {
@@ -350,6 +385,9 @@ fn c_applet_app_12() {
     });
 }
 
+/// `app::run` handles `Event::Start` first, then waits for the engine's
+/// next snapshot; a snapshot that arrives is handled with the source
+/// `Subscription` and updates the panel.
 #[test]
 fn c_applet_app_18() {
     puron_testkit::limit("C-applet.app-18", LIMIT, || {
@@ -382,7 +420,8 @@ fn c_applet_app_18() {
     });
 }
 
-/// Set `name` of the CPU fixture as a snapshot.
+/// A snapshot holding the reading set `name` of the `cpu.json` fixture,
+/// with lm-sensors answered.
 fn cpu_snapshot(name: &str) -> puron_engine::engine::Snapshot {
     let text = std::fs::read_to_string(puron_testkit::fixture("raw", "cpu.json")).unwrap();
     let mut sets: std::collections::BTreeMap<String, Vec<puron_core::rows::RawReading>> =
@@ -393,6 +432,8 @@ fn cpu_snapshot(name: &str) -> puron_engine::engine::Snapshot {
     }
 }
 
+/// A snapshot holding the reading set `name` of the `drives.json` fixture,
+/// with lm-sensors answered.
 fn drive_snapshot(name: &str) -> puron_engine::engine::Snapshot {
     let text = std::fs::read_to_string(puron_testkit::fixture("raw", "drives.json")).unwrap();
     let mut sets: std::collections::BTreeMap<String, Vec<puron_core::rows::RawReading>> =
@@ -403,12 +444,15 @@ fn drive_snapshot(name: &str) -> puron_engine::engine::Snapshot {
     }
 }
 
+// Two temperature sensors of one NVMe drive, as nvme-cli and as
+// lm-sensors report them.
 const NVME_S1: &str = "temperature/nvme-cli/0000:01:00.0/temp2";
 const NVME_S2: &str = "temperature/nvme-cli/0000:01:00.0/temp3";
 const DRIVE_S1: &str = "temperature/lm-sensors/nvme-pci-0100/temp2";
 const DRIVE_S2: &str = "temperature/lm-sensors/nvme-pci-0100/temp3";
 
-/// An app started with `pinned` stored.
+/// An app on fixture `p5`, started after `pinned` was stored as the pinned
+/// list, and a config handle on the same directory.
 fn pinned_app(
     pinned: &[&str],
 ) -> (
@@ -434,15 +478,20 @@ fn pin_stores(out: &[Output]) -> usize {
         .count()
 }
 
+/// A pin on an NVMe drive's nvme-cli reading moves to the lm-sensors
+/// reading of the same sensor once both providers report it, since the
+/// popup then keeps only the lm-sensors line.
 #[test]
 fn c_applet_app_23() {
     puron_testkit::limit("C-applet.app-23", LIMIT, || {
-        // With lm-sensors off a pin on the NVMe reading works as it did.
+        // With lm-sensors off, only nvme-cli reports the drive: the pin
+        // stays and nothing is stored.
         let (_c, _h, mut a, config) = pinned_app(&[NVME_S2]);
         let out = a.handle(Event::Snapshot(drive_snapshot("lm-sensors-off")));
         assert_eq!(a.pinned(), [NVME_S2.to_string()]);
         assert_eq!(pin_stores(&out), 0);
-        // Both report it: the pin moves to the line that stays, once.
+        // Both report it: the pin moves to the lm-sensors line, and the
+        // list is stored once.
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(a.pinned(), [DRIVE_S2.to_string()]);
         assert_eq!(pin_stores(&out), 1);
@@ -452,31 +501,39 @@ fn c_applet_app_23() {
         );
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(pin_stores(&out), 0);
-        // Lost again: it stays where it moved to.
+        // lm-sensors stops reporting: the pin stays on its new line.
         a.handle(Event::Snapshot(drive_snapshot("lm-sensors-off")));
         assert_eq!(a.pinned(), [DRIVE_S2.to_string()]);
-        // A pin on the line that stays and on its repeat: one pin.
+        // Pins on both readings of one sensor become one pin, on the
+        // lm-sensors line.
         let (_c, _h, mut a, _) = pinned_app(&[NVME_S1, DRIVE_S1]);
         a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(a.pinned(), [DRIVE_S1.to_string()]);
-        // No proof of a repeat: the pin stays.
+        // Drives at different addresses are not the same drive: the pin
+        // stays on the nvme-cli reading.
         let (_c, _h, mut a, _) = pinned_app(&[NVME_S1]);
         a.handle(Event::Snapshot(drive_snapshot("other-address")));
         assert_eq!(a.pinned(), [NVME_S1.to_string()]);
     });
 }
 
+// Lines of the `cpu.json` and `drives.json` fixtures: the CPU package
+// temperature, a board sensor, an NVMe drive's composite temperature and
+// a board fan.
 const PACKAGE: &str = "temperature/lm-sensors/coretemp-isa-0000/temp1";
 const BOARD: &str = "temperature/lm-sensors/example_acpi-isa-0000/temp1";
 const COMPOSITE: &str = "temperature/lm-sensors/nvme-pci-0100/temp1";
 const FAN: &str = "fan/lm-sensors/example_acpi-isa-0000/fan1";
 
-/// A new install checks the default lines of what it reads, and stores
-/// nothing until a click; stored pins of older versions move once.
+/// A new install pins the default lines of what it reads, in memory, and
+/// stores nothing until a click. The older pins `@maximum` and `@cpu`
+/// move once to the lines that stand for them, and the list is then
+/// stored once.
 #[test]
 fn c_applet_app_26() {
     puron_testkit::limit("C-applet.app-26", LIMIT, || {
-        // New install: nothing stored.
+        // A new install: the config has no pinned list. At start nothing is
+        // pinned; the first snapshot pins the default lines, unstored.
         let c = cfg::build("p5");
         std::fs::remove_file(c.id_dir().join("pinned")).expect("no pins stored");
         let config = Config::new(c.root.clone());
@@ -491,7 +548,8 @@ fn c_applet_app_26() {
         assert_eq!(pin_stores(&out), 0);
         assert_eq!(config.load().settings.pinned, None);
         assert_eq!(values(&panel_of(&out).unwrap()), ["48°C", "38°C"]);
-        // A click: that list less the line, stored, and defaults no longer apply.
+        // A click removes that line and stores the rest; later snapshots
+        // no longer pin the default lines.
         let out = a.handle(Event::PinClick(COMPOSITE.to_string()));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
         assert_eq!(pin_stores(&out), 1);
@@ -501,12 +559,13 @@ fn c_applet_app_26() {
         );
         a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
-        // Stored empty stays empty.
+        // An empty stored list stays empty.
         let (_c, _h, mut a, _) = pinned_app(&[]);
         a.handle(Event::Snapshot(drive_snapshot("example")));
         assert!(a.pinned().is_empty());
 
-        // Version 1.0.0's Maximum: the CPU's default line, once, no drive.
+        // `@maximum`, as version 1.0.0 stored it, moves to the CPU's
+        // default line only, not to a drive's, and is stored once.
         let (_c, _h, mut a, config) = pinned_app(&["@maximum"]);
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
@@ -517,7 +576,8 @@ fn c_applet_app_26() {
         );
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(pin_stores(&out), 0);
-        // In its place, among others; a hidden class and no report yet wait.
+        // Among other pins it moves in place, and the others stay. Before
+        // lm-sensors has reported, it waits and nothing is stored.
         let (_c, _h, mut a, _) = pinned_app(&[FAN, "@maximum", BOARD]);
         a.handle(Event::Snapshot(cpu_snapshot("example")));
         assert_eq!(
@@ -532,7 +592,7 @@ fn c_applet_app_26() {
         assert_eq!(pin_stores(&out), 0);
         a.handle(Event::Snapshot(cpu_snapshot("example")));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
-        // No CPU: the first line.
+        // With no CPU readings, it moves to the first temperature line.
         let (_c, _h, mut a, _) = pinned_app(&["@maximum"]);
         a.handle(Event::Snapshot(cpu_snapshot("no-cpu")));
         assert_eq!(
@@ -540,7 +600,10 @@ fn c_applet_app_26() {
             ["temperature/lm-sensors/iwlwifi_1-virtual-0/temp1".to_string()]
         );
 
-        // A development build's CPU pin, with what it was reading.
+        // `@cpu`, which a development build stored together with the
+        // sensor it was reading (the `row_sources` entry), moves to that
+        // sensor's line; a source of `@maximum` gives the CPU group's
+        // maximum line.
         let with_source = |source: &str| {
             let (c, h, _, _) = pinned_app(&["@cpu"]);
             let pairs = format!(r#"[("@cpu", "{source}")]"#);
@@ -555,14 +618,17 @@ fn c_applet_app_26() {
         let (_c, mut a) = with_source("@maximum");
         a.handle(Event::Snapshot(cpu_snapshot("example")));
         assert_eq!(a.pinned(), ["@maximum/cpu".to_string()]);
-        // A sensor that is gone, and no pair at all: the default line.
+        // A source sensor that is gone, or no source at all, gives the
+        // default line; in the `monolith` set that is the CPU group's
+        // maximum line.
         let (_c, mut a) = with_source("nothing-here/temp1");
         a.handle(Event::Snapshot(cpu_snapshot("example")));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
         let (_c, _h, mut a, _) = pinned_app(&["@cpu"]);
         a.handle(Event::Snapshot(cpu_snapshot("monolith")));
         assert_eq!(a.pinned(), ["@maximum/cpu".to_string()]);
-        // Both on the one line: one pin. Neither is lost, none doubled.
+        // `@maximum` and `@cpu` that both move to a line already pinned
+        // leave one pin on it, and that list is stored.
         let (_c, _h, mut a, config) = pinned_app(&["@maximum", "@cpu", PACKAGE]);
         a.handle(Event::Snapshot(cpu_snapshot("example")));
         assert_eq!(a.pinned(), [PACKAGE.to_string()]);
@@ -575,9 +641,11 @@ fn c_applet_app_26() {
 
 const MAXIMUM: &str = "@maximum";
 
-/// A stored Maximum waits for readings of lm-sensors: a failed start or a
-/// failed read moves nothing and stores nothing; the first readings move it,
-/// once. With lm-sensors switched off it waits no more.
+/// A stored `@maximum` waits for lm-sensors readings. While lm-sensors is
+/// unavailable, or has answered with no reading, nothing moves or is
+/// stored and the panel shows "⚠". The first snapshot with lm-sensors
+/// readings moves it and stores the list once. With lm-sensors switched
+/// off, it no longer waits.
 #[test]
 fn c_applet_app_27() {
     puron_testkit::limit("C-applet.app-27", LIMIT, || {
@@ -608,7 +676,8 @@ fn c_applet_app_27() {
         assert_eq!(a.pin_phase(), PinPhase::Settled);
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert_eq!(pin_stores(&out), 0);
-        // lm-sensors switched off: the first device's default line.
+        // With lm-sensors switched off, it moves at the next snapshot to the
+        // first device's default line, an nvme-cli reading.
         let (_c, _h, mut a, _) = pinned_app(&[MAXIMUM]);
         let off = delivery(&a, &["provider_lm_sensors"], |s| {
             s.provider_lm_sensors = false
@@ -625,8 +694,9 @@ fn c_applet_app_27() {
     });
 }
 
-/// A click while a stored Maximum waits keeps it in the stored list, and it
-/// still moves once lm-sensors reads.
+/// A click while a stored `@maximum` waits keeps it in the list that is
+/// stored, and it still moves once lm-sensors reads; the NVMe pin of the
+/// click moves to its lm-sensors line at the same time.
 #[test]
 fn c_applet_app_28() {
     puron_testkit::limit("C-applet.app-28", LIMIT, || {
@@ -648,8 +718,10 @@ fn c_applet_app_28() {
     });
 }
 
-/// A stored pinned value that cannot be read is no new install: nothing is
-/// checked, the stored value stays until a click, which replaces it.
+/// A stored pinned value that cannot be used (of the wrong type, or not
+/// readable) is not a new install: it logs a config problem, nothing is
+/// pinned, the stored value stays as it is, and the first click replaces
+/// it.
 #[test]
 fn c_applet_app_29() {
     puron_testkit::limit("C-applet.app-29", LIMIT, || {
@@ -677,7 +749,8 @@ fn c_applet_app_29() {
             config.load().settings.pinned,
             Some(vec![PACKAGE.to_string()])
         );
-        // A read error: an entry with no read permission (not run as root).
+        // A read error: an entry without read permission. This part needs a
+        // test user who is not root.
         let c = cfg::build("p5");
         let file = c.id_dir().join("pinned");
         set_mode(&file, 0o000);
@@ -697,8 +770,9 @@ fn set_mode(path: &std::path::Path, mode: u32) {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
 }
 
-/// A failed store of the pinned list is tried again at each snapshot, with
-/// one diag event, until it is stored; then no more stores.
+/// A failed store of the pinned list is tried again at each snapshot
+/// until it succeeds, and logs `pinned-store-failed` only once. After the
+/// store succeeds, snapshots store nothing more.
 #[test]
 fn pinned_store_retried() {
     puron_testkit::limit("pinned_store_retried", LIMIT, || {
@@ -732,8 +806,9 @@ fn pinned_store_retried() {
     });
 }
 
-/// A list written from outside during a new install is taken as stored: the
-/// defaults are no longer checked, and a click builds on that list.
+/// A pinned list that another process writes during a new install is
+/// taken as the stored list: it replaces the default lines at once, the
+/// default lines are not pinned again, and a click adds to that list.
 #[test]
 fn outside_pins_end_new_install() {
     puron_testkit::limit("outside_pins_end_new_install", LIMIT, || {
@@ -762,7 +837,8 @@ fn outside_pins_end_new_install() {
     });
 }
 
-/// The popup of the latest layout in `out`, with the in-memory list.
+/// The popup plan of the last layout in `out`, with check marks from
+/// `pinned`.
 fn popup_of(out: &[Output], pinned: &[String]) -> Option<puron_applet::popup::Plan> {
     out.iter().rev().find_map(|o| match o {
         Output::Layout { menu, .. } => Some(puron_applet::popup::plan(menu, pinned, 16)),
@@ -770,7 +846,8 @@ fn popup_of(out: &[Output], pinned: &[String]) -> Option<puron_applet::popup::Pl
     })
 }
 
-/// The texts and values of the plan's lines, the CPU group's first.
+/// The line of the `@maximum` pin in `plan`, if any: its text, its value,
+/// whether it is checked, and the device heading it is under.
 fn waiting_line(plan: &puron_applet::popup::Plan) -> Option<(String, String, bool, String)> {
     use puron_applet::popup::Drawn;
     let at = plan
@@ -791,9 +868,10 @@ fn waiting_line(plan: &puron_applet::popup::Plan) -> Option<(String, String, boo
     Some((l.text.clone(), l.value.clone(), l.pinned, heading))
 }
 
-/// A stored Maximum that waits for lm-sensors has a line in the popup's CPU
-/// group, with the warning sign; a click on it removes the pin. When
-/// lm-sensors reads, the line goes and the pin moves.
+/// A stored `@maximum` that waits for lm-sensors has a checked line in
+/// the popup's CPU group, with "⚠" as its value; a click on it removes the
+/// pin. When it is not removed, the line goes once lm-sensors reads, and
+/// the pin moves.
 #[test]
 fn c_applet_app_30() {
     puron_testkit::limit("C-applet.app-30", LIMIT, || {
@@ -813,7 +891,7 @@ fn c_applet_app_30() {
         let out = a.handle(Event::Snapshot(failed()));
         let plan = popup_of(&out, a.pinned()).expect("a layout");
         assert_eq!(waiting_line(&plan), Some(want.clone()));
-        // The CPU group comes before the drives.
+        // The CPU group comes first, before the drives.
         let first = plan.entries.iter().find_map(|e| match e {
             puron_applet::popup::Drawn::Device { text } => Some(text.clone()),
             _ => None,
@@ -831,7 +909,8 @@ fn c_applet_app_30() {
         let out = a.handle(Event::Snapshot(drive_snapshot("example")));
         assert!(a.pinned().is_empty());
         assert_eq!(pin_stores(&out), 0);
-        // Not removed: once lm-sensors reads, the line goes and the pin moves.
+        // Not removed: once lm-sensors reads, the line goes and the pin
+        // moves.
         let (_c, _h, mut a, _) = pinned_app(&[MAXIMUM]);
         let out = a.handle(Event::Snapshot(failed()));
         assert_eq!(

@@ -1,5 +1,9 @@
-//! Homepage link with a fake `xdg-open` first on the search path. In its
-//! own test binary. Time limit 10 s, as it starts a process.
+//! The homepage link starts the `xdg-open` found on the search path with
+//! the homepage address as its only argument. The search path holds only
+//! a fake `xdg-open` that writes its arguments to a file; the launch must
+//! report `Started` and the file must hold the address. The test has its
+//! own binary because it sets an environment variable, and a time limit
+//! of 10 s because it starts a process.
 #![allow(non_snake_case)]
 
 mod common;

@@ -1,7 +1,7 @@
-//! Start with a config whose entries hold values of the wrong type: the
-//! first four `config-problem` datagrams come in key order, each
-//! `wrong-type`. In its own test binary, since diag's switch and socket
-//! are per process.
+//! A config with four entries of the wrong type gives, at start, four
+//! `config-problem` events of kind `wrong-type`, one per entry, in the
+//! order of the config's key list. The test has its own binary because
+//! the diagnostics switch and socket are process-wide.
 
 mod common;
 

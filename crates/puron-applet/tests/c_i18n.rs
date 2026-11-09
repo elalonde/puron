@@ -1,8 +1,8 @@
-//! The i18n tests that run in `puron-applet` (`cargo test` without a
-//! display). A case that runs `start` or sets the language variables runs
-//! in a re-executed child:
-//! the parent removes the four variables, sets the map's ones, and
-//! passes on the child's exit status.
+//! Tests of the translated texts that need no display. The process-wide
+//! loader can be set up only once, so a test that sets it up or changes
+//! the locale variables runs in a fresh run of this test binary: the
+//! parent removes the four locale variables, sets the ones the test asks
+//! for, and fails when the child fails.
 #![allow(non_snake_case)]
 
 use std::ffi::OsString;
@@ -21,7 +21,8 @@ fn is_child() -> bool {
     std::env::var_os(CHILD).is_some()
 }
 
-/// Runs `test` again in a child with exactly `env` of the four variables.
+/// Runs `test` again in a fresh run of this binary, with exactly the
+/// locale variables of `env`, and fails unless the child succeeds.
 fn child(test: &str, env: &[(&str, &str)]) {
     let mut cmd = puron_testkit::rerun_self(test);
     for v in loc::VARS {
@@ -55,7 +56,8 @@ fn text(number: &str, unit: Option<Unit>) -> Text {
     }
 }
 
-/// The entry IDs with their English texts (fixtures/loc/en.tsv).
+/// The message IDs with their English texts, from the testkit's
+/// `fixtures/loc/en.tsv`, which must hold 39 entries.
 fn english() -> Vec<(String, String)> {
     let e = loc::english();
     assert_eq!(e.len(), 39, "39 entries in en.tsv");
@@ -66,6 +68,8 @@ fn tags(list: &[&str]) -> Vec<LanguageIdentifier> {
     list.iter().map(|t| t.parse().expect("tag")).collect()
 }
 
+/// The English catalog holds exactly the messages and texts of
+/// `en.tsv`, in the same order.
 #[test]
 fn c_i18n_1() {
     puron_testkit::limit("C-i18n-1", LIMIT, || {
@@ -84,6 +88,8 @@ fn c_i18n_1() {
     });
 }
 
+/// A pin with no line shows the warning sign U+26A0 on the panel; the
+/// check compares its UTF-8 bytes.
 #[test]
 fn c_i18n_2() {
     puron_testkit::limit("C-i18n-2", LIMIT, || {
@@ -91,6 +97,9 @@ fn c_i18n_2() {
     });
 }
 
+/// A value's text is its number followed directly by the unit's suffix,
+/// or the number alone without a unit, and holds no Unicode isolation
+/// marks.
 #[test]
 fn c_i18n_3() {
     puron_testkit::limit("C-i18n-3", LIMIT, || {
@@ -111,6 +120,7 @@ fn c_i18n_3() {
     });
 }
 
+/// A reading without a value shows "N/A" in every class.
 #[test]
 fn c_i18n_4() {
     puron_testkit::limit("C-i18n-4", LIMIT, || {
@@ -121,6 +131,8 @@ fn c_i18n_4() {
     });
 }
 
+/// The English texts of the two messages and the two links; the install
+/// message has exactly two lines.
 #[test]
 fn c_i18n_5() {
     puron_testkit::limit("C-i18n-5", LIMIT, || {
@@ -140,6 +152,9 @@ fn c_i18n_5() {
     });
 }
 
+/// Each of the testkit's environment maps E1 to E8 gives the expected
+/// language list, and negotiation over the Esperanto test catalogs
+/// chooses the expected language.
 #[test]
 fn c_i18n_6() {
     puron_testkit::limit("C-i18n-6", LIMIT, || {
@@ -169,6 +184,8 @@ fn c_i18n_6() {
     });
 }
 
+/// With Esperanto asked for (map E1), every message comes from the
+/// Esperanto test catalog, whose texts are the English ones after "EO ".
 #[test]
 fn c_i18n_7() {
     puron_testkit::limit("C-i18n-7", LIMIT, || {
@@ -185,6 +202,8 @@ fn c_i18n_7() {
     });
 }
 
+/// A message that the chosen catalog lacks falls back to English, while
+/// every other message still comes from the chosen catalog.
 #[test]
 fn c_i18n_8() {
     puron_testkit::limit("C-i18n-8", LIMIT, || {
@@ -206,6 +225,8 @@ fn c_i18n_8() {
     });
 }
 
+/// The language is chosen once, at start: setting `LANG` to `C`
+/// afterwards does not change the texts.
 #[test]
 fn c_i18n_9() {
     puron_testkit::limit("C-i18n-9", LIMIT, || {
@@ -214,14 +235,17 @@ fn c_i18n_9() {
         }
         i18n::start_with(test_catalog::eo(), env_var);
         assert_eq!(i18n::text("link-homepage"), "EO Go to the Puron homepage");
-        // SAFETY: in the child only the limit helper's waiting thread
-        // runs besides this one, and it reads no environment.
+        // SAFETY: `set_var` must not race with a read of the environment.
+        // In the child, only the time limit's waiting thread runs besides
+        // this one, and it reads no environment.
         std::env::set_var("LANG", "C");
         assert_eq!(i18n::text("link-homepage"), "EO Go to the Puron homepage");
         assert_eq!(i18n::text("no-value"), "EO N/A");
     });
 }
 
+/// Under a German locale, the captured voltage still shows as "+8.49V",
+/// with a decimal point: the number's text does not follow the locale.
 #[test]
 fn c_i18n_13() {
     puron_testkit::limit("C-i18n-13", LIMIT, || {
@@ -250,6 +274,9 @@ fn c_i18n_13() {
     });
 }
 
+/// With Esperanto chosen, a settings label, the no-value text, a unit
+/// suffix and the missing-value sign come from the test catalog, both
+/// when looked up by ID and through the functions that draw them.
 #[test]
 fn c_i18n_14() {
     puron_testkit::limit("C-i18n-14", LIMIT, || {
@@ -266,7 +293,8 @@ fn c_i18n_14() {
         for (id, t) in want {
             assert_eq!(i18n::text(id), t, "{id}");
         }
-        // The same entries where they are drawn.
+        // The same texts again: the label by ID, the others through
+        // `value_text` and `panel_value`, which draw them.
         assert_eq!(i18n::text("label-temp-unit"), "EO Temperature Unit");
         assert_eq!(i18n::value_text(None), "EO N/A");
         assert_eq!(

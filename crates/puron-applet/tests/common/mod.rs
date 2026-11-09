@@ -1,4 +1,7 @@
-//! Shared helpers of the `app` tests.
+//! Helpers shared by the tests that drive `App`: a fake engine handle,
+//! an `App` over a temporary config directory, snapshots and pinned lists
+//! read from the testkit's fixtures, and readers of an event's outputs.
+//! Not every test file uses every helper.
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
@@ -15,8 +18,9 @@ use puron_core::settings::Settings;
 use puron_engine::engine::{LmReport, Snapshot};
 use puron_testkit::eng;
 
-/// The testkit's fake engine handle as the applet's handle (a newtype,
-/// for the orphan rule).
+/// The testkit's fake engine handle, wrapped so that it can implement the
+/// applet's `Handle` trait: both the trait and the fake belong to other
+/// crates, so the orphan rule needs a local type.
 pub struct H(pub Arc<eng::Handle>);
 
 impl Handle for H {
@@ -43,11 +47,13 @@ impl Handle for H {
     }
 }
 
+/// A fake engine handle whose `shutdown` takes `shutdown_secs` to return.
 pub fn handle(shutdown_secs: u64) -> Arc<eng::Handle> {
     eng::Handle::new(Duration::from_secs(shutdown_secs))
 }
 
-/// Programs that no test of this binary launches.
+/// Program locations in an empty temporary directory, for tests that
+/// start no program: neither program can be found there.
 pub fn no_programs() -> Programs {
     let dir = puron_testkit::temp_dir("noprog");
     Programs {
@@ -68,7 +74,8 @@ fn raw(name: &str) -> String {
     std::fs::read_to_string(puron_testkit::fixture("raw", name)).expect("read fixture")
 }
 
-/// The captured readings as the readings of a snapshot.
+/// A snapshot holding the readings of the `capture.json` fixture, a
+/// recording of a real machine's sensors, with lm-sensors answered.
 pub fn capture() -> Snapshot {
     let readings: Vec<RawReading> = serde_json::from_str(&raw("capture.json")).expect("capture");
     Snapshot {
@@ -77,7 +84,8 @@ pub fn capture() -> Snapshot {
     }
 }
 
-/// Set `name` of the rebuild snapshots as a snapshot.
+/// A snapshot holding the reading set `name` of the `rebuild.json`
+/// fixture, with lm-sensors answered.
 pub fn rebuild(name: &str) -> Snapshot {
     let mut sets: BTreeMap<String, Vec<RawReading>> =
         serde_json::from_str(&raw("rebuild.json")).expect("rebuild");
@@ -87,7 +95,7 @@ pub fn rebuild(name: &str) -> Snapshot {
     }
 }
 
-/// Pinned list `name` of the pinned-list fixtures.
+/// The pinned list `name` of the `pins.json` fixture.
 pub fn pins(name: &str) -> Vec<String> {
     serde_json::from_str::<BTreeMap<String, Vec<String>>>(&raw("pins.json"))
         .expect("pins")
@@ -95,8 +103,9 @@ pub fn pins(name: &str) -> Vec<String> {
         .expect("X-raw-pins set")
 }
 
-/// A Watch delivery as `config` sends it: the changed keys, the
-/// new record, no Problems.
+/// A config change as `Config::watch` delivers it: the changed `keys`
+/// and the app's current settings after `f` has changed them, with no
+/// problems.
 pub fn delivery(app: &App, keys: &[&'static str], f: impl FnOnce(&mut Settings)) -> Event {
     let mut s = app.settings().clone();
     f(&mut s);
@@ -109,6 +118,7 @@ pub fn delivery(app: &App, keys: &[&'static str], f: impl FnOnce(&mut Settings))
     })
 }
 
+/// The engine calls among an event's outputs, in order.
 pub fn commands(out: &[Output]) -> Vec<Command> {
     out.iter()
         .filter_map(|o| match o {
@@ -130,7 +140,9 @@ pub fn has_layout(out: &[Output]) -> bool {
     out.iter().any(|o| matches!(o, Output::Layout { .. }))
 }
 
-/// Item texts: "⚠" missing, the value text, "∅state" the empty state.
+/// The panel items as short texts: "⚠" for a pin with no line in the
+/// popup, "" for a line without a value, the number and its unit for a
+/// value, and "∅state" for the empty-state item.
 pub fn values(p: &Panel) -> Vec<String> {
     p.items
         .iter()
@@ -158,6 +170,7 @@ pub fn values(p: &Panel) -> Vec<String> {
         .collect()
 }
 
+/// Each pin's icon, in item order; `None` for the empty-state item.
 pub fn icons(p: &Panel) -> Vec<Option<Icon>> {
     p.items
         .iter()

@@ -1,10 +1,11 @@
-//! Tests of the popup, plus one panel test that clicks rows in the
-//! popup. 5 s each. "Plan" tests read the popup plan and drive the
-//! popup's own click handler; "Bounds" tests measure the widgets built
-//! from the plan with the iced test simulator, headless, in a 360 × 1000
-//! window, with no snapshot. Layouts come from `core.menu` with the
-//! captured readings, the default settings and pinned list P1, unless a test
-//! says otherwise.
+//! Tests of the popup, plus one panel test (`c_applet_panel_14`) that
+//! checks the panel's icons for the popup's pins, each with a time limit
+//! of 5 s. Some check the popup plan and
+//! the click handlers alone; others lay out the widgets built from the
+//! plan in iced's headless test simulator, in a 360 × 1000 window, and
+//! measure them without rendering. Unless a test says otherwise, the
+//! layouts come from `puron_core::menu` with the captured readings, the
+//! default settings and the pinned list `P1` of `pins.json`.
 #![allow(non_snake_case)]
 
 use std::collections::BTreeMap;
@@ -24,7 +25,8 @@ use puron_core::rows::{Kind, RawReading, ShownClasses};
 use puron_core::settings::{Settings, TemperatureUnit};
 
 const LIMIT: u64 = 5;
-/// libcosmic's `popup_container` height limit.
+/// The simulator window's height in px: the height limit of libcosmic's
+/// `popup_container`.
 const HEIGHT: f32 = 1000.0;
 
 const FAN: &str = "puron-fan-symbolic";
@@ -47,7 +49,7 @@ fn set(file: &str, name: &str) -> serde_json::Value {
         .expect("fixture set")
 }
 
-/// One of the rebuild snapshots.
+/// The reading set `name` of the `rebuild.json` fixture.
 fn rebuild(name: &str) -> Vec<RawReading> {
     serde_json::from_value(set("rebuild.json", name)).expect("X-raw-rebuild set")
 }
@@ -56,13 +58,14 @@ fn pinned(name: &str) -> Vec<String> {
     serde_json::from_value(set("pins.json", name)).expect("X-raw-pins set")
 }
 
-/// `core.menu`'s layout; `last` is the previous layout's key.
+/// The popup layout for `raw` with the default settings and lm-sensors
+/// answered; `last` is the previous layout's key.
 fn lay(raw: &[RawReading], last: Option<&Key>) -> Menu {
     let s = Settings::default();
     menu::menu(&menu::shown(raw, &s), &s, Report::Answered, last, false)
 }
 
-/// The applet context at panel size M.
+/// The icon size in px that libcosmic gives for panel size M.
 fn icon_size() -> u16 {
     panel::icon_size(&Context {
         size: AppletSize::PanelSize(PanelSize::M),
@@ -70,7 +73,8 @@ fn icon_size() -> u16 {
     })
 }
 
-/// Texts from `i18n` after `i18n::start`.
+/// Chooses the language as the program does, so that the texts are
+/// English in a test environment without locale variables.
 fn setup() {
     puron_applet::start();
 }
@@ -85,9 +89,10 @@ fn capture_plan(pins: &[String]) -> (Menu, Plan) {
     (m, plan)
 }
 
-/// What the plan draws: `[x] text value` for a line (`x` when marked), the
-/// text of a heading, a device heading with two spaces first, `—`, `message`,
-/// `homepage`, `settings`.
+/// The plan as short strings, one per entry: `[x] text value` for a line
+/// (`x` when checked, a space otherwise), the text of a section heading,
+/// a device heading's text after two spaces, `—` for a separator, and
+/// `message`, `homepage` or `settings`.
 fn notation(plan: &Plan) -> Vec<String> {
     plan.entries
         .iter()
@@ -108,7 +113,8 @@ fn notation(plan: &Plan) -> Vec<String> {
         .collect()
 }
 
-/// The index of the line with the text `text`.
+/// The index in the plan of the line with the text `text`; panics when
+/// there is none.
 fn line_index(plan: &Plan, text: &str) -> usize {
     plan.entries
         .iter()
@@ -116,7 +122,7 @@ fn line_index(plan: &Plan, text: &str) -> usize {
         .unwrap_or_else(|| panic!("line {text}: {:?}", notation(plan)))
 }
 
-/// The texts of the marked lines, in plan order.
+/// The texts of the checked lines, in plan order.
 fn marked(plan: &Plan) -> Vec<String> {
     plan.entries
         .iter()
@@ -129,7 +135,8 @@ fn marked(plan: &Plan) -> Vec<String> {
 
 type Sim = Simulator<'static, Clicked, Theme, cosmic::Renderer>;
 
-/// The popup content in libcosmic's popup width.
+/// A simulator holding the popup content at `popup::WIDTH`, libcosmic's
+/// default popup width.
 fn simulate(plan: &Plan) -> Sim {
     simulate_at(plan, popup::WIDTH)
 }
@@ -164,8 +171,8 @@ fn c_applet_popup_1() {
     puron_testkit::limit("C-applet.popup-1", LIMIT, || {
         setup();
         let (m, plan) = capture_plan(&pinned("P1"));
-        // One drawn entry per layout entry, in the layout's order, nothing
-        // added.
+        // One drawn entry per layout entry, of the same kind and in the
+        // same order, with nothing added.
         assert_eq!(plan.entries.len(), m.entries.len());
         for (e, d) in m.entries.iter().zip(&plan.entries) {
             match (e, d) {
@@ -178,7 +185,8 @@ fn c_applet_popup_1() {
                 (e, d) => panic!("entry {e:?} drawn as {d:?}"),
             }
         }
-        // Bounds: each top edge at or below the previous bottom edge.
+        // Laid out, no entry overlaps the one above it: each top edge is at
+        // or below the previous bottom edge.
         let mut sim = simulate(&plan);
         let r: Vec<Rectangle> = (0..plan.entries.len())
             .map(|i| bounds(&mut sim, popup::entry_id(i)))
@@ -238,7 +246,8 @@ fn c_applet_popup_3() {
     });
 }
 
-/// The mark and the slot do not follow the panel's icon size.
+/// The check mark and its slot keep their size whatever the panel's icon
+/// size.
 #[test]
 fn c_applet_popup_23() {
     puron_testkit::limit("C-applet.popup-23", LIMIT, || {
@@ -275,7 +284,7 @@ fn c_applet_popup_23() {
                     name.x
                 );
             }
-            // `fit_width` counts the same slot.
+            // The width computation counts the same slot at every icon size.
             let measure = |t: &str| t.chars().count() as f32 * 7.0;
             assert_eq!(
                 popup::fit_width(&m, size, 48.0, &measure),
@@ -286,8 +295,9 @@ fn c_applet_popup_23() {
     });
 }
 
-/// A section heading is in libcosmic's heading style, 21 px of line height
-/// against a line's smaller one, and its icon stays at the icon size.
+/// A section heading uses libcosmic's heading style, with 21 px of line
+/// height against a line's smaller one, and its icon has the panel's
+/// icon size.
 #[test]
 fn section_heading_style_and_icon() {
     puron_testkit::limit("section-heading", LIMIT, || {
@@ -324,7 +334,8 @@ fn c_applet_popup_5() {
         let mut sim = simulate(&plan);
         let line = bounds(&mut sim, popup::entry_id(i));
         let value = element(&mut sim, i, "value");
-        // The button's right edge less libcosmic's padding.
+        // The value ends where the line's button ends, less libcosmic's
+        // right padding.
         let edge = right(&line) - applet::menu_control_padding().right;
         assert!(
             near(right(&value), edge, 0.5),
@@ -363,7 +374,8 @@ fn c_applet_popup_7() {
             let r = bounds(&mut sim, popup::entry_id(i));
             assert!(near(r.x, section.x + popup::DEVICE_INDENT, 0.5), "{i}");
         }
-        // Fan and voltage lines have no device heading, and the same column.
+        // Fan and voltage lines have no device heading, yet start at the
+        // same indent as the other lines.
         for i in lines {
             let r = bounds(&mut sim, popup::entry_id(i));
             assert!(near(r.x, section.x + popup::LINE_INDENT, 0.5), "{i}");
@@ -378,9 +390,11 @@ fn c_applet_popup_9() {
         let pins = pinned("P1");
         let s1 = rebuild("S1");
         let m1 = lay(&s1, None);
-        // The first layout is drawn, so a stale value would have a source.
+        // Draw the first layout first, so that a value left over from it
+        // could show up in the second plan.
         plan_of(&m1, &pins);
-        // A second reading with new values: in place, and the plan shows them.
+        // A second set with new values updates the popup in place, and the
+        // plan shows the new values.
         let m2 = lay(&rebuild("S2"), Some(&m1.key));
         assert_eq!(m2.update, Update::InPlace);
         let want: Vec<String> = m2
@@ -400,7 +414,7 @@ fn c_applet_popup_9() {
             })
             .collect();
         assert_eq!(got, want, "the second layout's values");
-        // A rebuild changes nothing but the lines.
+        // The set `S3` makes the popup rebuild instead.
         let m3 = lay(&rebuild("S3"), Some(&m1.key));
         assert_eq!(m3.update, Update::Rebuild);
     });
@@ -427,7 +441,7 @@ fn c_applet_popup_12() {
             close: true,
         };
         assert_eq!(popup::click(&plan.entries[w]), homepage);
-        // No raw readings: the message entry.
+        // With no readings at all, the popup shows the message entry.
         let m = lay(&[], None);
         let plan = plan_of(&m, &pinned("P1"));
         let i = plan
@@ -498,7 +512,8 @@ fn c_applet_panel_14() {
         let items =
             puron_core::panel::panel(&menu::shown(&capture(), &s), &pins, &s, &State::default());
         let plan = panel::plan(&items, panel::Orientation::Horizontal, icon_size());
-        // The panel items follow the popup, whatever the list's order.
+        // The panel shows the pins in the popup's order, whatever their
+        // order in the pinned list, each with its line's icon.
         let on_panel: Vec<(usize, &str)> = plan
             .elements
             .iter()
@@ -539,12 +554,12 @@ fn c_applet_popup_15() {
                     close: false
                 }
             );
-            // `app` passes the click to `core.pins`; the
-            // default settings show every class.
+            // Pass the click to `puron_core::pins::click`, as `App` does;
+            // the default settings show every class.
             pins = puron_core::pins::click(&pins, identity, &m.identities, &ShownClasses::ALL);
             let next = plan_of(&m, &pins);
             assert_eq!(marked(&next), want, "after {text}");
-            // No line moves; only the clicked line's mark changes.
+            // No line moves; only the clicked line's check mark changes.
             let unmarked = |pl: &Plan| -> Vec<String> {
                 notation(pl)
                     .iter()
@@ -603,7 +618,8 @@ fn c_applet_popup_18() {
                 _ => None,
             })
             .collect();
-        // A heading is cut at its end; a line holds its label whole.
+        // Device headings and line texts longer than 44 characters are cut
+        // at the end with "…"; a text of 44 characters or fewer stays whole.
         assert_eq!(
             names,
             [
@@ -620,7 +636,8 @@ fn c_applet_popup_18() {
         for n in &names {
             assert!(n.chars().count() <= 44, "{n}");
         }
-        // Every line is one line, in the least width and in the popup's own.
+        // Every line takes a single text line, both at the narrowest width
+        // and at the width the popup computes.
         let height = |sim: &mut Sim, i: usize| bounds(sim, popup::entry_id(i)).height;
         let lines: Vec<usize> = plan
             .entries
@@ -635,9 +652,9 @@ fn c_applet_popup_18() {
                 assert!(near(height(&mut sim, i), one, 0.5), "entry {i} at {width}");
             }
         }
-        // The width follows the longest line, between the limits. At 7 px a
-        // character: 48 of padding, 24 of indent, 20 of check, 8 of gap, 64
-        // for the value.
+        // The width follows the longest line, between the two limits. With
+        // 7 px per character, a line takes 48 of padding, 24 of indent, 20
+        // of check slot, its name, 8 of gap and 64 for the value.
         let measure = |t: &str| t.chars().count() as f32 * 7.0;
         let fit = |raw: &[RawReading]| popup::fit_width(&lay_with(raw), 20, 48.0, &measure);
         assert_eq!(fit(&cpu_set("no-cpu")), popup::WIDTH);
@@ -649,7 +666,8 @@ fn c_applet_popup_18() {
             popup::MAX_WIDTH,
             48.0 + 24.0 + 20.0 + 44.0 * 7.0 + 8.0 + 64.0
         );
-        // The 44 characters hold on a line, with the mark of its default.
+        // A 60-character name is shortened so that, with the default line's
+        // " (default)", the text has exactly 44 characters.
         let mut raw = cpu_set("example");
         raw[0].name = Some("x".repeat(60));
         raw[0].device_chars = 0;
@@ -661,8 +679,8 @@ fn c_applet_popup_18() {
         let want = format!("coretemp: {}… (default)", "x".repeat(23));
         assert_eq!(line.as_deref(), Some(want.as_str()));
         assert_eq!(want.chars().count(), 44);
-        // A fan line whose device is too long is cut inside the device, so
-        // the reading's own label stays.
+        // A fan line whose device name is too long is cut inside the
+        // device name, so that the reading's own label stays.
         let mut raw = cpu_set("example");
         let fan = raw.iter_mut().find(|r| r.kind == Some(Kind::Fan)).unwrap();
         fan.name = Some(format!("{} CPU fan", "f".repeat(60)));
@@ -675,7 +693,7 @@ fn c_applet_popup_18() {
         let want = format!("{}… CPU fan", "f".repeat(35));
         assert_eq!(line.as_deref(), Some(want.as_str()));
         assert_eq!(want.chars().count(), 44);
-        // A heading has the same limit.
+        // A device heading has the same 44-character limit.
         let mut raw = cpu_set("no-cpu");
         raw[0].name = Some(format!("{} temp1", "d".repeat(60)));
         raw[0].device_chars = 60;
@@ -685,16 +703,17 @@ fn c_applet_popup_18() {
             _ => None,
         });
         assert_eq!(heading, Some(format!("{}…", "d".repeat(43))));
-        // Far beyond: the limit.
+        // Texts far too wide give the widest width.
         let wide = |t: &str| t.chars().count() as f32 * 40.0;
         let m = lay_with(&cpu_set("long-names"));
         assert_eq!(popup::fit_width(&m, 20, 48.0, &wide), popup::MAX_WIDTH);
-        // No rows: the least width.
+        // No readings give the narrowest width.
         assert_eq!(fit(&[]), popup::WIDTH);
     });
 }
 
-/// The plan of `raw` in Fahrenheit, new install: what the default pins check.
+/// The plan of `raw` in Fahrenheit, as short strings, with the lines that
+/// a new install pins checked.
 fn new_install(raw: &[RawReading]) -> Vec<String> {
     let s = Settings {
         temperature_unit: TemperatureUnit::Fahrenheit,
@@ -717,7 +736,8 @@ const EXAMPLE_FOOT: [&str; 9] = [
     "settings",
 ];
 
-/// The rows, byte for byte: each shape of machine.
+/// The whole popup, string for string, for each machine shape of the
+/// fixtures.
 #[test]
 fn c_applet_popup_21() {
     puron_testkit::limit("C-applet.popup-21", LIMIT, || {
@@ -821,7 +841,9 @@ fn c_applet_popup_21() {
     });
 }
 
-/// A click on a line toggles its check; nothing else answers.
+/// A click on any part of a line sends one message that names the line by
+/// its identity; a click on a heading or separator sends nothing. A click
+/// on a line the plan no longer has does nothing.
 #[test]
 fn c_applet_popup_22() {
     puron_testkit::limit("C-applet.popup-22", LIMIT, || {
@@ -831,8 +853,8 @@ fn c_applet_popup_22() {
         let Drawn::Line(cpu) = &plan.entries[i] else {
             unreachable!()
         };
-        // Through the simulator, on each part of the line: one message each,
-        // naming the line by its identity.
+        // Click each part of the line in the simulator: each click gives one
+        // message, which names the line by its identity.
         for part in ["check", "name", "value"] {
             let mut sim = simulate(&plan);
             sim.click(selector::id(popup::element_id(i, part)))
@@ -840,7 +862,7 @@ fn c_applet_popup_22() {
             let got: Vec<Clicked> = sim.into_messages().collect();
             assert_eq!(got, [Clicked::Line(cpu.identity.clone())], "{part}");
         }
-        // A heading: no message, and no reply.
+        // A heading gives no message, and no reply.
         let none = Reply {
             event: None,
             close: false,
@@ -869,8 +891,9 @@ fn c_applet_popup_22() {
     });
 }
 
-/// A click names its line, so it means the line that was drawn when a newer
-/// view comes in between the draw and the click.
+/// A click names its line, so it still means the line that was drawn when
+/// a newer view arrives between the draw and the click; when the newer
+/// view no longer has that line, the click does nothing.
 #[test]
 fn c_applet_popup_24() {
     puron_testkit::limit("C-applet.popup-24", LIMIT, || {
@@ -886,7 +909,8 @@ fn c_applet_popup_24() {
             .unwrap_or_else(|e| panic!("click: {e:?}"));
         let got: Vec<Clicked> = sim.into_messages().collect();
         assert_eq!(got.len(), 1);
-        // A newer view with the CPU's lines before it: the same line.
+        // A newer view with the CPU's lines in front of it: the click still
+        // pins the line that was drawn.
         let newer = plan("example");
         assert!(matches!(&newer.entries[i], Drawn::Line(l) if l.identity != wifi.identity));
         let pin = Reply {
@@ -894,7 +918,7 @@ fn c_applet_popup_24() {
             close: false,
         };
         assert_eq!(popup::clicked(&newer, got[0].clone()), pin);
-        // A newer view without that line: nothing.
+        // A newer view without that line: the click does nothing.
         let none = Reply {
             event: None,
             close: false,

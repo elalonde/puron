@@ -1,6 +1,8 @@
-//! Start with a config where every key holds a non-default value, then
-//! one of each event: 29 datagrams in the order of the event table. In
-//! its own test binary, since diag's switch and socket are per process.
+//! With a config where every key holds a non-default value, diagnostic
+//! logging is on. After start, every diagnostic event is sent once: the
+//! fake journal must receive all 29, in the order `jrn::one_of_each`
+//! sent them. The test has its own binary because the diagnostics switch
+//! and socket are process-wide.
 
 mod common;
 

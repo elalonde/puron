@@ -1,6 +1,9 @@
-//! The settings link and the homepage link when neither program can be found.
-//! In its own test binary: `waitpid(-1)` checks that no child is left,
-//! and diag's socket is per process.
+//! When neither program can be found, both links report a failed launch
+//! with `ENOENT` (2) and leave no child process. The settings link's
+//! failure also logs a `launch-failed` event with errno 2. Both program
+//! locations point at an empty directory. The test has its own binary
+//! because `waitpid(-1)` sees every child of the process and the
+//! diagnostics socket is process-wide.
 #![allow(non_snake_case)]
 
 mod common;
@@ -13,6 +16,7 @@ use puron_engine::diag;
 use puron_testkit::cfg;
 use puron_testkit::jrn::{self, Journal};
 
+/// Whether the test process has no child left.
 fn echild() -> bool {
     let mut st = 0;
     let r = unsafe { libc::waitpid(-1, &mut st, libc::WNOHANG) };
