@@ -16,13 +16,13 @@ hardware makes available. This includes:
 
 Puron is released as a Debian package for 64-bit x86 (amd64) systems.
 
-1. Download `puron_1.1.2_amd64.deb` from the
+1. Download `puron_1.2.0_amd64.deb` from the
    [Releases page](https://github.com/elalonde/puron/releases). To check
    the download, also fetch `SHA256SUMS` and run
    `sha256sum --check --ignore-missing SHA256SUMS` in the same folder.
 2. Install the package:
 
-       sudo apt install ./puron_1.1.2_amd64.deb
+       sudo apt install ./puron_1.2.0_amd64.deb
 
 3. Add Puron to a panel in COSMIC Settings, among the panel applets.
 
@@ -148,7 +148,7 @@ The package ships the GPL-3.0 text, `SOURCE-OFFER` and
 lists every crate in `Cargo.lock` with its license and notices.
 
 The complete corresponding source of the binaries is the release asset
-`puron-1.1.2-source.tar.xz` of the tag `v1.1.2`: Puron's full source
+`puron-1.2.0-source.tar.xz` of the tag `v1.2.0`: Puron's full source
 with the locked dependencies vendored and the cargo config for an
 offline build. `make source-archive` writes this archive to
 `target/source/`, and `sh tools/check-source-archive.sh` checks that it
