@@ -4,6 +4,14 @@ The notable changes of each Puron release. Versions follow
 [Semantic Versioning](https://semver.org/), and the format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-11-10
+
+### Changed
+
+- The last two entries of the popup are now "Settings" and then "About" (they were "Go to the Puron homepage" and then
+  "Sensor Settings").
+- "About", and the message that offers the homepage, open the new project page, https://elalonde.dev/projects/puron/.
+
 ## [1.1.2] - 2026-11-08
 
 ### Fixed
