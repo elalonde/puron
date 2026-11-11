@@ -5,6 +5,8 @@
 Puron is a panel applet for the COSMIC desktop that displays hardware
 sensor readings in the COSMIC Panel and Dock.
 
+<img src="docs/screenshot.png" alt="The Puron popup" width="300">
+
 The goal of Puron is to read and display any sensor that the system
 hardware makes available. This includes:
 - individual hardware component temperatures (CPU, SATA, GPU, etc.)
