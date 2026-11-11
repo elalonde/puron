@@ -193,8 +193,8 @@ const CAPTURE: [&str; 26] = [
     "# voltage",
     "in0 +8.49V",
     "—",
-    "homepage",
     "settings",
+    "homepage",
 ];
 
 fn capture_identities(raw: &[RawReading]) -> Vec<String> {
@@ -240,8 +240,8 @@ fn c_core_menu_3() {
                 "# voltage",
                 "v +12.00V",
                 "—",
-                "homepage",
                 "settings",
+                "homepage",
             ],
         );
         assert_entries(
@@ -258,8 +258,8 @@ fn c_core_menu_3() {
                 "# power",
                 "p +10.00W",
                 "—",
-                "homepage",
                 "settings",
+                "homepage",
             ],
         );
     });
@@ -278,8 +278,8 @@ fn c_core_menu_7() {
                 "# power",
                 "p +10.00W",
                 "—",
-                "homepage",
                 "settings",
+                "homepage",
             ],
         );
     });
@@ -292,7 +292,7 @@ fn c_core_menu_8() {
         assert!(!render(&c).contains(&"# temperature".to_string()));
         assert_entries(
             &lay(&menu_set("G")),
-            &["# fan", "f 1000rpm", "—", "homepage", "settings"],
+            &["# fan", "f 1000rpm", "—", "settings", "homepage"],
         );
     });
 }
@@ -308,8 +308,8 @@ fn c_core_menu_9() {
                 "p2 +10.00W",
                 "p3 +10.00W",
                 "—",
-                "homepage",
                 "settings",
+                "homepage",
             ],
         );
     });
@@ -319,7 +319,7 @@ fn c_core_menu_9() {
 fn c_core_menu_10() {
     puron_testkit::limit("C-core.menu-10", LIMIT, || {
         let m = lay(&menu_set("E"));
-        assert_entries(&m, &["# power", "p +10.00W", "—", "homepage", "settings"]);
+        assert_entries(&m, &["# power", "p +10.00W", "—", "settings", "homepage"]);
         assert!(matches!(m.key, Key::Identities(_)));
     });
 }
@@ -342,7 +342,7 @@ fn c_core_menu_11() {
         ];
         for (settings, report, kind, msg) in cases {
             let m = run(&f, settings, report, None, false);
-            assert_entries(&m, &[msg, "—", "homepage", "settings"]);
+            assert_entries(&m, &[msg, "—", "settings", "homepage"]);
             assert_eq!(m.key, Key::Message(kind), "{report:?}");
         }
     });
@@ -359,7 +359,7 @@ fn c_core_menu_12() {
         });
         assert_entries(
             &lay_with(&raw, &only_power),
-            &["msg sensors-detect", "—", "homepage", "settings"],
+            &["msg sensors-detect", "—", "settings", "homepage"],
         );
         let m = lay_with(&raw, &settings_with(|s| s.show_temperature = false));
         assert_entries(
@@ -371,8 +371,8 @@ fn c_core_menu_12() {
                 "# voltage",
                 "in0 +8.49V",
                 "—",
-                "homepage",
                 "settings",
+                "homepage",
             ],
         );
         assert!(!m.identities.iter().any(|i| i.starts_with("@maximum")));
@@ -546,7 +546,7 @@ fn c_core_menu_21() {
 fn c_core_menu_22() {
     puron_testkit::limit("C-core.menu-22", LIMIT, || {
         let m = run(&[], &Settings::default(), Report::NoneYet, None, false);
-        assert_entries(&m, &["msg sensors-detect", "—", "homepage", "settings"]);
+        assert_entries(&m, &["msg sensors-detect", "—", "settings", "homepage"]);
         assert_eq!(m.key, Key::Message(MessageKind::SensorsDetect));
         assert_eq!(m.update, Update::Rebuild);
     });
@@ -584,8 +584,8 @@ fn c_core_menu_25() {
             "edge 41°C",
             "Maximum 91°C",
             "—",
-            "homepage",
             "settings",
+            "homepage",
         ];
         let ids = vec![
             id(&s6, "temperature", "junction"),
@@ -702,8 +702,8 @@ fn c_core_menu_32() {
             "# power",
             "Radeon RX 6600 PPT +15.00W",
             "—",
-            "homepage",
             "settings",
+            "homepage",
         ];
         assert_entries(&m, &want);
         // Section titles and device headings are not lines and have no
@@ -948,7 +948,7 @@ fn nvme_cli_line_names() {
         let lines = |set: &str| {
             let mut all = render(&lay(&nvme_cli_only(set)));
             all.retain(|l| {
-                !l.starts_with('#') && !["—", "homepage", "settings"].contains(&l.as_str())
+                !l.starts_with('#') && !["—", "settings", "homepage"].contains(&l.as_str())
             });
             all
         };

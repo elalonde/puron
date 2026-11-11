@@ -24,8 +24,8 @@ message-detect = Please run sensors-detect as root.
 message-install =
     Please install lm_sensors.
     If this doesn't help, click here to report with your sensors output!
-link-homepage = Go to the Puron homepage
-link-settings = Sensor Settings
+link-homepage = About
+link-settings = Settings
 heading-display = Display Options
 heading-generic = Generic Sensor Providers
 heading-gpu = GPU Sensor Providers

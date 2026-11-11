@@ -142,8 +142,8 @@ fn c_i18n_5() {
                 "message-install",
                 "Please install lm_sensors.\nIf this doesn't help, click here to report with your sensors output!",
             ),
-            ("link-homepage", "Go to the Puron homepage"),
-            ("link-settings", "Sensor Settings"),
+            ("link-homepage", "About"),
+            ("link-settings", "Settings"),
         ];
         for (id, t) in want {
             assert_eq!(bytes(&i18n::text(id)), bytes(t), "{id}");
@@ -216,7 +216,7 @@ fn c_i18n_8() {
         );
         for (id, en) in english() {
             let want = if id == "link-homepage" {
-                "Go to the Puron homepage".to_string()
+                "About".to_string()
             } else {
                 format!("EO {en}")
             };
@@ -234,12 +234,12 @@ fn c_i18n_9() {
             return child("c_i18n_9", loc::env("E1"));
         }
         i18n::start_with(test_catalog::eo(), env_var);
-        assert_eq!(i18n::text("link-homepage"), "EO Go to the Puron homepage");
+        assert_eq!(i18n::text("link-homepage"), "EO About");
         // SAFETY: `set_var` must not race with a read of the environment.
         // In the child, only the time limit's waiting thread runs besides
         // this one, and it reads no environment.
         std::env::set_var("LANG", "C");
-        assert_eq!(i18n::text("link-homepage"), "EO Go to the Puron homepage");
+        assert_eq!(i18n::text("link-homepage"), "EO About");
         assert_eq!(i18n::text("no-value"), "EO N/A");
     });
 }

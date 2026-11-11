@@ -34,8 +34,8 @@ menu	0	separator	-	-	-	-
 menu	0	section	voltage	-	-	-
 menu	2	row	voltage	in0	+8.49V	0
 menu	0	separator	-	-	-	-
-menu	0	homepage	-	-	-	-
 menu	0	settings	-	-	-	-
+menu	0	homepage	-	-	-	-
 panel	general	163°F
 panel	drive	100°F
 panel	general	91°F

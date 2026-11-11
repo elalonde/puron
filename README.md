@@ -42,9 +42,8 @@ To build and install Puron from source instead, see Build below.
 - When Puron finds no readings, the popup says so: it asks you to
   install lm-sensors, or to run `sensors-detect` (part of the lm-sensors
   package) as root, which sets up the sensor chips of your computer.
-- At the bottom of the popup, "Go to the Puron homepage" opens the
-  homepage in your browser, and "Sensor Settings" opens the settings
-  window.
+- At the bottom of the popup, "Settings" opens the settings window,
+  and "About" opens the Puron homepage in your browser.
 
 The settings window holds the following settings. Changes take effect
 at once.

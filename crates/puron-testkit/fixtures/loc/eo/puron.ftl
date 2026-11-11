@@ -21,8 +21,8 @@ message-detect = EO Please run sensors-detect as root.
 message-install =
     EO Please install lm_sensors.
     If this doesn't help, click here to report with your sensors output!
-link-homepage = EO Go to the Puron homepage
-link-settings = EO Sensor Settings
+link-homepage = EO About
+link-settings = EO Settings
 heading-display = EO Display Options
 heading-generic = EO Generic Sensor Providers
 heading-gpu = EO GPU Sensor Providers

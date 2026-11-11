@@ -420,16 +420,31 @@ fn c_applet_popup_9() {
     });
 }
 
+/// The popup ends with a separator, the settings link and the homepage
+/// link, in this order.
+fn assert_links_last(plan: &Plan) {
+    let n = plan.entries.len();
+    assert!(n >= 3, "too few entries: {n}");
+    assert_eq!(plan.entries[n - 3], Drawn::Separator);
+    assert!(
+        matches!(plan.entries[n - 2], Drawn::SettingsLink { .. }),
+        "second-last entry: {:?}",
+        plan.entries[n - 2]
+    );
+    assert!(
+        matches!(plan.entries[n - 1], Drawn::HomepageLink { .. }),
+        "last entry: {:?}",
+        plan.entries[n - 1]
+    );
+}
+
 #[test]
 fn c_applet_popup_12() {
     puron_testkit::limit("C-applet.popup-12", LIMIT, || {
         setup();
         let (_, plan) = capture_plan(&pinned("P1"));
-        let w = plan
-            .entries
-            .iter()
-            .position(|e| matches!(e, Drawn::HomepageLink { .. }))
-            .expect("homepage link");
+        assert_links_last(&plan);
+        let w = plan.entries.len() - 1;
         assert_eq!(
             plan.entries[w],
             Drawn::HomepageLink {
@@ -441,9 +456,11 @@ fn c_applet_popup_12() {
             close: true,
         };
         assert_eq!(popup::click(&plan.entries[w]), homepage);
-        // With no readings at all, the popup shows the message entry.
+        // With no readings at all, the popup shows the message entry, and
+        // the two links still end it in the same order.
         let m = lay(&[], None);
         let plan = plan_of(&m, &pinned("P1"));
+        assert_links_last(&plan);
         let i = plan
             .entries
             .iter()
@@ -732,8 +749,8 @@ const EXAMPLE_FOOT: [&str; 9] = [
     "Voltage",
     "[ ] BAT0 in0 +8.68V",
     "—",
-    "homepage",
     "settings",
+    "homepage",
 ];
 
 /// The whole popup, string for string, for each machine shape of the
@@ -791,7 +808,7 @@ fn c_applet_popup_21() {
                 "[ ] iwlwifi: WiFi 84°F",
             ]),
         );
-        let links = ["—", "homepage", "settings"];
+        let links = ["—", "settings", "homepage"];
         let plain = |head: &[&str]| -> Vec<String> {
             head.iter().chain(&links).map(|t| t.to_string()).collect()
         };

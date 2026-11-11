@@ -623,8 +623,8 @@ pub fn menu_with(
     // The footer, after the sensor entries or the message.
     entries.extend([
         Entry::Separator,
-        Entry::HomepageLink { url: HOMEPAGE_URL },
         Entry::SettingsLink,
+        Entry::HomepageLink { url: HOMEPAGE_URL },
     ]);
     // Rebuild when forced or when the key has changed; the key is unchanged
     // for the same message kind, or the same identities in the same order.

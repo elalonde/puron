@@ -8,7 +8,7 @@ menu	0	section	temperature	-	-	-
 menu	1	device	-	CPU	-	-
 menu	2	row	general	coretemp: CPU	50°C	1
 menu	0	separator	-	-	-	-
-menu	0	homepage	-	-	-	-
 menu	0	settings	-	-	-	-
+menu	0	homepage	-	-	-	-
 panel	general	50°C
 panel	slot	missing
