@@ -40,6 +40,6 @@ fn c_applet_app_17() {
             }
             std::thread::sleep(Duration::from_millis(5));
         };
-        assert_eq!(got, "https://elalonde.dev/software/puron/\n");
+        assert_eq!(got, "https://elalonde.dev/projects/puron/\n");
     });
 }

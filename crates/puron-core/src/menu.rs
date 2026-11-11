@@ -18,7 +18,7 @@ use crate::summary;
 
 /// The project homepage. The no-readings message and the homepage link
 /// at the bottom of the popup open it.
-pub const HOMEPAGE_URL: &str = "https://elalonde.dev/software/puron/";
+pub const HOMEPAGE_URL: &str = "https://elalonde.dev/projects/puron/";
 
 /// A word shown after a line's name, which the popup translates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

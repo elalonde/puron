@@ -390,7 +390,7 @@ fn c_core_menu_12() {
 #[test]
 fn c_core_menu_13() {
     puron_testkit::limit("C-core.menu-13", LIMIT, || {
-        let url = "https://elalonde.dev/software/puron/";
+        let url = "https://elalonde.dev/projects/puron/";
         assert_eq!(menu::HOMEPAGE_URL, url);
         let mut urls = Vec::new();
         for set in ["F", "A"] {
