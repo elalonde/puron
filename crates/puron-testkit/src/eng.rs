@@ -237,6 +237,15 @@ pub enum StartStep {
     Panics,
 }
 
+/// What one `configure` call of a [`Fake`] does: `Records` keeps the
+/// settings it was given (see `Fake::configured`); `Panics` keeps them
+/// too, then panics.
+#[derive(Clone, Debug)]
+pub enum ConfigureStep {
+    Records,
+    Panics,
+}
+
 /// What one `read` call of a [`Fake`] does.
 ///
 /// A provider of kind `ProviderKind::ChildRun` watches the stop
@@ -295,8 +304,9 @@ pub struct Call {
     pub stop_seen: Option<f64>,
 }
 
-/// A fake provider adapter (`Source`) that follows three scripts, one
-/// each for `start`, `read` and `stop`, and records every call. Each
+/// A fake provider adapter (`Source`) that follows four scripts, one
+/// each for `configure`, `start`, `read` and `stop`, and records every
+/// call. Each
 /// call takes the next step of its script; the last step repeats for
 /// every later call. Clones share the scripts and the record, so the
 /// test keeps one clone and gives another to the engine (see
@@ -313,6 +323,7 @@ struct FakeInner {
 
 /// The scripts, the record, and the two release signals of a [`Fake`].
 struct FakeState {
+    configures: VecDeque<ConfigureStep>,
     starts: VecDeque<StartStep>,
     reads: VecDeque<ReadStep>,
     stops: VecDeque<StopStep>,
@@ -339,7 +350,8 @@ impl Fake {
     /// A fake for `provider` that waits on `clock`. Every `start` returns
     /// `Available`, every `read` returns an empty list of readings, and
     /// every `stop` returns at once, until a script is set. The provider's
-    /// kind comes from `PROVIDERS`.
+    /// kind comes from `PROVIDERS`. Every `configure` records its
+    /// settings until `configures` sets a script.
     pub fn new(clock: Arc<dyn Clock>, provider: Provider) -> Fake {
         let kind = PROVIDERS
             .iter()
@@ -351,6 +363,7 @@ impl Fake {
             provider,
             kind,
             s: Mutex::new(FakeState {
+                configures: [ConfigureStep::Records].into(),
                 starts: [StartStep::Available].into(),
                 reads: [ReadStep::Gives(ReadOutcome::Readings(vec![]))].into(),
                 stops: [StopStep::AtOnce].into(),
@@ -366,6 +379,11 @@ impl Fake {
     /// Sets the `start` script; `reads` and `stops` set the other two.
     pub fn starts(self, steps: impl IntoIterator<Item = StartStep>) -> Fake {
         self.0.s.lock().unwrap().starts = steps.into_iter().collect();
+        self
+    }
+
+    pub fn configures(self, steps: impl IntoIterator<Item = ConfigureStep>) -> Fake {
+        self.0.s.lock().unwrap().configures = steps.into_iter().collect();
         self
     }
 
@@ -521,6 +539,11 @@ impl Source for Fake {
         let mut s = self.0.s.lock().unwrap();
         let starts = s.generation;
         s.configured.push((starts, settings.clone()));
+        if let ConfigureStep::Panics = step(&mut s.configures) {
+            // Unlock first, so that the panic does not poison the state.
+            drop(s);
+            panic!("fake configure panics");
+        }
     }
 
     fn start(&mut self) -> StartOutcome {

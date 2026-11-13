@@ -62,9 +62,10 @@ at once.
   it reads the temperatures from sysfs and does not need the nvme-cli
   program. lm-sensors also reads the drives that the kernel reports
   (NVMe drives, and SATA drives with the `drivetemp` module). The
-  switch "lm-sensors (drives)" turns only those off: Puron then no
-  longer asks the drives for their temperature, which lets a hard disk
-  spin down, and the other lm-sensors readings stay.
+  switch "lm-sensors (drives)" turns only those off: lm-sensors then no
+  longer asks the drives for their temperature, so that lm-sensors no
+  longer keeps a hard disk from spinning down, and the other lm-sensors
+  readings stay.
 - Show Sensors: which kinds of readings appear: temperature, rotation
   rate (fan speeds), voltage and power.
 
