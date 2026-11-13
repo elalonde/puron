@@ -13,6 +13,7 @@ provider_liquidctl true
 provider_nvidia true
 provider_udisks2 true
 provider_nvme true
+provider_lm_sensors_drives false
 show_temperature false
 show_rotation_rate false
 show_voltage false

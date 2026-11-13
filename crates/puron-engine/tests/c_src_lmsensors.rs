@@ -1370,3 +1370,56 @@ fn nvme_chip_names_of_the_library() {
         });
     });
 }
+
+/// The chips of drives can be switched off. With the `capture` tree, a
+/// new adapter reads them: one read gives the 12 readings of `CAPTURE`.
+/// After `configure` with `provider_lm_sensors_drives` off, a read gives
+/// the same readings without those of the NVMe chip, with positions
+/// counted without a gap, and it does not open the drive's temperature
+/// file: that file is replaced by a named pipe with no writer, so an
+/// open would never return and the test's time limit would end it.
+/// After `configure` with the setting on again and the file restored, a
+/// read gives all 12 readings.
+#[test]
+fn c_src_lmsensors_30() {
+    puron_testkit::limit("C-src.lmsensors-30", LIMIT, || {
+        on("c_src_lmsensors_30", "capture", || {
+            use puron_core::settings::Settings;
+            let mut s = started();
+            assert!(s.drives(), "a new adapter reads drives");
+            same(&readings(&mut s), &CAPTURE);
+
+            let off = Settings {
+                provider_lm_sensors_drives: false,
+                ..Settings::default()
+            };
+            s.stop();
+            s.configure(&off);
+            assert!(!s.drives());
+            assert_eq!(s.start(), StartOutcome::Available);
+            let input = tb(&format!("{NVME}/temp1_input"));
+            let value = std::fs::read(&input).expect("the drive's temperature file");
+            std::fs::remove_file(&input).unwrap();
+            let made = Command::new("mkfifo").arg(&input).status().expect("mkfifo");
+            assert!(made.success(), "mkfifo {input:?}");
+            let got = readings(&mut s);
+            let rest: Vec<Exp> = CAPTURE
+                .iter()
+                .filter(|e| e.0 != CHIP_NVME)
+                .copied()
+                .collect();
+            assert!(rest.len() < CAPTURE.len(), "the tree has a drive chip");
+            same(&got, &rest);
+            positions_in_order(&got);
+
+            std::fs::remove_file(&input).unwrap();
+            std::fs::write(&input, value).unwrap();
+            s.stop();
+            s.configure(&Settings::default());
+            assert!(s.drives());
+            assert_eq!(s.start(), StartOutcome::Available);
+            same(&readings(&mut s), &CAPTURE);
+            s.stop();
+        })
+    });
+}

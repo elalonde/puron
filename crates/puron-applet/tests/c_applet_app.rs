@@ -972,3 +972,23 @@ fn c_applet_app_31() {
         assert_eq!(layouts(&out), [false]);
     });
 }
+
+/// Switching the drives of lm-sensors off passes the new settings to
+/// `set_providers`, as a provider switch does, and makes no other engine
+/// call.
+#[test]
+fn c_applet_app_32() {
+    puron_testkit::limit("C-applet.app-32", LIMIT, || {
+        let (_c, _h, mut a) = as_4();
+        let ev = delivery(&a, &["provider_lm_sensors_drives"], |s| {
+            s.provider_lm_sensors_drives = false
+        });
+        let Event::Delivery(d) = &ev else {
+            unreachable!()
+        };
+        let new = d.loaded.settings.clone();
+        assert!(!new.provider_lm_sensors_drives);
+        let out = a.handle(ev);
+        assert_eq!(commands(&out), [Command::SetProviders(new)]);
+    });
+}

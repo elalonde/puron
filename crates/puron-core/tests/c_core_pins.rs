@@ -256,3 +256,34 @@ fn pins_moved() {
         );
     });
 }
+
+/// While lm-sensors does not read drives, a click on another line keeps
+/// the pins of a drive's lines (a reading and the drive's Maximum line),
+/// although the popup has no line for them. A pin with no line that the
+/// settings do not hide is dropped as before: the same drive pins while
+/// drives are read, and a pin of another provider's drive at any time.
+#[test]
+fn c_core_pins_12() {
+    puron_testkit::limit("C-core.pins-12", LIMIT, || {
+        let s = |t: &str| t.to_string();
+        let drive = s("temperature/lm-sensors/nvme-pci-0100/temp1");
+        let maximum = s("@maximum/lm-sensors/nvme-pci-0100");
+        let other_provider = s("temperature/nvme-cli/0000:01:00.0/temp1_input");
+        let cpu = s("temperature/lm-sensors/coretemp-isa-0000/temp1");
+        let fan = s("fan/lm-sensors/example_acpi-isa-0000/fan1");
+        let menu = [cpu.clone(), fan.clone()];
+        let list = [drive.clone(), maximum.clone(), other_provider, cpu.clone()];
+        let no_drives = ShownClasses {
+            lm_sensors_drives: false,
+            ..ShownClasses::ALL
+        };
+        assert_eq!(
+            pins::click(&list, &fan, &menu, &no_drives),
+            [drive, maximum, cpu.clone(), fan.clone()]
+        );
+        assert_eq!(
+            pins::click(&list, &fan, &menu, &ShownClasses::ALL),
+            [cpu, fan]
+        );
+    });
+}

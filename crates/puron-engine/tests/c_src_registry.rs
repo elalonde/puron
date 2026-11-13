@@ -137,3 +137,59 @@ fn c_src_registry_6() {
         }
     });
 }
+
+/// A provider that stays on is stopped and then started when a choice
+/// of its source changes. Only lm-sensors has one: whether it reads the
+/// chips of drives (`provider_lm_sensors_drives`). Expects, for a change
+/// of that setting in either direction while lm-sensors is on, a stop
+/// and then a start of lm-sensors and no action for any other provider;
+/// at engine start, a start only; and while lm-sensors is off, or goes
+/// on or off in the same change, only what its own switch gives.
+#[test]
+fn c_src_registry_8() {
+    puron_testkit::limit("C-src.registry-8", LIMIT, || {
+        let no_drives = |s: &Settings| Settings {
+            provider_lm_sensors_drives: false,
+            ..s.clone()
+        };
+        let restart = [Action::Stop(LmSensors), Action::Start(LmSensors)];
+        let d = Settings::default();
+        assert_eq!(registry::actions(Some(&d), &no_drives(&d)), restart);
+        assert_eq!(registry::actions(Some(&no_drives(&d)), &d), restart);
+        assert_eq!(registry::actions(Some(&no_drives(&d)), &no_drives(&d)), []);
+        assert_eq!(
+            registry::actions(None, &no_drives(&d)),
+            [Action::Start(LmSensors)]
+        );
+        // Every provider on: only lm-sensors is restarted.
+        let on = all_on();
+        assert_eq!(registry::actions(Some(&on), &no_drives(&on)), restart);
+        for e in PROVIDERS {
+            let p = e.provider;
+            assert_eq!(
+                registry::restarts(&on, &no_drives(&on), p),
+                p == LmSensors,
+                "{p:?}"
+            );
+            assert!(!registry::restarts(&on, &on, p), "{p:?}");
+            assert!(
+                !registry::restarts(&on, &other_keys_changed(&on), p),
+                "{p:?}"
+            );
+        }
+        // lm-sensors off: its switch alone decides.
+        let lm_off = Settings {
+            provider_lm_sensors: false,
+            ..d.clone()
+        };
+        assert_eq!(registry::actions(Some(&lm_off), &no_drives(&lm_off)), []);
+        assert_eq!(
+            registry::actions(Some(&d), &no_drives(&lm_off)),
+            [Action::Stop(LmSensors)]
+        );
+        assert_eq!(
+            registry::actions(Some(&no_drives(&lm_off)), &d),
+            [Action::Start(LmSensors)]
+        );
+    });
+}

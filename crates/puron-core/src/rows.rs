@@ -159,23 +159,29 @@ pub struct RawReading {
     pub device_chars: usize,
 }
 
-/// Which classes are shown, from the settings' class switches. Rows of a
-/// class that is not shown are dropped.
+/// What the settings show: the four classes, from the class switches, and
+/// the drives that lm-sensors reads. Rows of a class that is not shown are
+/// dropped. A drive that lm-sensors does not read has no readings to
+/// drop: the lm-sensors adapter skips its chip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShownClasses {
     pub temperature: bool,
     pub fan: bool,
     pub voltage: bool,
     pub power: bool,
+    /// False when lm-sensors skips the chips of drives (see
+    /// [`drive_chip`]).
+    pub lm_sensors_drives: bool,
 }
 
 impl ShownClasses {
-    /// All four classes shown (the default).
+    /// Everything shown (the default).
     pub const ALL: ShownClasses = ShownClasses {
         temperature: true,
         fan: true,
         voltage: true,
         power: true,
+        lm_sensors_drives: true,
     };
 
     pub fn contains(&self, class: Class) -> bool {
@@ -185,6 +191,16 @@ impl ShownClasses {
             Class::Voltage => self.voltage,
             Class::Power => self.power,
         }
+    }
+
+    /// Whether the settings hide the line that `identity` names: its
+    /// class is not shown, or it is a line of a drive that lm-sensors
+    /// does not read. A pin on such a line is kept, and shows again when
+    /// the settings show the line. An identity whose class cannot be told
+    /// from its text is hidden only in the second case.
+    pub fn hides(&self, identity: &str) -> bool {
+        class_of_identity(identity).is_some_and(|c| !self.contains(c))
+            || (!self.lm_sensors_drives && lm_sensors_drive(identity))
     }
 }
 
@@ -532,6 +548,23 @@ fn chip_family(chip: &str) -> Option<Family> {
         (false, true) => Some(Family::Drive),
         (false, false) => Some(Family::General),
     }
+}
+
+/// Whether lm-sensors chip `chip` belongs to a drive: its name has a
+/// drive word and no GPU word, the rule that gives a temperature the
+/// drive family. The settings can make the lm-sensors adapter skip such
+/// a chip.
+pub fn drive_chip(chip: &str) -> bool {
+    chip_family(chip) == Some(Family::Drive)
+}
+
+/// Whether `identity` names a line of a drive that lm-sensors reads: a
+/// reading of a drive chip, or the Maximum line of that drive. Both
+/// identities hold the provider's word and then the chip's name after
+/// their first part.
+pub fn lm_sensors_drive(identity: &str) -> bool {
+    let mut parts = identity.split(IDENTITY_SEPARATOR).skip(1);
+    parts.next() == Some(Provider::LmSensors.word()) && parts.next().is_some_and(drive_chip)
 }
 
 /// The class and family of a liquidctl reading from its unit, compared

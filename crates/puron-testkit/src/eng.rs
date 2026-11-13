@@ -317,6 +317,9 @@ struct FakeState {
     reads: VecDeque<ReadStep>,
     stops: VecDeque<StopStep>,
     calls: Vec<Call>,
+    /// One entry per `configure` call: the number of `start` calls before
+    /// it, and the settings it was given.
+    configured: Vec<(u32, puron_core::settings::Settings)>,
     generation: u32,
     start_gate: bool,
     read_gate: Option<ReadOutcome>,
@@ -352,6 +355,7 @@ impl Fake {
                 reads: [ReadStep::Gives(ReadOutcome::Readings(vec![]))].into(),
                 stops: [StopStep::AtOnce].into(),
                 calls: vec![],
+                configured: vec![],
                 generation: 0,
                 start_gate: false,
                 read_gate: None,
@@ -410,6 +414,14 @@ impl Fake {
     /// Every call so far, in the order the calls began.
     pub fn calls(&self) -> Vec<Call> {
         self.0.s.lock().unwrap().calls.clone()
+    }
+
+    /// Every `configure` call so far, in order: the number of `start`
+    /// calls that came before it, and the settings it was given. They are
+    /// kept apart from `calls`, which holds `start`, `read` and `stop`
+    /// only.
+    pub fn configured(&self) -> Vec<(u32, puron_core::settings::Settings)> {
+        self.0.s.lock().unwrap().configured.clone()
     }
 
     /// The times at which the calls of `kind` began, in order.
@@ -505,6 +517,12 @@ fn readable(fd: BorrowedFd<'_>) -> bool {
 }
 
 impl Source for Fake {
+    fn configure(&mut self, settings: &puron_core::settings::Settings) {
+        let mut s = self.0.s.lock().unwrap();
+        let starts = s.generation;
+        s.configured.push((starts, settings.clone()));
+    }
+
     fn start(&mut self) -> StartOutcome {
         let i = self.begin(CallKind::Start);
         let st = step(&mut self.0.s.lock().unwrap().starts);

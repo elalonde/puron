@@ -57,10 +57,10 @@ fn text(number: &str, unit: Option<Unit>) -> Text {
 }
 
 /// The message IDs with their English texts, from the testkit's
-/// `fixtures/loc/en.tsv`, which must hold 40 entries.
+/// `fixtures/loc/en.tsv`, which must hold 42 entries.
 fn english() -> Vec<(String, String)> {
     let e = loc::english();
-    assert_eq!(e.len(), 40, "40 entries in en.tsv");
+    assert_eq!(e.len(), 42, "42 entries in en.tsv");
     e
 }
 

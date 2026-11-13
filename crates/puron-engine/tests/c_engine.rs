@@ -1104,3 +1104,64 @@ fn stop_keeps_other_deadlines() {
         assert_eq!(r.of(Udisks2), novalue());
     });
 }
+
+/// The engine gives each source the settings before every start, and
+/// starts lm-sensors again when the setting for drives changes
+/// (`provider_lm_sensors_drives`). lm-sensors and NVIDIA are on. At 2 s
+/// the drives are switched off; at 3 s the poll interval alone changes.
+/// Expects one `configure` for each source before its first start, with
+/// the start settings; at 2 s, for lm-sensors a stop, a second
+/// `configure` with the new settings, a start and a read, and nothing
+/// for NVIDIA but the read of that poll; at 3 s no `configure`, stop or
+/// start for either; and the snapshot then shows what lm-sensors read
+/// after its second start.
+#[test]
+fn c_engine_27() {
+    puron_testkit::limit("C-engine-27", LIMIT, || {
+        use CallKind::*;
+        let mut r = Run::new();
+        let lm = r
+            .fake(LmSensors)
+            .reads([gives(r1(LmSensors)), gives(r2(LmSensors))]);
+        let nv = r.fake(Nvidia);
+        let first = on(&[LmSensors, Nvidia], 5);
+        let no_drives = Settings {
+            provider_lm_sensors_drives: false,
+            ..first.clone()
+        };
+        r.start(&first, &[lm.clone(), nv.clone()]);
+        r.to(1.0);
+        assert_eq!(lm.configured(), [(0, first.clone())]);
+        assert_eq!(nv.configured(), [(0, first.clone())]);
+        assert_eq!(r.of(LmSensors), r1v());
+        r.to(2.0);
+        r.set(&no_drives);
+        r.clock.settle();
+        assert_eq!(
+            lm.configured(),
+            [(0, first.clone()), (1, no_drives.clone())],
+            "the second configure comes after one start and before the next"
+        );
+        let at = |f: &Fake, t: f64| -> Vec<CallKind> {
+            f.calls()
+                .iter()
+                .filter(|c| c.start == t)
+                .map(|c| c.call)
+                .collect()
+        };
+        assert_eq!(at(&lm, 2.0), [Stop, Start, Read]);
+        assert_eq!(at(&nv, 2.0), [Read]);
+        assert_eq!(nv.configured().len(), 1);
+        assert_eq!(r.of(LmSensors), r2v());
+        r.to(3.0);
+        r.set(&Settings {
+            poll_interval_secs: 7,
+            ..no_drives.clone()
+        });
+        r.clock.settle();
+        assert_eq!(lm.configured().len(), 2);
+        assert_eq!(nv.configured().len(), 1);
+        assert_eq!((lm.count(Start), lm.count(Stop)), (2, 1));
+        assert_eq!((nv.count(Start), nv.count(Stop)), (1, 0));
+    });
+}

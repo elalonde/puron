@@ -247,15 +247,6 @@ pub struct App {
     stopped: bool,
 }
 
-fn classes(s: &Settings) -> ShownClasses {
-    ShownClasses {
-        temperature: s.show_temperature,
-        fan: s.show_rotation_rate,
-        voltage: s.show_voltage,
-        power: s.show_power,
-    }
-}
-
 fn kind_word(k: ProblemKind) -> &'static str {
     match k {
         ProblemKind::Unreadable => "unreadable",
@@ -272,7 +263,7 @@ impl App {
             config,
             programs,
             shown: menu::shown(&[], &settings),
-            layout_classes: classes(&settings),
+            layout_classes: settings.shown_classes(),
             settings,
             last: None,
             last_key: None,
@@ -472,7 +463,7 @@ impl App {
 
     fn set_menu(&mut self, m: Menu, forced: bool, out: &mut Vec<Output>) {
         self.last_key = Some(m.key.clone());
-        self.layout_classes = classes(&self.settings);
+        self.layout_classes = self.settings.shown_classes();
         self.menu = Some(m.clone());
         out.push(Output::Layout { menu: m, forced });
     }
@@ -551,7 +542,8 @@ impl App {
             || o.provider_liquidctl != n.provider_liquidctl
             || o.provider_nvidia != n.provider_nvidia
             || o.provider_udisks2 != n.provider_udisks2
-            || o.provider_nvme != n.provider_nvme;
+            || o.provider_nvme != n.provider_nvme
+            || o.provider_lm_sensors_drives != n.provider_lm_sensors_drives;
         let interval = o.poll_interval_secs != n.poll_interval_secs;
         let icons = o.show_panel_icons != n.show_panel_icons;
         let none_on = !registry::PROVIDERS

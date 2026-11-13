@@ -479,3 +479,54 @@ fn c_core_panel_19() {
         assert_eq!(after, ["@maximum/cpu".to_string(), fan]);
     });
 }
+
+/// A pinned line of a drive that lm-sensors reads, and the panel. While
+/// drives are read, the pin has an item: with its value when the drive's
+/// readings are there, and with no value when they are missing. While
+/// drives are switched off (`provider_lm_sensors_drives`), the pin of the
+/// reading and the pin of the drive's Maximum line have no item, and a
+/// pin of another device keeps its own.
+#[test]
+fn c_core_panel_20() {
+    puron_testkit::limit("C-core.panel-20", LIMIT, || {
+        let all = set("cpu.json", "sections");
+        let chip = "nvme-pci-0100";
+        let of_drive = |r: &RawReading| r.chip.as_deref().is_some_and(puron_core::rows::drive_chip);
+        let reading = all
+            .iter()
+            .find(|r| r.chip.as_deref() == Some(chip))
+            .expect("a reading of the drive");
+        let drive = format!("temperature/lm-sensors/{}", reading.key);
+        let maximum = format!("@maximum/lm-sensors/{chip}");
+        // What the lm-sensors adapter gives while it skips drive chips.
+        let skipped: Vec<RawReading> = all.iter().filter(|r| !of_drive(r)).cloned().collect();
+        assert!(skipped.len() < all.len());
+        let on = Settings::default();
+        let off = settings_with(|s| s.provider_lm_sensors_drives = false);
+        let items = |raw: &[RawReading], pinned: &[String], s: &Settings| {
+            run(raw, pinned, s, &State::default()).items
+        };
+        let one = [drive.clone()];
+        assert!(matches!(
+            items(&all, &one, &on).as_slice(),
+            [Item::Pin {
+                value: Some(Some(_)),
+                ..
+            }]
+        ));
+        assert!(matches!(
+            items(&skipped, &one, &on).as_slice(),
+            [Item::Pin { value: None, .. }]
+        ));
+        assert_eq!(items(&skipped, &one, &off), [Item::EmptyState]);
+        assert_eq!(
+            items(&skipped, std::slice::from_ref(&maximum), &off),
+            [Item::EmptyState]
+        );
+        let cpu = "@maximum/cpu".to_string();
+        let three = [drive, cpu.clone(), maximum];
+        assert_eq!(items(&skipped, &three, &off), items(&skipped, &[cpu], &off));
+        assert_eq!(items(&skipped, &three, &off).len(), 1);
+        assert_eq!(items(&skipped, &three, &on).len(), 3);
+    });
+}

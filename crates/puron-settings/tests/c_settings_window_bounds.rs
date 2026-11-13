@@ -235,7 +235,7 @@ fn c_settings_window_18() {
 }
 
 /// In each section the heading is above the first item, each item is
-/// below the one before, and there are 17 items in all.
+/// below the one before, and there are 18 items in all.
 #[test]
 fn c_settings_window_19() {
     puron_testkit::limit("C-settings.window-19", LIMIT, || {
@@ -257,7 +257,7 @@ fn c_settings_window_19() {
                 above = r.y + r.height;
             }
         }
-        assert_eq!(n, 17, "items");
+        assert_eq!(n, 18, "items");
     });
 }
 
@@ -287,7 +287,7 @@ fn c_settings_window_21() {
     puron_testkit::limit("C-settings.window-21", LIMIT, || {
         let plan = plan();
         let mut sim = sim(&plan, 480.0);
-        for n in 1..=17 {
+        for n in 1..=18 {
             let (l, i) = (label(&mut sim, &plan, n), item(&mut sim, n));
             assert!(near(l.x, i.x, TOL), "item {n}: label {l:?} item {i:?}");
         }
@@ -300,7 +300,7 @@ fn c_settings_window_22() {
     puron_testkit::limit("C-settings.window-22", LIMIT, || {
         let plan = plan();
         let mut sim = sim(&plan, 480.0);
-        for n in 1..=17 {
+        for n in 1..=18 {
             let (c, i) = (control(&mut sim, n), item(&mut sim, n));
             assert!(
                 near(c.x + c.width, i.x + i.width, TOL),
@@ -317,7 +317,7 @@ fn c_settings_window_23() {
     puron_testkit::limit("C-settings.window-23", LIMIT, || {
         let plan = plan();
         let mut sim = sim(&plan, 480.0);
-        for n in 1..=17 {
+        for n in 1..=18 {
             let i = item(&mut sim, n);
             let l = label(&mut sim, &plan, n);
             let c = control(&mut sim, n);
@@ -342,10 +342,10 @@ fn c_settings_window_24() {
         let plan = plan();
         // Each control's width in a window 480 wide.
         let mut wide = sim(&plan, 480.0);
-        let w480: Vec<f32> = (1..=17).map(|n| control(&mut wide, n).width).collect();
+        let w480: Vec<f32> = (1..=18).map(|n| control(&mut wide, n).width).collect();
         let mut sim = sim(&plan, 360.0);
         let (area, _) = scroll(&mut sim);
-        for n in 1..=17 {
+        for n in 1..=18 {
             let l = label(&mut sim, &plan, n);
             let c = control(&mut sim, n);
             assert!(
@@ -404,10 +404,10 @@ fn c_settings_window_26() {
         let mut sim = sim(&plan, 480.0);
         let t = scroll_to_end(&mut sim);
         let (area, _) = scroll(&mut sim);
-        let last = shifted(item(&mut sim, 17), t);
+        let last = shifted(item(&mut sim, 18), t);
         assert!(
             inside(last, area),
-            "end: item 17 {last:?} t {t:?} area {area:?}"
+            "end: item 18 {last:?} t {t:?} area {area:?}"
         );
         let mut top = self::sim(&plan, 480.0);
         let (area, t) = scroll(&mut top);
