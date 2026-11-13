@@ -6,7 +6,7 @@
 //! `view` turns a plan into widgets. Because no display is needed, the
 //! tests drive `Window` directly.
 //!
-//! The window has 17 items, numbered from 1 in the order they are shown.
+//! The window has 18 items, numbered from 1 in the order they are shown.
 //! Events and the tables below address items by that number.
 
 use puron_config::{Config, Delivery, StoreResult, Value};
@@ -140,7 +140,7 @@ pub struct Plan {
 /// The settings key of each item: entry `n - 1` belongs to item `n`.
 /// `debug_logging` and `pinned` have no item; the window does not edit
 /// them.
-const KEYS: [&str; 17] = [
+const KEYS: [&str; 18] = [
     puron_config::POLL_INTERVAL_SECS,
     puron_config::SHOW_PANEL_ICONS,
     puron_config::TEMPERATURE_UNIT,
@@ -152,6 +152,7 @@ const KEYS: [&str; 17] = [
     puron_config::PROVIDER_LM_SENSORS,
     puron_config::PROVIDER_LIQUIDCTL,
     puron_config::PROVIDER_NVIDIA,
+    puron_config::PROVIDER_LM_SENSORS_DRIVES,
     puron_config::PROVIDER_UDISKS2,
     puron_config::PROVIDER_NVME,
     puron_config::SHOW_TEMPERATURE,
@@ -162,7 +163,7 @@ const KEYS: [&str; 17] = [
 
 /// The five sections, as the first and last item number of each. `heading`
 /// gives their headings in the same order.
-const SECTIONS: [(usize, usize); 5] = [(1, 8), (9, 10), (11, 11), (12, 13), (14, 17)];
+const SECTIONS: [(usize, usize); 5] = [(1, 8), (9, 10), (11, 11), (12, 14), (15, 18)];
 
 /// The translated heading of section `section`, counted from 0.
 fn heading(section: usize) -> String {
@@ -175,9 +176,11 @@ fn heading(section: usize) -> String {
     }
 }
 
-/// The label of item `item`. Items 9 to 13 switch a sensor source on or
-/// off and are labelled with its product name, which is not translated;
-/// the other labels are translated.
+/// The label of item `item`. Items 9 to 14 switch a sensor source on or
+/// off. All of them but item 12 are labelled with the source's product
+/// name, which is not translated. Item 12 switches a part of a source,
+/// the drives that lm-sensors reads, so its label holds a translated
+/// word. The other labels are translated.
 fn label(item: usize) -> String {
     match item {
         1 => fl!("label-poll"),
@@ -191,21 +194,23 @@ fn label(item: usize) -> String {
         9 => "lm-sensors".to_string(),
         10 => "liquidctl".to_string(),
         11 => "Nvidia".to_string(),
-        12 => "Udisks2".to_string(),
-        13 => "nvme-cli".to_string(),
-        14 => fl!("class-temperature"),
-        15 => fl!("class-rotation"),
-        16 => fl!("class-voltage"),
+        12 => fl!("label-lm-sensors-drives"),
+        13 => "Udisks2".to_string(),
+        14 => "nvme-cli".to_string(),
+        15 => fl!("class-temperature"),
+        16 => fl!("class-rotation"),
+        17 => fl!("class-voltage"),
         _ => fl!("class-power"),
     }
 }
 
-/// The tooltip of item `item`; only items 8, 9 and 10 have one.
+/// The tooltip of item `item`; only items 8, 9, 10 and 12 have one.
 fn tooltip(item: usize) -> Option<(&'static str, String)> {
     match item {
         8 => Some(("tip-decimals", fl!("tip-decimals"))),
         9 => Some(("tip-lm-sensors", fl!("tip-lm-sensors"))),
         10 => Some(("tip-liquidctl", fl!("tip-liquidctl"))),
+        12 => Some(("tip-lm-sensors-drives", fl!("tip-lm-sensors-drives"))),
         _ => None,
     }
 }
@@ -220,7 +225,7 @@ fn unit_items() -> Vec<String> {
 }
 
 /// The setting in `s` that the switch of item `item` changes. `None` for
-/// an item without a switch (1 and 3) or a number outside 1 to 17.
+/// an item without a switch (1 and 3) or a number outside 1 to 18.
 fn switch(s: &mut Settings, item: usize) -> Option<&mut bool> {
     Some(match item {
         2 => &mut s.show_panel_icons,
@@ -232,12 +237,13 @@ fn switch(s: &mut Settings, item: usize) -> Option<&mut bool> {
         9 => &mut s.provider_lm_sensors,
         10 => &mut s.provider_liquidctl,
         11 => &mut s.provider_nvidia,
-        12 => &mut s.provider_udisks2,
-        13 => &mut s.provider_nvme,
-        14 => &mut s.show_temperature,
-        15 => &mut s.show_rotation_rate,
-        16 => &mut s.show_voltage,
-        17 => &mut s.show_power,
+        12 => &mut s.provider_lm_sensors_drives,
+        13 => &mut s.provider_udisks2,
+        14 => &mut s.provider_nvme,
+        15 => &mut s.show_temperature,
+        16 => &mut s.show_rotation_rate,
+        17 => &mut s.show_voltage,
+        18 => &mut s.show_power,
         _ => return None,
     })
 }

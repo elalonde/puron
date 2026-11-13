@@ -2,6 +2,8 @@
 //! becomes the value in effect. Reading and writing the settings store is
 //! done in the puron-config crate.
 
+use crate::rows::ShownClasses;
+
 /// How often the sensors are read, in seconds, when no usable interval
 /// is stored.
 pub const POLL_INTERVAL_DEFAULT: u32 = 5;
@@ -38,6 +40,11 @@ pub struct Settings {
     pub provider_nvidia: bool,
     pub provider_udisks2: bool,
     pub provider_nvme: bool,
+    /// Whether lm-sensors reads the chips of drives. When it is off,
+    /// lm-sensors reads no value of such a chip, so the drive is not
+    /// asked for its temperature; the other chips are read as before.
+    /// It has no effect while `provider_lm_sensors` is off.
+    pub provider_lm_sensors_drives: bool,
     pub show_temperature: bool,
     pub show_rotation_rate: bool,
     pub show_voltage: bool,
@@ -72,6 +79,7 @@ pub struct Stored {
     pub provider_nvidia: Option<bool>,
     pub provider_udisks2: Option<bool>,
     pub provider_nvme: Option<bool>,
+    pub provider_lm_sensors_drives: Option<bool>,
     pub show_temperature: Option<bool>,
     pub show_rotation_rate: Option<bool>,
     pub show_voltage: Option<bool>,
@@ -102,6 +110,7 @@ pub fn settings(stored: &Stored) -> Settings {
         provider_nvidia: s.provider_nvidia.unwrap_or(false),
         provider_udisks2: s.provider_udisks2.unwrap_or(false),
         provider_nvme: s.provider_nvme.unwrap_or(false),
+        provider_lm_sensors_drives: s.provider_lm_sensors_drives.unwrap_or(true),
         show_temperature: s.show_temperature.unwrap_or(true),
         show_rotation_rate: s.show_rotation_rate.unwrap_or(true),
         show_voltage: s.show_voltage.unwrap_or(true),
@@ -109,6 +118,20 @@ pub fn settings(stored: &Stored) -> Settings {
         debug_logging: s.debug_logging.unwrap_or(false),
         pinned: s.pinned.clone(),
         old_cpu_source: s.old_cpu_source.clone(),
+    }
+}
+
+impl Settings {
+    /// What these settings let the popup and the panel show.
+    pub fn shown_classes(&self) -> ShownClasses {
+        ShownClasses {
+            temperature: self.show_temperature,
+            fan: self.show_rotation_rate,
+            voltage: self.show_voltage,
+            power: self.show_power,
+            // The drive switch only takes effect while lm-sensors runs.
+            lm_sensors_drives: !self.provider_lm_sensors || self.provider_lm_sensors_drives,
+        }
     }
 }
 

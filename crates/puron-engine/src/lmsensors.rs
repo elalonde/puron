@@ -12,6 +12,11 @@
 //! readable name for the hardware the chip belongs to, such as a drive's
 //! model or the CPU's name, which starts each reading's name. `start`
 //! finds it once for each chip and keeps it until the next start.
+//!
+//! The settings can switch the chips of drives off. The adapter then
+//! skips such a chip before it reads any value of it, because a read
+//! makes the kernel ask the drive for its temperature, and that can keep
+//! a hard disk from spinning down.
 
 use std::borrow::Cow;
 use std::ffi::{CStr, OsStr};
@@ -24,7 +29,8 @@ use lm_sensors::feature::Kind as FeatureKind;
 use lm_sensors::sub_feature::Flags;
 use lm_sensors::value::Kind as SubKind;
 use lm_sensors::{ChipRef, FeatureRef, Initializer};
-use puron_core::rows::{Kind, Provider, RawReading};
+use puron_core::rows::{self, Kind, Provider, RawReading};
+use puron_core::settings::Settings;
 
 use crate::diag::{self, lmsensors as ev};
 use crate::registry::{ReadOutcome, Source, StartOutcome};
@@ -69,6 +75,9 @@ pub struct LmSensors {
     config: Option<PathBuf>,
     cpuinfo: PathBuf,
     devices: Vec<Device>,
+    /// Whether the chips of drives are read (see `rows::drive_chip`).
+    /// `configure` sets it from the settings before each start.
+    drives: bool,
 }
 
 impl LmSensors {
@@ -77,6 +86,7 @@ impl LmSensors {
             config,
             cpuinfo: cpuinfo.into(),
             devices: Vec::new(),
+            drives: true,
         }
     }
 
@@ -88,6 +98,12 @@ impl LmSensors {
     /// The file the CPU's name is read from.
     pub fn cpuinfo(&self) -> &Path {
         &self.cpuinfo
+    }
+
+    /// Whether the chips of drives are read. True until `configure`
+    /// gets settings that switch them off.
+    pub fn drives(&self) -> bool {
+        self.drives
     }
 
     /// Finds the device name of every chip present now, for the chips
@@ -347,15 +363,19 @@ fn reading(info: &ChipInfo<'_>, feature: FeatureRef<'_>, position: u32) -> Optio
 }
 
 /// Appends the readings of one chip to `out`. A chip whose name the
-/// library cannot give is left out and logged. A chip that `start` did
-/// not find, such as one that appeared later, has no device name yet and
-/// goes by the short name that `chip_device` gives.
-fn chip_readings(chip: ChipRef<'_>, devices: &[Device], out: &mut Vec<RawReading>) {
+/// library cannot give is left out and logged. With `drives` false, the
+/// chip of a drive is left out before any of its values is read. A chip
+/// that `start` did not find, such as one that appeared later, has no
+/// device name yet and goes by the short name that `chip_device` gives.
+fn chip_readings(chip: ChipRef<'_>, devices: &[Device], drives: bool, out: &mut Vec<RawReading>) {
     let Ok(name) = chip.raw_name() else {
         diag::event(ev::chip_name());
         return;
     };
     let name = text(&name).into_owned();
+    if !drives && rows::drive_chip(&name) {
+        return;
+    }
     let hwmon = chip.path();
     let prefix = chip.raw_prefix().map(text).unwrap_or_default();
     let device = devices
@@ -377,6 +397,11 @@ fn chip_readings(chip: ChipRef<'_>, devices: &[Device], out: &mut Vec<RawReading
 }
 
 impl Source for LmSensors {
+    /// Takes from the settings whether the chips of drives are read.
+    fn configure(&mut self, settings: &Settings) {
+        self.drives = settings.provider_lm_sensors_drives;
+    }
+
     /// Finds the chips' device names, and always returns `Available`.
     fn start(&mut self) -> StartOutcome {
         self.devices = self.find_devices();
@@ -402,7 +427,7 @@ impl Source for LmSensors {
         };
         let mut out = Vec::new();
         for chip in sensors.chip_iter(None) {
-            chip_readings(chip, &self.devices, &mut out);
+            chip_readings(chip, &self.devices, self.drives, &mut out);
         }
         drop(sensors);
         ReadOutcome::Readings(out)

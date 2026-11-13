@@ -134,8 +134,9 @@ enum In {
 
 /// Messages to a worker, handled in the order queued.
 enum Msg {
-    /// Start the adapter for the given generation.
-    Start(u64),
+    /// Start the adapter for the given generation, after giving it these
+    /// settings (`Source::configure`).
+    Start(u64, Box<Settings>),
     Stop,
     Shutdown,
     /// Read once. The scheduler keeps at most one in a queue, so polls
@@ -453,7 +454,7 @@ impl Scheduler {
     fn switch(&mut self, old: Option<&Settings>, new: &Settings) {
         for a in registry::actions(old, new) {
             match a {
-                Action::Start(p) => self.start_provider(index(p)),
+                Action::Start(p) => self.start_provider(index(p), new),
                 Action::Stop(p) => {
                     let i = index(p);
                     let pr = &mut self.provs[i];
@@ -470,8 +471,9 @@ impl Scheduler {
     }
 
     /// Each start begins a new generation. The worker thread is created
-    /// on the provider's first start only.
-    fn start_provider(&mut self, i: usize) {
+    /// on the provider's first start only. The worker gives `settings` to
+    /// the adapter before it starts it.
+    fn start_provider(&mut self, i: usize, settings: &Settings) {
         let pr = &mut self.provs[i];
         pr.on = true;
         pr.generation += 1;
@@ -482,7 +484,7 @@ impl Scheduler {
             let src = (self.adapters.as_mut().unwrap())(PROVIDERS[i].provider);
             spawn_worker(&self.sh, i, src);
         }
-        self.to_worker(i, Msg::Start(g));
+        self.to_worker(i, Msg::Start(g, Box::new(settings.clone())));
     }
 
     /// Queues `m` for worker `i`. For a stop or shutdown it also raises
@@ -678,14 +680,19 @@ impl Worker {
                 msg.is_some()
             });
             match msg.unwrap() {
-                Msg::Start(g) => {
+                Msg::Start(g, settings) => {
                     // The stop signal may still be raised from the
                     // previous stop.
                     drain(&self.stop);
                     generation = g;
                     started = true;
                     let src = &mut self.src;
-                    available = match catch_unwind(AssertUnwindSafe(|| src.start())) {
+                    // A panic in `configure` counts as one in `start`.
+                    let start = AssertUnwindSafe(|| {
+                        src.configure(&settings);
+                        src.start()
+                    });
+                    available = match catch_unwind(start) {
                         Ok(StartOutcome::Available) => true,
                         Ok(StartOutcome::Unavailable) => {
                             diag::event(diag::engine::start_unavailable(self.word()));

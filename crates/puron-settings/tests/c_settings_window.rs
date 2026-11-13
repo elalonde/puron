@@ -124,7 +124,7 @@ fn items(plan: &Plan) -> Vec<&puron_settings::window::Item> {
     plan.sections.iter().flat_map(|s| s.items.iter()).collect()
 }
 
-/// Item number `n` (1 to 17) of `plan`.
+/// Item number `n` (1 to 18) of `plan`.
 fn item(plan: &Plan, n: usize) -> puron_settings::window::Item {
     items(plan)[n - 1].clone()
 }
@@ -184,20 +184,20 @@ fn grep_count(pattern: &str) -> String {
 }
 
 /// What each item shows when nothing is stored, in item order.
-const DEFAULTS: [&str; 17] = [
-    "5", "on", "°C", "on", "on", "on", "on", "off", "on", "off", "off", "off", "off", "on", "on",
-    "on", "on",
+const DEFAULTS: [&str; 18] = [
+    "5", "on", "°C", "on", "on", "on", "on", "off", "on", "off", "off", "on", "off", "off", "on",
+    "on", "on", "on",
 ];
 /// What each item shows for the `good` fixture, in item order. Every value
 /// differs from its default.
-const GOOD: [&str; 17] = [
-    "7", "off", "°F", "off", "off", "off", "off", "on", "off", "on", "on", "on", "on", "off",
-    "off", "off", "off",
+const GOOD: [&str; 18] = [
+    "7", "off", "°F", "off", "off", "off", "off", "on", "off", "on", "on", "off", "on", "on",
+    "off", "off", "off", "off",
 ];
 
 /// The plan's layout (each item's heading, label, control kind, key and
 /// tooltip ID) matches the expected table `c_settings_window_1.tsv` line
-/// for line, with five sections and 17 items.
+/// for line, with five sections and 18 items.
 #[test]
 fn c_settings_window_1() {
     puron_testkit::limit("C-settings.window-1", LIMIT, || {
@@ -230,7 +230,7 @@ fn c_settings_window_1() {
             String::from_utf8_lossy(&out.stdout)
         );
         assert_eq!(plan.sections.len(), 5, "five headings");
-        assert_eq!(items(&plan).len(), 17, "seventeen items");
+        assert_eq!(items(&plan).len(), 18, "eighteen items");
     });
 }
 
@@ -269,13 +269,13 @@ fn c_settings_window_3() {
         let mut after = fx.tree();
         after.remove(&key);
         assert_eq!(after, before, "entries other than show_voltage, none added");
-        assert!(switch_of(&plan, 17), "show_power shown on");
+        assert!(switch_of(&plan, 18), "show_power shown on");
         assert_eq!(shown(&plan)[2], "°C", "temperature_unit shown");
     });
 }
 
-/// The keys of the 15 switches (items 2 and 4 to 17), in item order.
-const SWITCH_KEYS: [&str; 15] = [
+/// The keys of the 16 switches (items 2 and 4 to 18), in item order.
+const SWITCH_KEYS: [&str; 16] = [
     "show_panel_icons",
     "show_temperature_unit",
     "show_rotation_rate_unit",
@@ -285,6 +285,7 @@ const SWITCH_KEYS: [&str; 15] = [
     "provider_lm_sensors",
     "provider_liquidctl",
     "provider_nvidia",
+    "provider_lm_sensors_drives",
     "provider_udisks2",
     "provider_nvme",
     "show_temperature",
@@ -301,7 +302,7 @@ fn c_settings_window_4() {
     puron_testkit::limit("C-settings.window-4", LIMIT, || {
         let fx = cfg::build("empty-none");
         let mut w = open(&fx);
-        let switches: Vec<usize> = std::iter::once(2).chain(4..=17).collect();
+        let switches: Vec<usize> = std::iter::once(2).chain(4..=18).collect();
         let mut out = Vec::new();
         for &n in &switches {
             out.extend(toggle(&mut w, n));
@@ -463,19 +464,22 @@ fn c_settings_window_8() {
     });
 }
 
-/// Of items 9 to 17, only the lm-sensors and liquidctl switches have a
-/// tooltip, with the expected text.
+/// Of items 9 to 18, only the lm-sensors, liquidctl and "lm-sensors
+/// (drives only)" switches (items 9, 10 and 12) have a tooltip, with the
+/// expected text.
 #[test]
 fn c_settings_window_10() {
     puron_testkit::limit("C-settings.window-10", LIMIT, || {
         let fx = cfg::build("good");
         let plan = open(&fx).plan();
-        let got: Vec<_> = (9..=17).map(|n| tip(&plan, n)).collect();
+        let got: Vec<_> = (9..=18).map(|n| tip(&plan, n)).collect();
         let mut want = vec![
             Some("Read sensors from lm-sensors".to_string()),
             Some("Read sensors from liquidctl (requires v1.7.0 or later)".to_string()),
+            None,
+            Some("Read drive temperatures from lm-sensors".to_string()),
         ];
-        want.extend(std::iter::repeat_n(None, 7));
+        want.extend(std::iter::repeat_n(None, 6));
         assert_eq!(got, want);
     });
 }
@@ -587,7 +591,7 @@ fn c_settings_window_12() {
         writer(&fx.root, "poll_interval_secs", "9");
         out.extend(deliver(&mut w, &rx));
         let plan = w.plan();
-        assert!(switch_of(&plan, 17), "Show Power shown on");
+        assert!(switch_of(&plan, 18), "Show Power shown on");
         assert_eq!(field(&plan).0, 9, "the field 9");
         assert_eq!(field(&plan).1, "9", "the field's text 9");
         assert_eq!(stores(&out), vec![], "Store list");
@@ -620,11 +624,15 @@ const CHILD14: &str = "PURON_SETTINGS14_CHILD";
 
 /// Under a test catalog that prefixes every English text with "EO ", the
 /// headings, labels, tooltips and list entries are translated, while the
-/// title and the five product names of items 9 to 13 stay as they are.
+/// title and the five product names (items 9 to 11, 13 and 14) stay as
+/// they are. Item 12, "lm-sensors (drives only)", holds a word and is
+/// translated.
 /// The check runs in a child process with `LANG=eo.UTF-8` and the other
 /// locale variables removed.
 #[test]
 fn c_settings_window_14() {
+    /// The items whose label is a product name.
+    const PRODUCT_ITEMS: [usize; 5] = [9, 10, 11, 13, 14];
     puron_testkit::limit("C-settings.window-14", LIMIT, || {
         if std::env::var_os(CHILD14).is_none() {
             let mut cmd = puron_testkit::rerun_self("c_settings_window_14");
@@ -658,7 +666,9 @@ fn c_settings_window_14() {
             assert!(eo(&s.heading), "heading {:?}", s.heading);
             for i in &s.items {
                 if products.contains(&i.label.as_str()) {
-                    assert!((9..=13).any(|n| item(&plan, n).label == i.label));
+                    assert!(PRODUCT_ITEMS
+                        .iter()
+                        .any(|&n| item(&plan, n).label == i.label));
                 } else {
                     assert!(eo(&i.label), "label {:?}", i.label);
                 }
@@ -670,8 +680,9 @@ fn c_settings_window_14() {
                 }
             }
         }
-        let labels: Vec<_> = (9..=13).map(|n| item(&plan, n).label).collect();
+        let labels: Vec<_> = PRODUCT_ITEMS.map(|n| item(&plan, n).label).to_vec();
         assert_eq!(labels, products, "product names unchanged");
+        assert_eq!(item(&plan, 12).label, "EO lm-sensors (drives only)");
     });
 }
 

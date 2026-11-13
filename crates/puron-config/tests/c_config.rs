@@ -34,6 +34,7 @@ fn good() -> Settings {
         provider_nvidia: true,
         provider_udisks2: true,
         provider_nvme: true,
+        provider_lm_sensors_drives: false,
         show_temperature: false,
         show_rotation_rate: false,
         show_voltage: false,
@@ -61,6 +62,7 @@ fn defaults() -> Settings {
         provider_nvidia: false,
         provider_udisks2: false,
         provider_nvme: false,
+        provider_lm_sensors_drives: true,
         show_temperature: true,
         show_rotation_rate: true,
         show_voltage: true,
@@ -97,6 +99,10 @@ fn good_values() -> Vec<(&'static str, Value)> {
         ("provider_nvidia", Value::Bool(s.provider_nvidia)),
         ("provider_udisks2", Value::Bool(s.provider_udisks2)),
         ("provider_nvme", Value::Bool(s.provider_nvme)),
+        (
+            "provider_lm_sensors_drives",
+            Value::Bool(s.provider_lm_sensors_drives),
+        ),
         ("show_temperature", Value::Bool(s.show_temperature)),
         ("show_rotation_rate", Value::Bool(s.show_rotation_rate)),
         ("show_voltage", Value::Bool(s.show_voltage)),
@@ -156,7 +162,7 @@ fn watch(config: &Config) -> (puron_config::Watch, mpsc::Receiver<Delivery>) {
 }
 
 /// The `good` fixture, which holds a usable entry for every key, loads as
-/// exactly those values with no problem. `KEYS` has the 19 keys, in the
+/// exactly those values with no problem. `KEYS` has the 20 keys, in the
 /// order of `good_values`.
 #[test]
 fn c_config_1() {
@@ -165,7 +171,7 @@ fn c_config_1() {
         let loaded = Config::new(&fx.root).load();
         assert_eq!(loaded.settings, good());
         assert_eq!(loaded.problems, vec![]);
-        assert_eq!(puron_config::KEYS.len(), 19);
+        assert_eq!(puron_config::KEYS.len(), 20);
         let stored: Vec<&str> = good_values().iter().map(|(key, _)| *key).collect();
         assert_eq!(stored, puron_config::KEYS);
 

@@ -60,7 +60,12 @@ at once.
   readings on or off: lm-sensors and liquidctl, the NVIDIA driver, and
   udisks2 and NVMe for drives. The NVMe switch is labelled "nvme-cli";
   it reads the temperatures from sysfs and does not need the nvme-cli
-  program.
+  program. lm-sensors also reads the drives that the kernel reports
+  (NVMe drives, and SATA drives with the `drivetemp` module). The
+  switch "lm-sensors (drives only)" turns only those off: lm-sensors then no
+  longer asks the drives for their temperature, so that lm-sensors no
+  longer keeps a hard disk from spinning down, and the other lm-sensors
+  readings stay.
 - Show Sensors: which kinds of readings appear: temperature, rotation
   rate (fan speeds), voltage and power.
 

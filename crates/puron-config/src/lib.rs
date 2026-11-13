@@ -41,6 +41,7 @@ pub const PROVIDER_LIQUIDCTL: &str = "provider_liquidctl";
 pub const PROVIDER_NVIDIA: &str = "provider_nvidia";
 pub const PROVIDER_UDISKS2: &str = "provider_udisks2";
 pub const PROVIDER_NVME: &str = "provider_nvme";
+pub const PROVIDER_LM_SENSORS_DRIVES: &str = "provider_lm_sensors_drives";
 pub const SHOW_TEMPERATURE: &str = "show_temperature";
 pub const SHOW_ROTATION_RATE: &str = "show_rotation_rate";
 pub const SHOW_VOLTAGE: &str = "show_voltage";
@@ -57,7 +58,7 @@ const OLD_CPU_ROW: &str = "@cpu";
 
 /// Every key that `load` reads, `store` accepts and `watch` reports, in
 /// the field order of `Settings`. Problems are reported in this order.
-pub const KEYS: [&str; 19] = [
+pub const KEYS: [&str; 20] = [
     POLL_INTERVAL_SECS,
     SHOW_PANEL_ICONS,
     TEMPERATURE_UNIT,
@@ -71,6 +72,7 @@ pub const KEYS: [&str; 19] = [
     PROVIDER_NVIDIA,
     PROVIDER_UDISKS2,
     PROVIDER_NVME,
+    PROVIDER_LM_SENSORS_DRIVES,
     SHOW_TEMPERATURE,
     SHOW_ROTATION_RATE,
     SHOW_VOLTAGE,
@@ -212,6 +214,7 @@ impl Config {
             provider_nvidia: r.bool(PROVIDER_NVIDIA),
             provider_udisks2: r.bool(PROVIDER_UDISKS2),
             provider_nvme: r.bool(PROVIDER_NVME),
+            provider_lm_sensors_drives: r.bool(PROVIDER_LM_SENSORS_DRIVES),
             show_temperature: r.bool(SHOW_TEMPERATURE),
             show_rotation_rate: r.bool(SHOW_ROTATION_RATE),
             show_voltage: r.bool(SHOW_VOLTAGE),

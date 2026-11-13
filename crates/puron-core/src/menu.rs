@@ -10,8 +10,7 @@
 use crate::format::{format, Text};
 use crate::order;
 use crate::rows::{
-    self, Class, CpuRole, Family, Provider, RawReading, Row, ShownClasses, IDENTITY_SEPARATOR,
-    MAXIMUM_WORD,
+    self, Class, CpuRole, Family, Provider, RawReading, Row, IDENTITY_SEPARATOR, MAXIMUM_WORD,
 };
 use crate::settings::Settings;
 use crate::summary;
@@ -248,12 +247,7 @@ pub struct Menu {
 pub fn shown(raw: &[RawReading], settings: &Settings) -> Shown {
     let s = settings;
     // The settings' class switches decide which classes make rows.
-    let classes = ShownClasses {
-        temperature: s.show_temperature,
-        fan: s.show_rotation_rate,
-        voltage: s.show_voltage,
-        power: s.show_power,
-    };
+    let classes = s.shown_classes();
     let ordered = order::order(rows::rows(raw, &classes));
     let identities = rows::identities(&ordered);
     // `summary` applies the value rules (a temperature below zero has no

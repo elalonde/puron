@@ -8,13 +8,11 @@
 //! caller's job.
 
 use crate::menu::{Heading, Shown, ShownLine};
-use crate::rows::{
-    class_of_identity, Class, Provider, ShownClasses, IDENTITY_SEPARATOR, MAXIMUM_WORD, OLD_CPU_PIN,
-};
+use crate::rows::{Class, Provider, ShownClasses, IDENTITY_SEPARATOR, MAXIMUM_WORD, OLD_CPU_PIN};
 
 /// The pinned list after the user clicks the line of `clicked`.
 /// `menu_identities` are the identities of the popup's lines, and `shown`
-/// the classes that the settings show.
+/// what the settings show.
 pub fn click(
     pinned: &[String],
     clicked: &str,
@@ -29,13 +27,9 @@ pub fn click(
     } else {
         list.push(clicked.to_string());
     }
-    // Drop pins that have no line in the popup, except pins of a class
+    // Drop pins that have no line in the popup, except pins of a line
     // that the settings hide and older pins that wait to move.
-    list.retain(|e| {
-        menu_identities.contains(e)
-            || waits(e)
-            || class_of_identity(e).is_some_and(|c| !shown.contains(c))
-    });
+    list.retain(|e| menu_identities.contains(e) || waits(e) || shown.hides(e));
     // Keep the first copy of each entry.
     once_each(list)
 }

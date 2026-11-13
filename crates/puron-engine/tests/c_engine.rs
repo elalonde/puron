@@ -31,7 +31,7 @@ use puron_engine::clock::{Clock, SystemClock};
 use puron_engine::engine::{Engine, LmReport, Snapshot};
 use puron_engine::registry::ReadOutcome;
 use puron_testkit::eng::{
-    adapters, r1, r2, CallKind, Fake, ReadStep, StartStep, StopStep, VirtualClock,
+    adapters, r1, r2, CallKind, ConfigureStep, Fake, ReadStep, StartStep, StopStep, VirtualClock,
 };
 
 /// The time limit of most tests here, in seconds.
@@ -1102,5 +1102,121 @@ fn stop_keeps_other_deadlines() {
         r.set(&on(&[Udisks2], 5));
         r.to(15.5);
         assert_eq!(r.of(Udisks2), novalue());
+    });
+}
+
+/// The engine gives each source the settings before every start, and
+/// starts lm-sensors again when the setting for drives changes
+/// (`provider_lm_sensors_drives`). lm-sensors and NVIDIA are on. At 2 s
+/// the drives are switched off; at 3 s the poll interval alone changes.
+/// Expects one `configure` for each source before its first start, with
+/// the start settings; at 2 s, for lm-sensors a stop, a second
+/// `configure` with the new settings, a start and a read, and nothing
+/// for NVIDIA but the read of that poll; at 3 s no `configure`, stop or
+/// start for either; and the snapshot then shows what lm-sensors read
+/// after its second start.
+#[test]
+fn c_engine_27() {
+    puron_testkit::limit("C-engine-27", LIMIT, || {
+        use CallKind::*;
+        let mut r = Run::new();
+        let lm = r
+            .fake(LmSensors)
+            .reads([gives(r1(LmSensors)), gives(r2(LmSensors))]);
+        let nv = r.fake(Nvidia);
+        let first = on(&[LmSensors, Nvidia], 5);
+        let no_drives = Settings {
+            provider_lm_sensors_drives: false,
+            ..first.clone()
+        };
+        r.start(&first, &[lm.clone(), nv.clone()]);
+        r.to(1.0);
+        assert_eq!(lm.configured(), [(0, first.clone())]);
+        assert_eq!(nv.configured(), [(0, first.clone())]);
+        assert_eq!(r.of(LmSensors), r1v());
+        r.to(2.0);
+        r.set(&no_drives);
+        r.clock.settle();
+        assert_eq!(
+            lm.configured(),
+            [(0, first.clone()), (1, no_drives.clone())],
+            "the second configure comes after one start and before the next"
+        );
+        let at = |f: &Fake, t: f64| -> Vec<CallKind> {
+            f.calls()
+                .iter()
+                .filter(|c| c.start == t)
+                .map(|c| c.call)
+                .collect()
+        };
+        assert_eq!(at(&lm, 2.0), [Stop, Start, Read]);
+        assert_eq!(at(&nv, 2.0), [Read]);
+        assert_eq!(nv.configured().len(), 1);
+        assert_eq!(r.of(LmSensors), r2v());
+        r.to(3.0);
+        r.set(&Settings {
+            poll_interval_secs: 7,
+            ..no_drives.clone()
+        });
+        r.clock.settle();
+        assert_eq!(lm.configured().len(), 2);
+        assert_eq!(nv.configured().len(), 1);
+        assert_eq!((lm.count(Start), lm.count(Stop)), (2, 1));
+        assert_eq!((nv.count(Start), nv.count(Stop)), (1, 0));
+    });
+}
+
+/// lm-sensors' first `configure` panics; NVIDIA runs beside it. Expects
+/// the same end as for a panic in `start`: lm-sensors reported
+/// `Unavailable` at 0 s, then no `start` and no read of it up to 11 s
+/// and no lm-sensors lines, while NVIDIA is read at every poll. After
+/// lm-sensors is switched off and on again, its second `configure` and
+/// its first `start` run, it is read at once and shows its values, on
+/// the same two worker threads.
+///
+/// The test waits for the first report in real time, without the
+/// virtual clock: a worker thread that ends by a panic is never counted
+/// as waiting again, so the clock would block and the time limit would
+/// end the test instead of a failed assert.
+#[test]
+fn c_engine_28() {
+    puron_testkit::limit("C-engine-28", LIMIT, || {
+        use CallKind::*;
+        let mut r = Run::new();
+        let lm = r
+            .fake(LmSensors)
+            .configures([ConfigureStep::Panics, ConfigureStep::Records])
+            .reads([gives(r1(LmSensors))]);
+        let nv = r.fake(Nvidia).reads([gives(r2(Nvidia))]);
+        let both = on(&[LmSensors, Nvidia], 5);
+        r.e.start(&both, adapters(&[lm.clone(), nv.clone()]));
+        let begin = Instant::now();
+        while r.snap().lm_sensors != LmReport::Unavailable
+            && begin.elapsed() < Duration::from_secs(2)
+        {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(
+            r.snap().lm_sensors,
+            LmReport::Unavailable,
+            "a panic in configure is not reported as one in start"
+        );
+        r.clock.settle();
+        r.to(11.0);
+        assert_eq!(lm.configured().len(), 1);
+        assert_eq!(lm.count(Start), 0, "start after a panicking configure");
+        assert_eq!(lm.count(Read), 0, "read after a panicking configure");
+        assert_eq!(r.of(LmSensors), []);
+        assert_eq!(r.snap().lm_sensors, LmReport::Unavailable);
+        assert_eq!(nv.times(Read), [0.0, 5.0, 10.0]);
+        assert_eq!(r.e.workers(), 2);
+        r.set(&on(&[Nvidia], 5));
+        r.set(&both);
+        r.clock.settle();
+        assert_eq!(lm.configured().len(), 2);
+        assert_eq!(lm.count(Start), 1);
+        assert_eq!(lm.times(Read), [11.0]);
+        assert_eq!(r.of(LmSensors), r1v());
+        assert_eq!(r.e.workers(), 2);
     });
 }

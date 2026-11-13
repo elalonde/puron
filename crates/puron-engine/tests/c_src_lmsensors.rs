@@ -1370,3 +1370,85 @@ fn nvme_chip_names_of_the_library() {
         });
     });
 }
+
+/// The chips of drives can be switched off. With the `capture` tree, a
+/// new adapter reads them: one read gives the 12 readings of `CAPTURE`.
+/// After `configure` with `provider_lm_sensors_drives` off, a read gives
+/// the same readings without those of the NVMe chip, with positions
+/// counted without a gap, and it reads no value file of the drive. One
+/// of them is replaced by a named pipe with no writer, so an open would
+/// never return and the test's time limit would end it. The library
+/// lists only regular files, though, so the pipe alone cannot tell; the
+/// access time of another value file, set far back before the read, must
+/// be unchanged after it. After `configure` with the setting on again and
+/// the file restored, a read gives all 12 readings and moves that access
+/// time, which shows that the access time tells a read.
+#[test]
+fn c_src_lmsensors_30() {
+    puron_testkit::limit("C-src.lmsensors-30", LIMIT, || {
+        on("c_src_lmsensors_30", "capture", || {
+            use puron_core::settings::Settings;
+            let mut s = started();
+            assert!(s.drives(), "a new adapter reads drives");
+            same(&readings(&mut s), &CAPTURE);
+
+            let off = Settings {
+                provider_lm_sensors_drives: false,
+                ..Settings::default()
+            };
+            s.stop();
+            s.configure(&off);
+            assert!(!s.drives());
+            assert_eq!(s.start(), StartOutcome::Available);
+            let input = tb(&format!("{NVME}/temp1_input"));
+            let value = std::fs::read(&input).expect("the drive's temperature file");
+            std::fs::remove_file(&input).unwrap();
+            let made = Command::new("mkfifo").arg(&input).status().expect("mkfifo");
+            assert!(made.success(), "mkfifo {input:?}");
+            let probe = tb(&format!("{NVME}/temp2_input"));
+            let long_ago = std::time::UNIX_EPOCH + Duration::from_secs(1);
+            let set_back = |p: &Path| {
+                std::fs::File::options()
+                    .write(true)
+                    .open(p)
+                    .and_then(|f| f.set_times(std::fs::FileTimes::new().set_accessed(long_ago)))
+                    .expect("set the access time");
+            };
+            let accessed = |p: &Path| {
+                std::fs::metadata(p)
+                    .and_then(|m| m.accessed())
+                    .expect("the access time")
+            };
+            set_back(&probe);
+            let got = readings(&mut s);
+            assert_eq!(
+                accessed(&probe),
+                long_ago,
+                "a value file of the drive was read"
+            );
+            let rest: Vec<Exp> = CAPTURE
+                .iter()
+                .filter(|e| e.0 != CHIP_NVME)
+                .copied()
+                .collect();
+            assert_eq!(
+                rest.len(),
+                9,
+                "the tree has a drive chip with three readings"
+            );
+            same(&got, &rest);
+            positions_in_order(&got);
+
+            std::fs::remove_file(&input).unwrap();
+            std::fs::write(&input, value).unwrap();
+            s.stop();
+            s.configure(&Settings::default());
+            assert!(s.drives());
+            assert_eq!(s.start(), StartOutcome::Available);
+            set_back(&probe);
+            same(&readings(&mut s), &CAPTURE);
+            assert_ne!(accessed(&probe), long_ago, "a read moves the access time");
+            s.stop();
+        })
+    });
+}

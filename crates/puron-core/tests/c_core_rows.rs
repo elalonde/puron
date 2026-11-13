@@ -309,6 +309,7 @@ fn c_core_rows_18() {
             fan: false,
             voltage: false,
             power: false,
+            ..ShownClasses::ALL
         };
         assert!(rows::rows(&raw, &none).is_empty());
     });
@@ -756,5 +757,76 @@ fn cpu_roles_of_the_cpu_drivers() {
             ..labelled("CPU fan")
         };
         assert_eq!(rows::cpu_roles(&[fan]), []);
+    });
+}
+
+/// The rule for a drive that lm-sensors reads, which the settings can
+/// switch off. A chip is a drive's when its name has a drive word and no
+/// GPU word. An identity names a line of such a drive when the provider
+/// after its first part is lm-sensors and the chip after that is a
+/// drive's: a reading of any class, or the drive's Maximum line. With
+/// drives switched off, `ShownClasses::hides` is true for those
+/// identities and for no other; a class switch hides its own class as
+/// before.
+#[test]
+fn c_core_rows_30() {
+    puron_testkit::limit("C-core.rows-30", LIMIT, || {
+        for chip in ["nvme-pci-0100", "drivetemp-scsi-0-0"] {
+            assert!(rows::drive_chip(chip), "{chip}");
+        }
+        for chip in [
+            "coretemp-isa-0000",
+            "amdgpu-pci-0300",
+            "amdgpu-nvme-0100",
+            "NVME-pci-0100",
+            "",
+        ] {
+            assert!(!rows::drive_chip(chip), "{chip}");
+        }
+        let drive = [
+            "temperature/lm-sensors/nvme-pci-0100/temp1",
+            "temperature/lm-sensors/drivetemp-scsi-0-0/temp1",
+            "fan/lm-sensors/nvme-pci-0100/fan1",
+            "@maximum/lm-sensors/nvme-pci-0100",
+        ];
+        let other = [
+            "temperature/lm-sensors/coretemp-isa-0000/temp1",
+            "temperature/lm-sensors/amdgpu-nvme-0100/temp1",
+            "temperature/nvme-cli/0000:01:00.0/temp1_input",
+            "temperature/udisks2/nvme-pci-0100",
+            "temperature/lm-sensors",
+            "nvme-pci-0100/lm-sensors",
+            "@maximum/cpu",
+            "@maximum",
+            "@cpu",
+            "",
+        ];
+        for id in drive {
+            assert!(rows::lm_sensors_drive(id), "{id}");
+        }
+        for id in other {
+            assert!(!rows::lm_sensors_drive(id), "{id}");
+        }
+        let no_drives = ShownClasses {
+            lm_sensors_drives: false,
+            ..ShownClasses::ALL
+        };
+        for id in drive {
+            assert!(!ShownClasses::ALL.hides(id), "all shown: {id}");
+            assert!(no_drives.hides(id), "drives off: {id}");
+        }
+        for id in other {
+            assert!(!ShownClasses::ALL.hides(id), "all shown: {id}");
+            assert!(!no_drives.hides(id), "drives off: {id}");
+        }
+        // An identity with no class word is hidden only as a drive's line.
+        let unknown = "x/lm-sensors/nvme-pci-0100/temp1";
+        assert!(no_drives.hides(unknown));
+        assert!(!ShownClasses::ALL.hides(unknown));
+        // A class switch still hides its class, drive or not.
+        let no_temperature = shown_without(Class::Temperature);
+        assert!(no_temperature.hides("temperature/lm-sensors/coretemp-isa-0000/temp1"));
+        assert!(no_temperature.hides("@maximum/cpu"));
+        assert!(!no_temperature.hides("fan/lm-sensors/nvme-pci-0100/fan1"));
     });
 }

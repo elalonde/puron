@@ -93,6 +93,14 @@ pub enum ReadOutcome {
 /// only on the provider's own worker thread, never on the UI thread or
 /// the scheduler thread, so a slow call delays only that provider.
 pub trait Source: Send {
+    /// Gives the source the settings in effect, just before each `start`.
+    /// A source that takes a choice from the settings beyond its on/off
+    /// switch keeps it here and applies it from that start on; the others
+    /// keep nothing, which is the default. When such a choice changes
+    /// while the provider is on, the engine stops the provider and starts
+    /// it again (see `restarts`), so a source never has to change its
+    /// choice between two reads.
+    fn configure(&mut self, _settings: &Settings) {}
     /// Prepares the source for reading. Called each time the provider is
     /// switched on.
     fn start(&mut self) -> StartOutcome;
@@ -125,19 +133,38 @@ pub fn switch(settings: &Settings, provider: Provider) -> bool {
     }
 }
 
+/// Whether a change of the settings from `previous` to `new` changes a
+/// choice that the source of `provider` takes in `Source::configure`. A
+/// provider that stays on through such a change is started again, so that
+/// its source gets the new choice. Only lm-sensors has one: whether it
+/// reads the chips of drives.
+pub fn restarts(previous: &Settings, new: &Settings, provider: Provider) -> bool {
+    match provider {
+        Provider::LmSensors => {
+            previous.provider_lm_sensors_drives != new.provider_lm_sensors_drives
+        }
+        Provider::Liquidctl | Provider::Nvidia | Provider::Udisks2 | Provider::NvmeCli => false,
+    }
+}
+
 /// The providers to start and to stop when the settings change from
 /// `previous` to `new`, in `PROVIDERS` order. `previous` is `None` at
-/// engine start, when every provider counts as off. Only the provider
-/// switches are compared; other settings produce no action.
+/// engine start, when every provider counts as off. A provider that stays
+/// on is stopped and then started when `restarts` says that its source's
+/// choice changed. Only the provider switches and those choices are
+/// compared; other settings produce no action.
 pub fn actions(previous: Option<&Settings>, new: &Settings) -> Vec<Action> {
     PROVIDERS
         .iter()
-        .filter_map(|e| {
-            let was = previous.is_some_and(|p| switch(p, e.provider));
-            match (was, switch(new, e.provider)) {
-                (false, true) => Some(Action::Start(e.provider)),
-                (true, false) => Some(Action::Stop(e.provider)),
-                _ => None,
+        .flat_map(|e| {
+            let p = e.provider;
+            let was = previous.is_some_and(|s| switch(s, p));
+            let restart = previous.is_some_and(|s| restarts(s, new, p));
+            match (was, switch(new, p)) {
+                (false, true) => vec![Action::Start(p)],
+                (true, false) => vec![Action::Stop(p)],
+                (true, true) if restart => vec![Action::Stop(p), Action::Start(p)],
+                _ => vec![],
             }
         })
         .collect()

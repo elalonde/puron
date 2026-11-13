@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 
 use crate::format::{format, Text};
 use crate::menu::{icon_kind, IconKind, Shown};
-use crate::rows::{class_of_identity, Class};
 use crate::settings::Settings;
 
 /// The padding in pixels on each side of an item's label when panel icons
@@ -123,17 +122,11 @@ fn found(shown: &Shown, id: &str, settings: &Settings) -> Option<(IconKind, Opti
     Some((icon_kind(line), format(line.class, line.value, settings)))
 }
 
-/// Whether pin `id` is of a class that the settings hide (the
-/// `show_temperature`, `show_rotation_rate`, `show_voltage` and
-/// `show_power` switches). A pin whose class cannot be told from its text
-/// is never hidden.
+/// Whether the settings hide the line of pin `id`: its class is switched
+/// off (`show_temperature`, `show_rotation_rate`, `show_voltage`,
+/// `show_power`), or it is a line of a drive while lm-sensors does not
+/// read drives (`provider_lm_sensors_drives`). Such a pin has no item on
+/// the panel.
 fn hidden(id: &str, settings: &Settings) -> bool {
-    let s = settings;
-    match class_of_identity(id) {
-        Some(Class::Temperature) => !s.show_temperature,
-        Some(Class::Fan) => !s.show_rotation_rate,
-        Some(Class::Voltage) => !s.show_voltage,
-        Some(Class::Power) => !s.show_power,
-        None => false,
-    }
+    settings.shown_classes().hides(id)
 }
