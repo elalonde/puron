@@ -465,7 +465,7 @@ fn c_settings_window_8() {
 }
 
 /// Of items 9 to 18, only the lm-sensors, liquidctl and "lm-sensors
-/// (drives)" switches (items 9, 10 and 12) have a tooltip, with the
+/// (drives only)" switches (items 9, 10 and 12) have a tooltip, with the
 /// expected text.
 #[test]
 fn c_settings_window_10() {
