@@ -4,6 +4,16 @@ The notable changes of each Puron release. Versions follow
 [Semantic Versioning](https://semver.org/), and the format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] - 2026-11-12
+
+### Added
+
+- Sensor Settings has a new switch, "lm-sensors (drives only)", under Drive Sensor Providers. It is on by default. Turn
+  it off and lm-sensors stops reading drive temperatures (NVMe drives, and SATA drives with the drivetemp module), so a
+  disk that lm-sensors kept awake can spin down. The other lm-sensors readings stay. The switch has an effect only
+  while lm-sensors is on.
+- The README shows the popup and the panel.
+
 ## [1.2.0] - 2026-11-10
 
 ### Changed
