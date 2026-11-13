@@ -34,7 +34,7 @@ label-fan-suffix	Show Rotation Rate Unit
 label-volt-suffix	Show Voltage Unit
 label-watt-suffix	Show Power Unit
 label-decimals	Show Decimal Values
-label-lm-sensors-drives	lm-sensors (drives)
+label-lm-sensors-drives	lm-sensors (drives only)
 tip-decimals	Show additional digits after decimal point
 tip-lm-sensors	Read sensors from lm-sensors
 tip-liquidctl	Read sensors from liquidctl (requires v1.7.0 or later)

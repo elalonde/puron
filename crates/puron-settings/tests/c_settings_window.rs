@@ -625,7 +625,7 @@ const CHILD14: &str = "PURON_SETTINGS14_CHILD";
 /// Under a test catalog that prefixes every English text with "EO ", the
 /// headings, labels, tooltips and list entries are translated, while the
 /// title and the five product names (items 9 to 11, 13 and 14) stay as
-/// they are. Item 12, "lm-sensors (drives)", holds a word and is
+/// they are. Item 12, "lm-sensors (drives only)", holds a word and is
 /// translated.
 /// The check runs in a child process with `LANG=eo.UTF-8` and the other
 /// locale variables removed.
@@ -682,7 +682,7 @@ fn c_settings_window_14() {
         }
         let labels: Vec<_> = PRODUCT_ITEMS.map(|n| item(&plan, n).label).to_vec();
         assert_eq!(labels, products, "product names unchanged");
-        assert_eq!(item(&plan, 12).label, "EO lm-sensors (drives)");
+        assert_eq!(item(&plan, 12).label, "EO lm-sensors (drives only)");
     });
 }
 

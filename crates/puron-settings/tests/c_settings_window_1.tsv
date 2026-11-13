@@ -9,7 +9,7 @@ Display Options	Show Decimal Values	switch	show_decimals	tip-decimals
 Generic Sensor Providers	lm-sensors	switch	provider_lm_sensors	tip-lm-sensors
 Generic Sensor Providers	liquidctl	switch	provider_liquidctl	tip-liquidctl
 GPU Sensor Providers	Nvidia	switch	provider_nvidia	none
-Drive Sensor Providers	lm-sensors (drives)	switch	provider_lm_sensors_drives	tip-lm-sensors-drives
+Drive Sensor Providers	lm-sensors (drives only)	switch	provider_lm_sensors_drives	tip-lm-sensors-drives
 Drive Sensor Providers	Udisks2	switch	provider_udisks2	none
 Drive Sensor Providers	nvme-cli	switch	provider_nvme	none
 Show Sensors	Temperature	switch	show_temperature	none
