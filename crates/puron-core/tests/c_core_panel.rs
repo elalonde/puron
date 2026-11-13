@@ -485,7 +485,8 @@ fn c_core_panel_19() {
 /// readings are there, and with no value when they are missing. While
 /// drives are switched off (`provider_lm_sensors_drives`), the pin of the
 /// reading and the pin of the drive's Maximum line have no item, and a
-/// pin of another device keeps its own.
+/// pin of another device keeps its own. With lm-sensors off, the switch
+/// has no effect and the pin keeps its item.
 #[test]
 fn c_core_panel_20() {
     puron_testkit::limit("C-core.panel-20", LIMIT, || {
@@ -528,5 +529,15 @@ fn c_core_panel_20() {
         assert_eq!(items(&skipped, &three, &off), items(&skipped, &[cpu], &off));
         assert_eq!(items(&skipped, &three, &off).len(), 1);
         assert_eq!(items(&skipped, &three, &on).len(), 3);
+        // With lm-sensors itself off, the drive switch has no effect: the
+        // pin keeps its item, with no value.
+        let none = settings_with(|s| {
+            s.provider_lm_sensors = false;
+            s.provider_lm_sensors_drives = false;
+        });
+        assert!(matches!(
+            items(&skipped, &one, &none).as_slice(),
+            [Item::Pin { value: None, .. }]
+        ));
     });
 }

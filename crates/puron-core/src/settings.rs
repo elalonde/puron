@@ -129,7 +129,8 @@ impl Settings {
             fan: self.show_rotation_rate,
             voltage: self.show_voltage,
             power: self.show_power,
-            lm_sensors_drives: self.provider_lm_sensors_drives,
+            // The drive switch only takes effect while lm-sensors runs.
+            lm_sensors_drives: !self.provider_lm_sensors || self.provider_lm_sensors_drives,
         }
     }
 }
