@@ -4,6 +4,12 @@ The notable changes of each Puron release. Versions follow
 [Semantic Versioning](https://semver.org/), and the format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.1] - 2026-11-13
+
+### Changed
+
+- Third-party libraries are updated to their latest compatible releases, bringing upstream bug fixes.
+
 ## [1.3.0] - 2026-11-12
 
 ### Added
