@@ -9,7 +9,10 @@
 # the bundle as the artifact puron-flatpak. A step must decide before
 # the build whether the push changes the Flatpak, and the build, probe
 # and upload steps must each depend on that decision, so that a push
-# that changes nothing of the Flatpak does not spend a full build. Every
+# that changes nothing of the Flatpak does not spend a full build. The
+# decision's path pattern must match every file that the build reads,
+# the Rust sources and translations among them, and none of a sample of
+# files that it does not read. Every
 # action is pinned by its commit, no step may fail without failing the
 # job, and nothing may install the runtimes system-wide with sudo. The
 # workflow directory must hold ci.yml alone: a second workflow would
@@ -94,6 +97,51 @@ if not any(line.strip() == "name: puron-flatpak" for line in step(fp, u[0])):
 d = [i for i, line in enumerate(fp) if "build=" in line and "GITHUB_OUTPUT" in line]
 if not d or d[0] > b:
     fail("no step writes build= to GITHUB_OUTPUT before the build")
+
+# The decision's path pattern must match every file that the build reads
+# and none that it does not. The pattern is matched here with Python's
+# re.search, which reads it as grep -E does as long as it holds no
+# special character other than ^, $, (, ), | and \., so any other one is
+# refused first.
+greps = [m.group(1) for line in step(fp, d[0]) for m in [re.search(r"grep -Eq '([^']*)'", line)] if m]
+if len(greps) != 1:
+    fail("%d grep -Eq patterns in the build decision, want one" % len(greps))
+pattern = greps[0]
+if re.search(r"[.*+?\[\]{}\\]", pattern.replace("\\.", "")):
+    fail("the path pattern holds a special character other than ^ $ ( ) | \\.: " + pattern)
+inputs = [
+    "crates/puron-applet/src/look.rs",
+    "crates/puron-core/Cargo.toml",
+    "data/io.github.elalonde.Puron.metainfo.xml",
+    "flatpak/io.github.elalonde.Puron.json",
+    "i18n/en/puron.ftl",
+    "Cargo.lock",
+    "Cargo.toml",
+    "CHANGELOG.md",
+    "Makefile",
+    "LICENSE",
+    "debian/source-offer.in",
+    "tools/gen-notices.py",
+    "tools/lm-sensors-ref.sh",
+    "tools/flatpak-build.sh",
+    ".github/workflows/ci.yml",
+]
+others = [
+    "README.md",
+    "docs/screenshots/popup.png",
+    "rust-toolchain.toml",
+    "deny.toml",
+    "debian/changelog",
+    "tools/c_tests_29.sh",
+    "xcrates/a.rs",
+]
+for path in inputs:
+    if not re.search(pattern, path):
+        fail("a change of %s, which the build reads, builds no Flatpak" % path)
+for path in others:
+    if re.search(pattern, path):
+        fail("a change of %s, which the build does not read, builds the Flatpak" % path)
+
 guarded(fp, b, "build")
 guarded(fp, p, "probe")
 guarded(fp, u[0], "upload")

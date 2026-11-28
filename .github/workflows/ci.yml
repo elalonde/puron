@@ -119,11 +119,16 @@ jobs:
 
       # A pull request always builds, and so does a push whose previous
       # commit is not in the history (a new branch). Any other push builds
-      # when it changes the manifest, the data files, the lock file, the
-      # workspace manifest, the changelog that the release notes come
-      # from, the Makefile that installs the files, this workflow or a
-      # Flatpak script. A version commit changes Cargo.lock, so every
-      # release commit is built.
+      # when it changes a file that the build reads: the Rust sources
+      # under crates/, the translations that the applet embeds, the
+      # manifest, the data files, the lock file, the workspace manifest,
+      # the changelog that the release notes come from, the Makefile that
+      # installs the files, the license texts and the scripts that write
+      # the license notices and the source offer, this workflow or a
+      # Flatpak script. Without crates/ on the list, a change that breaks
+      # the Flatpak build would show only on the release commit. A
+      # version commit changes Cargo.lock, so every release commit is
+      # built.
       - name: Decide whether to build
         id: changes
         env:
@@ -134,7 +139,7 @@ jobs:
           build=true
           if [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
             if git diff --name-only "$BEFORE" "$SHA" \
-                | grep -Eq '^(flatpak/|data/|tools/flatpak-|(Cargo\.lock|Cargo\.toml|CHANGELOG\.md|Makefile|\.github/workflows/ci\.yml)$)'; then
+                | grep -Eq '^(crates/|data/|flatpak/|i18n/|tools/flatpak-|(Cargo\.lock|Cargo\.toml|CHANGELOG\.md|Makefile|LICENSE|debian/source-offer\.in|tools/gen-notices\.py|tools/lm-sensors-ref\.sh|\.github/workflows/ci\.yml)$)'; then
               build=true
             else
               build=false
