@@ -28,7 +28,11 @@ Puron is released as a Debian package for 64-bit x86 (amd64) systems.
 
        sudo apt install ./puron_1.7.0_amd64.deb
 
-3. Add Puron to a panel in COSMIC Settings, among the panel applets.
+3. Add Puron to the panel: open COSMIC Settings, go to
+   Desktop > Panel > Applets, click "Add applet" and choose Puron.
+   If Settings was already open during the install, close it and open
+   it again first: Settings does not list an applet that was installed
+   while it was running, so Puron would not show among the applets.
 
 To build and install Puron from source instead, see Build below.
 
@@ -37,6 +41,12 @@ To build and install Puron from source instead, see Build below.
 Puron is also packaged as a Flatpak for the COSMIC Store, published in
 the COSMIC Flatpak repository, which the store reads. A release shows in
 the store when that repository has taken it in.
+
+After installing the Flatpak, add Puron to the panel as for the Debian
+package: open COSMIC Settings, go to Desktop > Panel > Applets, click
+"Add applet" and choose Puron. If Settings was already open during the
+install, close it and open it again first, or Puron does not show among
+the applets.
 
 The Flatpak does not read liquidctl devices; the Debian package does.
 
