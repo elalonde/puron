@@ -581,14 +581,20 @@ pub fn edit(values: &mut Settings, typed: &mut Option<String>, e: Edit) -> Vec<S
             *typed = Some(text);
             Vec::new()
         }
-        Edit::Enter | Edit::FocusLost => take_typed(values, typed),
+        Edit::Enter => take_typed(values, typed),
+        // The text input reports its focus loss before a click on "Back"
+        // arrives, so a user who empties the field and leaves loses the
+        // focus first. The focus loss therefore drops an empty text as
+        // leaving does; taking it would store the 1 that it reads as.
+        Edit::FocusLost => leave(values, typed),
     }
 }
 
-/// What leaving the page stores, by "Back" or by the popup closing: the
-/// typed text is taken as at a focus loss, except that an emptied field is
-/// left alone, so that leaving does not store the 1 that an empty text
-/// reads as.
+/// What a focus loss of the number field stores, and what leaving the
+/// page stores, by "Back" or by the popup closing: the typed text is taken
+/// as Enter takes it, except that an emptied field stores nothing and
+/// shows the stored value again, so that clearing the field does not set
+/// the 1 that an empty text reads as.
 pub fn leave(values: &mut Settings, typed: &mut Option<String>) -> Vec<Store> {
     if typed.as_deref() == Some("") {
         *typed = None;

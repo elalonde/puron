@@ -688,6 +688,31 @@ fn expected(role: Role, theme: &Theme) -> Option<Color> {
     Some(c.into())
 }
 
+/// The icon lookup that the popup's tiles, headings and buttons draw
+/// through has no fallback, for every icon name that Puron uses. With
+/// libcosmic's default fallback, a theme that lacks a name would look it
+/// up again cut at each "-" from the end, so a missing
+/// `puron-cpu-temperature-symbolic` could draw the icon of `puron-cpu` or
+/// `puron`; with none, a missing name draws an empty square, as the panel
+/// does.
+#[test]
+fn c_applet_popup_57() {
+    puron_testkit::limit("C-applet.popup-57", LIMIT, || {
+        let names = std::fs::read_to_string(puron_testkit::fixture("icons", "names.tsv"))
+            .expect("read names.tsv");
+        let names: Vec<&str> = names.lines().filter_map(|l| l.split('\t').nth(2)).collect();
+        assert!(!names.is_empty(), "names.tsv lists no icon");
+        for name in names {
+            let lookup = look::icon_lookup(name, look::TILE_ICON);
+            assert!(
+                lookup.fallback.is_none(),
+                "{name} has the fallback {:?}",
+                lookup.fallback
+            );
+        }
+    });
+}
+
 /// Under libcosmic's built-in dark and light themes, each of the ten
 /// roles gives the color of the theme that the table of roles names, and
 /// the default role gives none; every other role has a different color in

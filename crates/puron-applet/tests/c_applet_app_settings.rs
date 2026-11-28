@@ -635,6 +635,50 @@ fn c_applet_app_44() {
     });
 }
 
+/// A field emptied by keystrokes stores nothing when it loses the focus.
+/// The text input reports its focus loss before the click on "Back"
+/// arrives, so this is the order a user who clears the field and leaves
+/// produces. With 30 stored, the focus loss stores nothing and the field
+/// shows 30 again, then "Back" stores nothing and shows the temperatures;
+/// the popup closing in place of "Back" stores nothing either. The entry
+/// stays 30 in both cases, not the 1 that an empty text reads as.
+#[test]
+fn c_applet_app_47() {
+    puron_testkit::limit("C-applet.app-47", LIMIT, || {
+        let fx = cfg::build("empty-none");
+        let mut a = open(&fx);
+        edit(&mut a, Edit::Typed("30".to_string()));
+        let out = edit(&mut a, Edit::Enter);
+        assert_eq!(stores(&out), [("poll_interval_secs", Value::U32(30))]);
+        edit(&mut a, Edit::Typed("3".to_string()));
+        edit(&mut a, Edit::Typed(String::new()));
+        let out = edit(&mut a, Edit::FocusLost);
+        assert_eq!(stores(&out), vec![], "focus loss on an empty text");
+        let (value, text, _, _) = field(&plan(&a));
+        assert_eq!((value, text.as_str()), (30, "30"), "field after focus loss");
+        assert_eq!(
+            fx.entry("poll_interval_secs"),
+            b"30",
+            "entry after focus loss"
+        );
+        assert_eq!(stores(&a.handle(Event::Back)), vec![], "Back");
+        assert_eq!(fx.entry("poll_interval_secs"), b"30", "entry after Back");
+        assert_eq!(a.page(), Page::Temperatures, "Back shows the temperatures");
+
+        let fx = cfg::build("empty-none");
+        let mut a = open(&fx);
+        edit(&mut a, Edit::Typed("30".to_string()));
+        let out = edit(&mut a, Edit::Enter);
+        assert_eq!(stores(&out), [("poll_interval_secs", Value::U32(30))]);
+        edit(&mut a, Edit::Typed(String::new()));
+        let out = edit(&mut a, Edit::FocusLost);
+        assert_eq!(stores(&out), vec![], "focus loss on an empty text");
+        let out = a.handle(Event::PopupClosed);
+        assert_eq!(stores(&out), vec![], "popup closed");
+        assert_eq!(fx.entry("poll_interval_secs"), b"30", "entry after closing");
+    });
+}
+
 /// The entry texts of list item `n` and the text of its selected entry.
 fn list_of(plan: &Plan, n: usize) -> (Vec<String>, String) {
     match item(plan, n).control {

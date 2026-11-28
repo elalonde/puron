@@ -155,10 +155,23 @@ pub fn plain<'a, M: 'a>(content: String, role: Role) -> cosmic::Element<'a, M> {
     }
 }
 
+/// The lookup of the symbolic icon `name` in the icon theme, `size` px
+/// square, with no fallback. libcosmic's default fallback looks a missing
+/// name up again cut at each "-" from the end, so a theme without
+/// `puron-cpu-temperature-symbolic` could draw the icon of `puron-cpu` or
+/// `puron` in its place. Without it a missing name draws an empty square,
+/// as in the panel.
+pub fn icon_lookup(name: &str, size: u16) -> icon::Named {
+    icon::from_name(name)
+        .size(size)
+        .symbolic(true)
+        .fallback(None)
+}
+
 /// The symbolic icon `name` from the icon theme, `size` px square, drawn
 /// in the color of `role`.
 pub fn tinted_icon<'a, M: 'a>(name: &'static str, size: u16, role: Role) -> cosmic::Element<'a, M> {
-    let i = icon::from_name(name).size(size).symbolic(true).icon();
+    let i = icon_lookup(name, size).icon();
     match active(role) {
         Some(c) => i
             .class(cosmic::theme::Svg::custom(move |_| svg::Style {
