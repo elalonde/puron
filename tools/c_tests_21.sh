@@ -7,8 +7,10 @@
 # notes in the software store than in the changelog. The script runs
 # the generator's own check, compares its output with the element in
 # the file, and then checks the result independently: one release per
-# changelog heading with the heading's version and date, the newest
-# equal to the workspace version, and three releases whose text shows
+# changelog heading with the heading's version and the heading's date at
+# 12:00:00Z (the time keeps the software store from showing the day
+# before west of UTC), no release with a date alone or a timestamp, the
+# newest equal to the workspace version, and three releases whose text shows
 # the conversion rules (a heading line becomes a paragraph, a list
 # becomes a list, backticks and the scheme of web addresses are removed,
 # since AppStream refuses links in a description).
@@ -29,7 +31,7 @@ cmp -s "$tmp/print.xml" "$tmp/file.xml" || fail "the output of --print differs f
 n=$(grep -c '^## \[' CHANGELOG.md)
 r=$(grep -c '<release version=' "$meta")
 [ "$n" = "$r" ] || fail "$r release elements, but CHANGELOG.md has $n release headings"
-sed -n 's/^## \[\([^]]*\)\] - \(.*\)$/\1 \2/p' CHANGELOG.md > "$tmp/headings"
+sed -n 's/^## \[\([^]]*\)\] - \(.*\)$/\1 \2T12:00:00Z/p' CHANGELOG.md > "$tmp/headings"
 sed -n 's/^ *<release version="\([^"]*\)" date="\([^"]*\)">$/\1 \2/p' "$meta" > "$tmp/releases"
 cmp -s "$tmp/headings" "$tmp/releases" \
     || fail "the versions and dates of the releases differ from the changelog headings: $(diff "$tmp/headings" "$tmp/releases" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"
@@ -37,6 +39,7 @@ ws=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
 first=$(head -n 1 "$tmp/releases" | cut -d' ' -f1)
 [ "$first" = "$ws" ] || fail "the newest release is $first, the workspace version is $ws"
 python3 -I - "$meta" <<'EOF' || exit 1
+import re
 import sys
 import xml.etree.ElementTree as ET
 
@@ -47,6 +50,15 @@ def fail(msg):
 
 
 root = ET.parse(sys.argv[1]).getroot()
+
+# Every release, however its attributes are written, carries the noon UTC
+# date-time and no timestamp.
+for r in root.findall("releases/release"):
+    version, date = r.get("version"), r.get("date") or ""
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T12:00:00Z", date):
+        fail(f"release {version} has the date {date!r}, not YYYY-MM-DDT12:00:00Z")
+    if r.get("timestamp") is not None:
+        fail(f"release {version} has a timestamp")
 
 
 def release(version):

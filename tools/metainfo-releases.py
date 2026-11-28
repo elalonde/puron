@@ -18,8 +18,11 @@ Usage: python3 -I tools/metainfo-releases.py --print | --write | --check
            difference and exits 1.
 
 Each heading "## [X.Y.Z] - YYYY-MM-DD" of the changelog gives one
-<release>, newest first as in the file. The lines up to the next "## "
-heading become its <description>:
+<release>, newest first as in the file, dated YYYY-MM-DDT12:00:00Z. The
+time is there because the COSMIC Store reads a date alone as midnight
+UTC and shows it in local time, which west of UTC is the day before;
+noon UTC is the same calendar day in nearly every time zone. The lines
+up to the next "## " heading become its <description>:
   - "### <text>" becomes a paragraph of its own;
   - "- <text>" starts a list item, and the lines right after it that
     start with two spaces continue it; consecutive items, blank lines
@@ -151,7 +154,7 @@ def releases_element():
         if not any(v for _, v in texts):
             raise Error(f"release {version} has no text in {CHANGELOG.name}")
         i2, i3, i4, i5 = INDENT * 2, INDENT * 3, INDENT * 4, INDENT * 5
-        lines.append(f'{i2}<release version="{version}" date="{date}">')
+        lines.append(f'{i2}<release version="{version}" date="{date}T12:00:00Z">')
         lines.append(f"{i3}<description>")
         for kind, value in texts:
             if kind == "p":
